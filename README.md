@@ -2,7 +2,24 @@
 
 **Automatically skip intros, recaps, and outros — and resume playback across all your devices.**
 
+[![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-pending%20review-orange?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.0.0)
+
 A Firefox extension (Desktop & Android) that detects skip segments on any streaming site and syncs your playback position to the cloud via Supabase.
+
+---
+
+## Install
+
+**From Firefox Add-ons (recommended once approved):**
+👉 [addons.mozilla.org/en-US/firefox/addon/skipstream](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
+
+**Manual install (available now):**
+1. [Download the latest release ZIP](../../releases/latest)
+2. Unzip it anywhere on your computer
+3. Open Firefox → go to `about:debugging` → **This Firefox** → **Load Temporary Add-on**
+4. Select `manifest.json` from the unzipped folder
 
 ---
 
@@ -13,19 +30,7 @@ A Firefox extension (Desktop & Android) that detects skip segments on any stream
 - **Cloud sync** — powered by your own Supabase project (free tier works)
 - **Works everywhere** — any site with an HTML5 `<video>` element
 - **SPA-aware** — handles Netflix/Hulu-style single-page navigation
-- **Private** — your credentials never leave your device; sync uses a deterministic anonymous ID derived from your Supabase key
-
----
-
-## Quick Start (Try it now)
-
-No build step needed. Load directly in Firefox:
-
-1. [Download the latest release](../../releases/latest) (`.xpi` for permanent, or unzip for temporary)
-2. **Temporary load** (disappears on restart):
-   - Go to `about:debugging` → **This Firefox** → **Load Temporary Add-on**
-   - Select `manifest.json` from the unzipped folder
-3. **Permanent load** — sign it free via [Mozilla Add-on Hub](https://addons.mozilla.org/developers/) and install the `.xpi`
+- **Private** — credentials never leave your device; sync uses a deterministic anonymous ID
 
 ---
 
@@ -49,34 +54,35 @@ Get a free API key at **[introdb.app](https://introdb.app)**. Without this, the 
 
 ### Optional — TMDB (improves show detection)
 
-Free key at **[themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)**.  
-Used to convert TMDB IDs (found in streaming site URLs) to IMDb IDs for skip-segment lookup.
+Free key at **[themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)**.
 
 ---
 
 ## File Structure
 
 ```
-├── manifest.json              # Extension manifest (MV2, Firefox)
+├── manifest.json              # Extension manifest (MV2, Firefox 140+)
 ├── background.js              # Service worker — API calls, userId derivation
 ├── content-scripts/
 │   └── content.js             # Video detection, skip button, playback sync
 ├── popup.html / popup.js      # Toolbar popup with toggles
 ├── options.html / options.js  # Settings page with live service checks
 ├── icons/                     # Extension icons (16, 48, 128px)
-└── supabase_setup.sql         # One-time DB setup (idempotent, safe to re-run)
+├── supabase_setup.sql         # One-time DB setup (idempotent, safe to re-run)
+├── PRIVACY.md                 # Full privacy policy
+└── TESTING.md                 # Reviewer testing instructions
 ```
 
 ---
 
 ## How it works
 
-1. **Content script** scans every page for `<video>` elements and attaches to any that look like a main player (size threshold, visibility check)
-2. **Show detection** reads IMDb/TMDB IDs from the URL, JSON-LD metadata, data attributes, and page text — with a path-slug + OMDB fallback for sites that don't expose IDs
+1. **Content script** scans every page for `<video>` elements and attaches to any that look like a main player
+2. **Show detection** reads IMDb/TMDB IDs from the URL, JSON-LD metadata, data attributes, and page text
 3. **Segment fetch** asks the background script to hit IntroDB's API (key stays off the page)
-4. **Skip polling** runs every 500ms; shows a dismissable button or auto-skips silently based on your toggle settings
-5. **Playback position** is saved to `browser.storage.local` every 10s and debounced to Supabase every 3s after a seek/pause
-6. **User identity** is a SHA-256 hash of `"skipstream:uid:" + anonKey` — same key on any device = same sync identity, no account needed
+4. **Skip polling** runs every 500ms; shows a skip button or auto-skips based on your toggle settings
+5. **Playback position** is saved to `browser.storage.local` every 10s and synced to Supabase every 3s after a seek/pause
+6. **User identity** is a SHA-256 hash of your Supabase anon key — same key on any device = same sync identity
 
 ---
 
@@ -84,15 +90,13 @@ Used to convert TMDB IDs (found in streaming site URLs) to IMDb IDs for skip-seg
 
 | Browser | Status |
 |---------|--------|
-| Firefox Desktop 91+ | ✅ Fully supported |
-| Firefox Android (Nightly) | ✅ Works via custom add-on collection |
-| Chrome / Edge | ⚠ Not officially supported (MV2 deprecation path differs) |
+| Firefox Desktop 140+ | ✅ Fully supported |
+| Firefox Android 142+ | ✅ Supported |
+| Chrome / Edge | ⚠ Not officially supported |
 
 ---
 
 ## Privacy
 
-- All credentials are stored in `browser.storage.local` — local to your device
-- API calls to IntroDB, TMDB, and OMDB are made from the background script, never from page context
-- Supabase sync uses an anonymous ID — no email, account, or personal data required
-- No telemetry, no analytics, no ads
+All credentials stored locally. Nothing sent to the extension developer. No analytics, no ads.
+See [PRIVACY.md](PRIVACY.md) for full details.
