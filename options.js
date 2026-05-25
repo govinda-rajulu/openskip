@@ -30,7 +30,8 @@ function allChecking() {
 function showAlert(id, type, html) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.innerHTML = html;
+  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+  el.replaceChildren(...doc.body.firstChild.childNodes);
   el.className = `alert ${type} show`;
 }
 
@@ -121,7 +122,7 @@ async function save() {
   }
 
   btn.disabled  = true;
-  btn.innerHTML = '<span class="spinner"></span>Saving…';
+  const sp = document.createElement('span'); sp.className = 'spinner'; btn.replaceChildren(sp, document.createTextNode('Saving…'));
 
   await br.storage.local.set(data);
   try { await br.runtime.sendMessage({ type: 'INVALIDATE_USER_ID' }); } catch { /* ok */ }

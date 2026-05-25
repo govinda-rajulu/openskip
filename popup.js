@@ -51,7 +51,11 @@ async function init() {
 
   if (warnings.length) {
     noConfig.style.display = 'block';
-    noConfig.innerHTML = warnings.join('<br>');
+    noConfig.replaceChildren();
+    warnings.forEach((w, i) => {
+      noConfig.appendChild(document.createTextNode(w));
+      if (i < warnings.length - 1) noConfig.appendChild(document.createElement('br'));
+    });
   }
 
   const parts = [];
