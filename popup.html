@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkipStream</title>
+  <style>
+    :root {
+      --bg-solid: #eef0f5;
+      --glass-bg: rgba(255,255,255,0.45);
+      --glass-border: rgba(255,255,255,0.6);
+      --surface: rgba(255,255,255,0.3);
+      --text: #0f1117;
+      --text-muted: #586070;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --ok: #16a34a;
+      --warn: #b45309;
+      --toggle-off: rgba(0,0,0,0.14);
+      --row-border: rgba(0,0,0,0.07);
+      --shadow: 0 8px 32px rgba(0,0,0,0.10), 0 1.5px 6px rgba(0,0,0,0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-solid: #0c0d12;
+        --glass-bg: rgba(22,24,32,0.72);
+        --glass-border: rgba(255,255,255,0.10);
+        --surface: rgba(255,255,255,0.05);
+        --text: #eef0f5;
+        --text-muted: #7a8494;
+        --ok: #4ade80;
+        --warn: #fbbf24;
+        --toggle-off: rgba(255,255,255,0.13);
+        --row-border: rgba(255,255,255,0.07);
+        --shadow: 0 8px 32px rgba(0,0,0,0.55), 0 1.5px 6px rgba(0,0,0,0.3);
+      }
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { min-height: 100%; background: var(--bg-solid); }
+
+    body {
+      width: 100%;
+      min-width: 260px;
+      max-width: 420px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-solid);
+      color: var(--text);
+      padding: 10px;
+    }
+
+    /* Firefox Android: full-width sidebar */
+    @media (max-width: 340px) {
+      body { max-width: 100%; padding: 8px; }
+    }
+
+    .glass {
+      background: var(--glass-bg);
+      backdrop-filter: blur(18px) saturate(160%);
+      -webkit-backdrop-filter: blur(18px) saturate(160%);
+      border: 1px solid var(--glass-border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 14px 16px 10px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .logo {
+      width: 22px; height: 22px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .badge {
+      font-size: 9px;
+      font-weight: 700;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 4px;
+      padding: 2px 5px;
+      letter-spacing: 0.06em;
+    }
+
+    .options-link {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 4px 6px;
+      border-radius: 6px;
+      transition: color 0.15s, background 0.15s;
+      font-family: inherit;
+    }
+    .options-link:hover { color: var(--accent); background: rgba(37,99,235,0.08); }
+
+    #status {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+    #status.ok   { color: var(--ok); }
+    #status.warn { color: var(--warn); }
+
+    .no-config {
+      font-size: 11px;
+      color: var(--warn);
+      background: rgba(180,83,9,0.09);
+      border: 1px solid rgba(180,83,9,0.22);
+      border-radius: 9px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      line-height: 1.5;
+      display: none;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--row-border);
+      font-size: 13px;
+      gap: 12px;
+    }
+    .row:last-child { border-bottom: none; }
+    .row span { color: var(--text); line-height: 1.3; }
+
+    .toggle { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .slider {
+      position: absolute; inset: 0;
+      background: var(--toggle-off);
+      border-radius: 22px;
+      transition: background 0.2s;
+      cursor: pointer;
+    }
+    .slider::before {
+      content: '';
+      position: absolute;
+      width: 16px; height: 16px;
+      left: 3px; bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.22);
+    }
+    input:checked + .slider { background: var(--accent); }
+    input:checked + .slider::before { transform: translateX(16px); }
+
+    footer {
+      text-align: center;
+      font-size: 10px;
+      color: var(--text-muted);
+      padding: 8px 0 4px;
+      opacity: 0.65;
+    }
+  </style>
+</head>
+<body>
+  <div class="glass">
+    <header>
+      <div class="logo">⏭</div>
+      <h1>SkipStream</h1>
+      <span class="badge">v1</span>
+      <button class="options-link" id="optionsBtn">⚙ Settings</button>
+    </header>
+
+    <div id="noConfig" class="no-config">
+      ⚠ Supabase credentials missing — cloud sync disabled. Configure in Settings.
+    </div>
+    <div id="status">Checking…</div>
+
+    <div class="row">
+      <span>Skip Intros</span>
+      <label class="toggle"><input type="checkbox" id="skipIntro"><span class="slider"></span></label>
+    </div>
+    <div class="row">
+      <span>Skip Recaps</span>
+      <label class="toggle"><input type="checkbox" id="skipRecap"><span class="slider"></span></label>
+    </div>
+    <div class="row">
+      <span>Skip Outros</span>
+      <label class="toggle"><input type="checkbox" id="skipOutro"><span class="slider"></span></label>
+    </div>
+    <div class="row">
+      <span>Resume Playback</span>
+      <label class="toggle"><input type="checkbox" id="resumePlayback"><span class="slider"></span></label>
+    </div>
+  </div>
+  <footer>SkipStream 1.0.0</footer>
+  <script src="popup.js"></script>
+</body>
+</html>
