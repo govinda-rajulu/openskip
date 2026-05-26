@@ -276,7 +276,6 @@
     return titleFromSlug(slug);
   }
 
-  // OMDB title→IMDB fallback — routed through background to keep key off page context
   async function lookupImdbByTitle(title) {
     try {
       const res = await br.runtime.sendMessage({ type: 'OMDB_LOOKUP', title });
@@ -434,30 +433,39 @@
 
   const attachedVideos = new WeakSet();
 
+  // Minimum size: 25% viewport width AND 16:9-compatible height (avoids carousels/thumbnails)
+  function isMainPlayer(video) {
+    const vw = window.innerWidth  || 800;
+    const vh = window.innerHeight || 600;
+    const rect = video.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null; // not laid out yet — defer
+    if (rect.width  < vw * 0.25) return false;
+    if (rect.height < vh * 0.20) return false;
+    // Aspect ratio guard: main players are roughly 4:3 to 21:9
+    const ar = rect.width / rect.height;
+    if (ar < 1.2 || ar > 3.0) return false;
+    const cs = window.getComputedStyle(video);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+    return true;
+  }
+
   async function attachVideo(video) {
     if (attachedVideos.has(video)) return;
 
-    const vw = window.innerWidth || 800;
-    const vh = window.innerHeight || 600;
-    const rect = video.getBoundingClientRect();
-
-    // Defer if layout not yet established (SPA early hydration)
-    if (!rect.width || !rect.height) {
+    const ready = isMainPlayer(video);
+    if (ready === null) {
+      // Layout not established yet — defer to loadedmetadata
       video.addEventListener('loadedmetadata', () => attachVideo(video), { once: true });
       return;
     }
-    if (rect.width < vw * 0.15 || rect.height < vh * 0.12) return;
-    const cs = window.getComputedStyle(video);
-    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return;
+    if (!ready) return;
 
     attachedVideos.add(video);
-
     await restorePlayback(video);
 
-    // Per-video save timer — avoids cross-video timer cancellation
     const saveTimer = { id: null };
-
     let saveInterval = null;
+
     video.addEventListener('play', () => {
       clearInterval(saveInterval);
       saveInterval = setInterval(() => {
@@ -465,13 +473,9 @@
         savePlayback(video, saveTimer);
       }, 10000);
     });
-    video.addEventListener('pause', () => {
-      clearInterval(saveInterval);
-      saveInterval = null;
-      savePlayback(video, saveTimer);
-    });
+    video.addEventListener('pause',  () => { clearInterval(saveInterval); saveInterval = null; savePlayback(video, saveTimer); });
     video.addEventListener('seeked', () => savePlayback(video, saveTimer));
-    window.addEventListener('pagehide', () => savePlayback(video, saveTimer));
+    window.addEventListener('pagehide',     () => savePlayback(video, saveTimer));
     window.addEventListener('beforeunload', () => savePlayback(video, saveTimer));
 
     // ── Segment resolution ──
@@ -483,19 +487,16 @@
       if (resolved) return;
       const info = await resolveShowInfo();
       if (!info.imdbId || !info.season || !info.episode) {
-        console.warn('[SkipStream] Could not identify episode (imdbId/season/episode missing) — skip segments unavailable.');
+        console.warn('[SkipStream] Could not identify episode — skip segments unavailable.');
         return;
       }
       resolved = true;
       segments = await fetchSegments(info.imdbId, info.season, info.episode);
-      if (!segments) {
-        console.warn('[SkipStream] No segment data for', info.imdbId, `S${info.season}E${info.episode}`);
-      }
+      if (!segments) console.warn('[SkipStream] No segment data for', info.imdbId, `S${info.season}E${info.episode}`);
     }
 
     video.addEventListener('loadedmetadata', resolveSegments);
     if (video.readyState >= 1) resolveSegments();
-    // Retry ladder for slow SPA hydration
     [2000, 5000, 10000, 20000].forEach(ms => setTimeout(() => { if (!resolved) resolveSegments(); }, ms));
 
     // ── Skip polling ──
@@ -540,22 +541,31 @@
   new MutationObserver(debouncedScan).observe(document.documentElement, { childList: true, subtree: true });
   window.addEventListener('load', () => setTimeout(scanVideos, 1000));
 
-  // SPA navigation: URL change resets state and re-scans
+  // SPA navigation: intercept pushState/replaceState + popstate (no polling)
   let lastHref = location.href;
-  setInterval(() => {
-    if (location.href !== lastHref) {
-      lastHref = location.href;
-      hideSkipBtn();
-      // Reset userId cache (picks up credential changes mid-session)
-      _userIdFetched = false;
-      _userIdCache = null;
-      // Evict stale segment cache entries for prior URL
-      segmentCache.clear();
-      loadPrefs();
-      setTimeout(scanVideos, 1500);
-      setTimeout(scanVideos, 4000);
-    }
-  }, 800);
+
+  function onNavigation() {
+    if (location.href === lastHref) return;
+    lastHref = location.href;
+    hideSkipBtn();
+    _userIdFetched = false;
+    _userIdCache = null;
+    segmentCache.clear();
+    loadPrefs();
+    setTimeout(scanVideos, 1500);
+    setTimeout(scanVideos, 4000);
+  }
+
+  window.addEventListener('popstate', onNavigation);
+
+  // Intercept history.pushState and history.replaceState for SPA frameworks
+  for (const method of ['pushState', 'replaceState']) {
+    const original = history[method];
+    history[method] = function (...args) {
+      original.apply(this, args);
+      onNavigation();
+    };
+  }
 
   // ── Boot ───────────────────────────────────────────────────────────────────
   loadPrefs().then(scanVideos);
