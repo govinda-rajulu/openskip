@@ -1,12 +1,13 @@
 {
   "manifest_version": 2,
   "name": "SkipStream",
-  "description": "Automatically skip intros, recaps, and outros — and resume playback across all your devices.",
+  "description": "Automatically skip intros, recaps, and outros \u2014 and resume playback across all your devices.",
   "version": "1.1.0",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
-    "128": "icons/icon-128.png"
+    "128": "icons/icon-128.png",
+    "32": "icons/icon-32.png"
   },
   "permissions": [
     "storage",
@@ -14,7 +15,9 @@
   ],
   "content_security_policy": "script-src 'self'; object-src 'self'",
   "background": {
-    "scripts": ["background.js"],
+    "scripts": [
+      "background.js"
+    ],
     "persistent": false
   },
   "browser_action": {
@@ -22,7 +25,8 @@
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
-      "48": "icons/icon-48.png"
+      "48": "icons/icon-48.png",
+      "32": "icons/icon-32.png"
     }
   },
   "options_ui": {
@@ -31,10 +35,14 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "<all_urls>"
+      ],
       "all_frames": true,
       "run_at": "document_idle",
-      "js": ["content-scripts/content.js"]
+      "js": [
+        "content-scripts/content.js"
+      ]
     }
   ],
   "browser_specific_settings": {
@@ -42,8 +50,12 @@
       "id": "skipstream@extension",
       "strict_min_version": "140.0",
       "data_collection_permissions": {
-        "required": ["none"],
-        "optional": ["technicalAndInteraction"]
+        "required": [
+          "none"
+        ],
+        "optional": [
+          "technicalAndInteraction"
+        ]
       }
     },
     "gecko_android": {
