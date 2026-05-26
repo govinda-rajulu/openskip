@@ -4,7 +4,7 @@
 
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-pending%20review-orange?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.0.0)
+[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.1.0)
 
 A Firefox extension (Desktop & Android) that detects skip segments on any streaming site and syncs your playback position to the cloud via Supabase.
 
@@ -31,6 +31,8 @@ A Firefox extension (Desktop & Android) that detects skip segments on any stream
 - **Works everywhere** — any site with an HTML5 `<video>` element
 - **SPA-aware** — handles Netflix/Hulu-style single-page navigation
 - **Private** — credentials never leave your device; sync uses a deterministic anonymous ID
+- **Reliable** — exponential backoff retry logic for flaky connections
+- **Lightweight** — no frameworks, no build step, ~15KB of plain JavaScript
 
 ---
 
@@ -56,33 +58,41 @@ Get a free API key at **[introdb.app](https://introdb.app)**. Without this, the 
 
 Free key at **[themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)**.
 
+### Optional — OMDB (last-resort show detection)
+
+Free key at **[omdbapi.com](https://www.omdbapi.com)**. A demo key is available for testing, but you can provide your own for production use.
+
 ---
 
 ## File Structure
 
 ```
 ├── manifest.json              # Extension manifest (MV2, Firefox 140+)
-├── background.js              # Service worker — API calls, userId derivation
+├── background.js              # Service worker — API calls, retry logic, userId derivation
 ├── content-scripts/
-│   └── content.js             # Video detection, skip button, playback sync
+│   └── content.js             # Video detection, skip button, playback sync, SPA navigation
 ├── popup.html / popup.js      # Toolbar popup with toggles
 ├── options.html / options.js  # Settings page with live service checks
 ├── icons/                     # Extension icons (16, 48, 128px)
 ├── supabase_setup.sql         # One-time DB setup (idempotent, safe to re-run)
+├── CONTRIBUTING.md            # Contributing guidelines
 ├── PRIVACY.md                 # Full privacy policy
-└── TESTING.md                 # Reviewer testing instructions
+├── TESTING.md                 # Reviewer testing instructions
+└── .github/workflows/validate.yml # CI/CD validation
 ```
 
 ---
 
 ## How it works
 
-1. **Content script** scans every page for `<video>` elements and attaches to any that look like a main player
+1. **Content script** scans every page for `<video>` elements and attaches to main players (size + aspect ratio filtering)
 2. **Show detection** reads IMDb/TMDB IDs from the URL, JSON-LD metadata, data attributes, and page text
 3. **Segment fetch** asks the background script to hit IntroDB's API (key stays off the page)
 4. **Skip polling** runs every 500ms; shows a skip button or auto-skips based on your toggle settings
 5. **Playback position** is saved to `browser.storage.local` every 10s and synced to Supabase every 3s after a seek/pause
 6. **User identity** is a SHA-256 hash of your Supabase anon key — same key on any device = same sync identity
+7. **SPA navigation** is detected via popstate + history.pushState/replaceState interception, not polling
+8. **Retry logic** automatically handles transient failures with exponential backoff (1s, 2s, 4s delays)
 
 ---
 
@@ -92,7 +102,7 @@ Free key at **[themoviedb.org/settings/api](https://www.themoviedb.org/settings/
 |---------|--------|
 | Firefox Desktop 140+ | ✅ Fully supported |
 | Firefox Android 142+ | ✅ Supported |
-| Chrome / Edge | ⚠ Not officially supported |
+| Chrome / Edge | ⚠ Not officially supported (MV2 only) |
 
 ---
 
@@ -100,3 +110,9 @@ Free key at **[themoviedb.org/settings/api](https://www.themoviedb.org/settings/
 
 All credentials stored locally. Nothing sent to the extension developer. No analytics, no ads.
 See [PRIVACY.md](PRIVACY.md) for full details.
+
+---
+
+## Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and code guidelines.
