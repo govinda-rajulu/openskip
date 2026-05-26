@@ -1,0 +1,75 @@
+name: Bug Report
+description: Something isn't working correctly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a bug!
+
+  - type: input
+    id: site
+    attributes:
+      label: Affected site
+      description: Which streaming site does this happen on?
+      placeholder: e.g. netflix.com, crunchyroll.com
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: What is broken?
+      options:
+        - Skip button not appearing
+        - Skip button appears but doesn't skip
+        - Wrong show/episode detected
+        - Playback not resuming
+        - Settings not saving
+        - Cloud sync not working
+        - Extension crashes / errors
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Play episode ...
+        3. See that ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: input
+    id: firefox_version
+    attributes:
+      label: Firefox version
+      placeholder: e.g. 140.0
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: services
+    attributes:
+      label: Configured services (tick all that apply)
+      options:
+        - label: IntroDB API key set
+        - label: Supabase configured
+        - label: TMDB API key set
+        - label: OMDB API key set
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Browser console output (optional)
+      description: Open DevTools → Console, filter by "SkipStream", paste any warnings/errors
+      render: text
