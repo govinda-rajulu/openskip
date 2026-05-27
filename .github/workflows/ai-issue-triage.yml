@@ -11,96 +11,117 @@ jobs:
       issues: write
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Analyze issue with Gemini
-        id: ai
+      - name: Triage with Gemini
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
+          GH_OUTPUT: ${{ github.output }}
         run: |
-          python3 - << 'PYEOF'
-          import os, json, urllib.request
+          python3 << 'PYEOF'
+          import os, json, urllib.request, urllib.error, time
 
-          api_key = os.environ.get("GEMINI_API_KEY", "")
-          title   = os.environ.get("ISSUE_TITLE", "")
-          body    = os.environ.get("ISSUE_BODY", "")
+          api_key = os.environ.get("GEMINI_API_KEY","")
+          title   = os.environ.get("ISSUE_TITLE","")
+          body    = os.environ.get("ISSUE_BODY","")
+          out     = os.environ.get("GITHUB_OUTPUT","")
+
+          def write_out(val):
+              if out:
+                  open(out,"a").write(f"result={val}\n")
 
           if not api_key:
-              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                  f.write("result=NO_KEY\n")
+              write_out("NO_KEY")
               exit(0)
 
           prompt = (
-              "You are reviewing issues for SkipStream — a Firefox extension that skips intros/recaps/outros "
-              "on streaming sites (IntroDB API) and syncs playback via user-owned Supabase. "
-              "Plain JavaScript, MV2, no build step. Key rules: no localStorage in content script, "
-              "no fetch() in content script (must go via background.js), no innerHTML, no console.log.\n\n"
-              "Respond ONLY with valid JSON (no markdown):\n"
-              '{"type":"bug|feature|question|docs","priority":"high|medium|low",'
-              '"component":"content-script|background|options|popup|supabase|ci|other",'
-              '"summary":"one sentence","suggestion":"specific fix approach","needs_ai_fix":true}\n\n'
+              "You are reviewing GitHub issues for SkipStream — a Firefox browser extension. "
+              "It skips intros/recaps/outros on any streaming site (via IntroDB API) and syncs "
+              "playback position across devices via user-owned Supabase. Plain JavaScript, MV2, no build step.\n\n"
+              "Architecture rules (violations = bugs): no localStorage in content script, "
+              "no fetch() in content script (all API calls via background.js), "
+              "no innerHTML, no console.log, userId=SHA256 of Supabase anon key.\n\n"
+              "Respond ONLY with a valid JSON object, no markdown fences:\n"
+              '{"type":"bug","priority":"high","component":"content-script",'
+              '"summary":"one sentence analysis","suggestion":"specific actionable fix","needs_ai_fix":true}\n\n'
               f"Issue title: {title}\nIssue body: {body}"
           )
 
-          payload = {
-              "contents": [{"parts": [{"text": prompt}]}],
-              "generationConfig": {"temperature": 0.1, "maxOutputTokens": 400}
-          }
+          payload = json.dumps({
+              "contents":[{"parts":[{"text":prompt}]}],
+              "generationConfig":{"temperature":0.1,"maxOutputTokens":400}
+          }).encode()
+
+          url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+
+          data = None
+          for attempt in range(4):
+              try:
+                  req = urllib.request.Request(url, data=payload, headers={"Content-Type":"application/json"}, method="POST")
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      data = json.load(r)
+                  break
+              except urllib.error.HTTPError as e:
+                  if e.code == 429:
+                      wait = 30 * (attempt + 1)  # 30, 60, 90, 120s
+                      print(f"Rate limited, waiting {wait}s (attempt {attempt+1}/4)...")
+                      time.sleep(wait)
+                  else:
+                      write_out(f"ERROR:HTTP{e.code}")
+                      exit(0)
+              except Exception as e:
+                  write_out(f"ERROR:{e}")
+                  exit(0)
+
+          if data is None:
+              write_out("ERROR:RATE_LIMITED_ALL_RETRIES")
+              exit(0)
 
           try:
-              req = urllib.request.Request(
-                  f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
-                  data=json.dumps(payload).encode(),
-                  headers={"Content-Type": "application/json"},
-                  method="POST"
-              )
-              import time as _time
-              for _attempt in range(3):
-                  try:
-                      with urllib.request.urlopen(req, timeout=30) as r:
-                          data = json.load(r)
-                      break
-                  except urllib.error.HTTPError as _e:
-                      if _e.code == 429 and _attempt < 2:
-                          _time.sleep(30 * (_attempt + 1))
-                          continue
-                      raise
-                  text = data["candidates"][0]["content"]["parts"][0]["text"]
-                  text = text.strip().strip("```json").strip("```").strip()
-                  result = json.loads(text)
-                  with open("/tmp/ai_result.json", "w") as f:
-                      json.dump(result, f)
-                  with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                      f.write("result=OK\n")
+              text = data["candidates"][0]["content"]["parts"][0]["text"]
+              text = text.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+              result = json.loads(text)
+              json.dump(result, open("/tmp/ai_result.json","w"))
+              write_out("OK")
           except Exception as e:
-              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                  f.write(f"result=ERROR:{e}\n")
+              write_out(f"ERROR:PARSE:{e}")
           PYEOF
 
-      - name: Post triage comment
+      - name: Post comment
         uses: actions/github-script@v7
-        env:
-          AI_STATUS: ${{ steps.ai.outputs.result }}
         with:
           script: |
             const fs = require('fs');
-            const status = process.env.AI_STATUS || '';
-            let comment = '';
+            const status = '${{ steps.triage.outputs.result }}' || 
+                           (fs.existsSync('/tmp/ai_status') ? fs.readFileSync('/tmp/ai_status','utf8').trim() : 'UNKNOWN');
+            let body = '';
 
-            if (status === 'OK') {
-              const result = JSON.parse(fs.readFileSync('/tmp/ai_result.json', 'utf8'));
-              const typeEmoji  = {bug:'🐛',feature:'✨',question:'❓',docs:'📝'}[result.type] || '🔍';
-              const prioEmoji  = {high:'🔴',medium:'🟡',low:'🟢'}[result.priority] || '⚪';
-              comment = `## 🤖 AI Triage\n\n**Type:** ${typeEmoji} ${result.type} &nbsp; **Priority:** ${prioEmoji} ${result.priority} &nbsp; **Component:** \`${result.component}\`\n\n**Analysis:** ${result.summary}\n\n**Suggestion:** ${result.suggestion}\n\n---\n${result.needs_ai_fix ? '> 💡 Add the `ai-fix` label to have the AI attempt a pull request.' : '> ℹ️ This may need manual discussion first.'}\n\n*Powered by Gemini 2.0 Flash — verify before acting.*`;
-            } else {
-              comment = `## 🤖 AI Triage\n\n_Triage unavailable (${status}). Manual review needed._`;
+            // Read status from env output
+            const envStatus = process.env.RESULT_STATUS || '';
+
+            try {
+              if (fs.existsSync('/tmp/ai_result.json')) {
+                const r = JSON.parse(fs.readFileSync('/tmp/ai_result.json','utf8'));
+                const te = {bug:'🐛',feature:'✨',question:'❓',docs:'📝'}[r.type]||'🔍';
+                const pe = {high:'🔴',medium:'🟡',low:'🟢'}[r.priority]||'⚪';
+                body = `## 🤖 AI Triage\n\n`+
+                  `**Type:** ${te} ${r.type} &nbsp;|&nbsp; **Priority:** ${pe} ${r.priority} &nbsp;|&nbsp; **Component:** \`${r.component}\`\n\n`+
+                  `**Analysis:** ${r.summary}\n\n`+
+                  `**Suggestion:** ${r.suggestion}\n\n---\n`+
+                  (r.needs_ai_fix
+                    ? `> 💡 Looks automatable — add the \`ai-fix\` label to have the AI open a PR.`
+                    : `> ℹ️ Needs discussion before automated fix.`)+
+                  `\n\n*Gemini 2.0 Flash — verify before acting.*`;
+              } else {
+                body = `## 🤖 AI Triage\n\n_Triage unavailable — AI did not return a result. Manual review needed._`;
+              }
+            } catch(e) {
+              body = `## 🤖 AI Triage\n\n_Parse error: ${e.message}. Manual review needed._`;
             }
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: comment
+              body
             });
