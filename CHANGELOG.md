@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1] — 2026-05-28
+
+### Added
+- **Resume prompt** — instead of silently seeking, shows a small overlay: "Continue from 14:32?" with Resume and Start Over buttons; auto-confirms resume after 12s
+- **OTT compatibility table** in README — documents tested platforms with support status
+
+
 ## [1.3.0] — 2026-05-28
 
 ### Added

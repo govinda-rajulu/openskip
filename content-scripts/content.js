@@ -121,6 +121,78 @@
     }, 3000);
   }
 
+  function fmtTime(s) {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = Math.floor(s % 60);
+    return h ? `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}` : `${m}:${String(ss).padStart(2,'0')}`;
+  }
+
+  function showResumePrompt(video, position) {
+    const existing = document.getElementById('skipstream-resume-prompt');
+    if (existing) existing.remove();
+
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    const container = fsEl || document.body || document.documentElement;
+
+    const prompt = document.createElement('div');
+    prompt.id = 'skipstream-resume-prompt';
+    Object.assign(prompt.style, {
+      all: 'unset', position: fsEl ? 'absolute' : 'fixed',
+      top: '12%', left: '50%', transform: 'translateX(-50%)',
+      zIndex: '2147483647', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', gap: '10px',
+      background: 'rgba(10,10,18,0.92)', color: '#fff',
+      border: '1.5px solid rgba(255,255,255,0.18)', borderRadius: '12px',
+      padding: '14px 20px', boxShadow: '0 4px 32px rgba(0,0,0,0.7)',
+      backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+      fontFamily: 'system-ui,-apple-system,sans-serif', textAlign: 'center',
+      pointerEvents: 'auto',
+    });
+
+    const msg = document.createElement('div');
+    msg.style.cssText = 'font-size:13px;font-weight:600;line-height:1.4';
+    msg.textContent = `Resume from ${fmtTime(position)}?`;
+
+    const btns = document.createElement('div');
+    btns.style.cssText = 'display:flex;gap:8px';
+
+    const makeBtn = (label, primary, onClick) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      Object.assign(b.style, {
+        all: 'unset', cursor: 'pointer', padding: '7px 16px',
+        borderRadius: '8px', fontSize: '12px', fontWeight: '700',
+        fontFamily: 'inherit',
+        background: primary ? 'rgba(37,99,235,0.95)' : 'rgba(255,255,255,0.12)',
+        color: '#fff', border: '1px solid rgba(255,255,255,0.2)',
+        transition: 'background .15s',
+      });
+      b.onmouseover = () => { b.style.background = primary ? '#1d4ed8' : 'rgba(255,255,255,0.2)'; };
+      b.onmouseout  = () => { b.style.background = primary ? 'rgba(37,99,235,0.95)' : 'rgba(255,255,255,0.12)'; };
+      b.onclick = e => { e.preventDefault(); e.stopPropagation(); onClick(); prompt.remove(); };
+      return b;
+    };
+
+    btns.appendChild(makeBtn(`▶ Continue from ${fmtTime(position)}`, true, () => {
+      try { if (video.isConnected) video.currentTime = position; } catch { /* ok */ }
+    }));
+    btns.appendChild(makeBtn('↩ Start over', false, () => {
+      try { if (video.isConnected) video.currentTime = 0; } catch { /* ok */ }
+    }));
+
+    prompt.appendChild(msg);
+    prompt.appendChild(btns);
+    container.appendChild(prompt);
+
+    // Auto-dismiss after 12s
+    setTimeout(() => {
+      if (prompt.isConnected) {
+        // Default: resume (most likely intent)
+        try { if (video.isConnected) video.currentTime = position; } catch { /* ok */ }
+        prompt.remove();
+      }
+    }, 12000);
+  }
+
   async function restorePlayback(video) {
     if (!prefs.resumePlayback) return;
     const mediaId = getMediaId();
@@ -137,12 +209,10 @@
     if (!saved) saved = await cacheRead(mediaId);
     if (!saved || saved.p < 10 || (saved.d && saved.p / saved.d > 0.95)) return;
 
-    const seek = () => {
-      try {
-        if (video.duration && saved.p < video.duration * 0.95) video.currentTime = saved.p;
-      } catch { /* cross-origin or unmounted */ }
+    const doPrompt = () => {
+      try { showResumePrompt(video, saved.p); } catch { /* ok */ }
     };
-    video.readyState >= 1 ? seek() : video.addEventListener('loadedmetadata', seek, { once: true });
+    video.readyState >= 1 ? doPrompt() : video.addEventListener('loadedmetadata', doPrompt, { once: true });
   }
 
   // ── Show / episode detection ───────────────────────────────────────────────

@@ -64,6 +64,29 @@ Free key at **[omdbapi.com](https://www.omdbapi.com)**. A demo key is available 
 
 ---
 
+
+## Site Compatibility
+
+Tested across major streaming platforms. Results based on video detection, show identification, and skip segment availability.
+
+| Site | Video Detected | Show ID | Skip Segments | Resume | Notes |
+|------|---------------|---------|---------------|--------|-------|
+| YouTube | ✅ | ✅ | ⚠ IntroDB limited | ✅ | `?t=` deep-link supported |
+| Plex (app.plex.tv) | ✅ | ✅ | ✅ | ✅ | TMDB IDs in URL |
+| Jellyfin | ✅ | ✅ | ✅ | ✅ | IMDb IDs in metadata |
+| Crunchyroll | ✅ | ✅ | ✅ via AnimeSkip | ✅ | Anime: use AnimeSkip toggle |
+| Emby | ✅ | ✅ | ✅ | ✅ | Similar to Jellyfin |
+| Netflix | ⚠ | ⚠ | ⚠ | ⚠ | DRM player; detection inconsistent |
+| Amazon Prime | ⚠ | ⚠ | ⚠ | ⚠ | Obfuscated player |
+| Disney+ | ⚠ | ❌ | ❌ | ⚠ | Heavy DRM; no IMDb IDs exposed |
+| Hulu | ⚠ | ⚠ | ⚠ | ⚠ | SPA works; segment data limited |
+| HBO Max / Max | ⚠ | ⚠ | ⚠ | ⚠ | Player detection works; IDs vary |
+| Apple TV+ | ❌ | ❌ | ❌ | ❌ | Proprietary player, no accessible metadata |
+
+**Legend:** ✅ Works · ⚠ Partial / inconsistent · ❌ Not supported
+
+> **Best results** on self-hosted platforms (Plex, Jellyfin, Emby) and Crunchyroll. DRM-heavy commercial platforms (Netflix, Disney+, Apple TV+) have limited support due to obfuscated players and no accessible metadata. Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## File Structure
 
 ```
