@@ -1,0 +1,60 @@
+name: PR Review Checklist
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  checklist:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JS syntax check
+        run: |
+          for f in background.js options.js popup.js content-scripts/content.js; do
+            [ -f "$f" ] && node --check "$f" && echo "✅ $f OK"
+          done
+
+      - name: Security checks
+        run: |
+          FAIL=0
+          if grep -rn 'innerHTML' background.js options.js popup.js content-scripts/ 2>/dev/null | grep -v '//.*innerHTML'; then
+            echo "❌ innerHTML found"; FAIL=1
+          fi
+          if grep -rn 'console\.log' background.js options.js popup.js content-scripts/ 2>/dev/null | grep -v '^\s*//'; then
+            echo "❌ console.log found"; FAIL=1
+          fi
+          if grep -n 'localStorage' content-scripts/content.js 2>/dev/null | grep -v '//.*localStorage'; then
+            echo "❌ localStorage in content script"; FAIL=1
+          fi
+          [ $FAIL -eq 1 ] && exit 1
+          echo "✅ Security checks passed"
+
+      - name: Validate manifest
+        run: |
+          python3 -c "
+          import json
+          m = json.load(open('manifest.json'))
+          assert 'tabs' not in m.get('permissions',[]), 'tabs permission must not be present'
+          assert 'activeTab' not in m.get('permissions',[]), 'activeTab must not be present'
+          assert 'content_security_policy' in m, 'CSP missing'
+          gecko = m['browser_specific_settings']['gecko']
+          assert 'data_collection_permissions' in gecko
+          assert len(gecko['data_collection_permissions']['required']) >= 1
+          print('✅ manifest.json valid')
+          "
+
+      - name: Post summary comment
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: '## SkipStream Auto-Review ✅\n\nCI checks ran. Review the **Checks** tab above for details.\n\n**Before merging, verify manually:**\n- [ ] Tested in Firefox (about:debugging → Load Temporary Add-on)\n- [ ] No API keys or credentials in code\n- [ ] `CHANGELOG.md` updated if this is a user-facing change\n- [ ] If manifest changed — re-validate with AMO validator'
+            });
