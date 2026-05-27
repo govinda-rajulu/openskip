@@ -1,0 +1,200 @@
+name: AI Fix → Pull Request
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  create-fix-pr:
+    if: github.event.label.name == 'ai-fix'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build repo context for AI
+        run: |
+          # Collect all JS source files into a single context file
+          echo "=== manifest.json ===" > /tmp/repo_context.txt
+          cat manifest.json >> /tmp/repo_context.txt
+          echo "" >> /tmp/repo_context.txt
+
+          for f in background.js content-scripts/content.js options.js popup.js; do
+            echo "=== $f ===" >> /tmp/repo_context.txt
+            cat "$f" >> /tmp/repo_context.txt
+            echo "" >> /tmp/repo_context.txt
+          done
+
+          echo "Context size: $(wc -c < /tmp/repo_context.txt) bytes"
+
+      - name: Generate fix with Gemini
+        id: fix
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, urllib.request
+
+          api_key = os.environ["GEMINI_API_KEY"]
+          issue_title = """${{ github.event.issue.title }}"""
+          issue_body  = """${{ github.event.issue.body }}"""
+          issue_num   = "${{ github.event.issue.number }}"
+
+          with open("/tmp/repo_context.txt") as f:
+              repo_context = f.read()
+
+          prompt = f"""You are fixing a bug or implementing a feature for SkipStream, a Firefox browser extension.
+
+          STRICT ARCHITECTURE RULES — you MUST follow these or the CI will reject the code:
+          1. NEVER use localStorage in content-scripts/content.js — only browser.storage.local
+          2. NEVER use fetch() in content-scripts/content.js — all API calls go through background.js via runtime.sendMessage
+          3. NEVER use innerHTML — use DOM API: createElement, textContent, replaceChildren
+          4. NEVER use console.log — only console.warn for diagnostics
+          5. userId MUST be SHA-256 hash of "skipstream:uid:" + supabaseAnonKey — never random
+          6. SPA nav MUST use pushState/replaceState intercept + popstate — no setInterval polling
+          7. Video detection thresholds: 25% width, 20% height, aspect ratio 1.2–3.0
+
+          ISSUE #{issue_num}: {issue_title}
+          {issue_body}
+
+          CURRENT CODEBASE:
+          {repo_context[:60000]}
+
+          Respond with ONLY a JSON array of file changes (no markdown, no explanation):
+          [
+            {{
+              "filename": "path/to/file.js",
+              "content": "complete new file content here",
+              "description": "what changed and why"
+            }}
+          ]
+
+          Rules for your response:
+          - Only include files that actually need to change
+          - Always write the COMPLETE file content, not just the changed part
+          - If you cannot safely fix this, return: [{{"filename": "", "content": "", "description": "CANNOT_FIX: reason"}}]
+          """
+
+          payload = {
+              "contents": [{"parts": [{"text": prompt}]}],
+              "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192}
+          }
+
+          req = urllib.request.Request(
+              f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
+              data=json.dumps(payload).encode(),
+              headers={"Content-Type": "application/json"},
+              method="POST"
+          )
+
+          with urllib.request.urlopen(req) as r:
+              data = json.load(r)
+              text = data["candidates"][0]["content"]["parts"][0]["text"]
+              text = text.strip().strip("```json").strip("```").strip()
+
+              with open("/tmp/ai_fix.json", "w") as f:
+                  f.write(text)
+              print("Gemini response saved")
+          PYEOF
+
+      - name: Apply fix and open PR
+        uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        with:
+          script: |
+            const fs = require('fs');
+            const issueNum = process.env.ISSUE_NUMBER;
+            const issueTitle = process.env.ISSUE_TITLE;
+
+            let fixes;
+            try {
+              fixes = JSON.parse(fs.readFileSync('/tmp/ai_fix.json', 'utf8'));
+            } catch(e) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: parseInt(issueNum),
+                body: `## 🤖 AI Fix Failed\n\nCould not parse AI response. Manual fix needed.\n\nError: ${e.message}`
+              });
+              return;
+            }
+
+            // Check if AI said it can't fix this
+            if (!fixes[0].filename) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: parseInt(issueNum),
+                body: `## 🤖 AI Fix — Manual Review Required\n\n${fixes[0].description}\n\nThis issue needs human attention before an automated fix is safe.`
+              });
+              return;
+            }
+
+            // Create branch
+            const branch = `ai-fix/issue-${issueNum}`;
+            const { data: ref } = await github.rest.git.getRef({
+              owner: context.repo.owner, repo: context.repo.repo,
+              ref: 'heads/main'
+            });
+
+            try {
+              await github.rest.git.createRef({
+                owner: context.repo.owner, repo: context.repo.repo,
+                ref: `refs/heads/${branch}`, sha: ref.object.sha
+              });
+            } catch(e) {
+              // Branch exists — delete and recreate
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner, repo: context.repo.repo,
+                ref: `heads/${branch}`
+              });
+              await github.rest.git.createRef({
+                owner: context.repo.owner, repo: context.repo.repo,
+                ref: `refs/heads/${branch}`, sha: ref.object.sha
+              });
+            }
+
+            // Apply each file change
+            const fileList = [];
+            for (const fix of fixes) {
+              if (!fix.filename || !fix.content) continue;
+
+              // Get current file SHA if it exists
+              let fileSha;
+              try {
+                const { data: existing } = await github.rest.repos.getContent({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  path: fix.filename, ref: branch
+                });
+                fileSha = existing.sha;
+              } catch(e) { /* new file */ }
+
+              const encoded = Buffer.from(fix.content).toString('base64');
+              await github.rest.repos.createOrUpdateFileContents({
+                owner: context.repo.owner, repo: context.repo.repo,
+                path: fix.filename,
+                message: `fix: ${fix.description.slice(0, 72)}`,
+                content: encoded,
+                branch,
+                ...(fileSha ? { sha: fileSha } : {})
+              });
+              fileList.push(`- \`${fix.filename}\`: ${fix.description}`);
+            }
+
+            // Open PR
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner, repo: context.repo.repo,
+              title: `🤖 AI fix: ${issueTitle}`,
+              head: branch, base: 'main',
+              body: `Closes #${issueNum}\n\n## Changes made\n${fileList.join('\n')}\n\n---\n⚠️ **Review carefully before merging.** CI will run automatically. Check:\n- [ ] No localStorage in content script\n- [ ] No innerHTML usage\n- [ ] No console.log\n- [ ] Logic makes sense for the issue\n- [ ] Tested manually in Firefox`
+            });
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: parseInt(issueNum),
+              body: `## 🤖 AI Fix PR Created\n\nPR #${pr.number} is ready for your review: ${pr.html_url}\n\nCI is running automatically. Please test in Firefox before merging.`
+            });
