@@ -3,8 +3,8 @@
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
-const TOGGLES  = ['skipIntro', 'skipRecap', 'skipOutro', 'resumePlayback'];
-const DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true };
+const TOGGLES  = ['skipIntro', 'skipRecap', 'skipOutro', 'resumePlayback', 'addSegment'];
+const DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, addSegment: false };
 
 async function loadPrefs() {
   const stored = await br.storage.local.get(TOGGLES);

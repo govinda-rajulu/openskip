@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.2.0] — 2026-05-27
+
+### Fixed
+- Skip button now visible in fullscreen mode — attaches to fullscreen element, repositions on fullscreen toggle
+- Auto-hide timer resets on mouse movement near button — no more disappearing while hovering
+- Button positioning changed from hardcoded px to viewport-relative % (10% bottom, 3% right) for consistency across screen sizes
+
+### Added
+- **Add Missing Segments** toggle in popup — lets users report undetected intros to IntroDB
+- Popup sections grouped: **Skip Segments** and **Playback** with labels
+- Real icon shown in popup header instead of emoji placeholder
+- Version badge updated to v1.2
+
+### Changed
+- Popup width tightened to 280px, cleaner layout
+- Row labels support subtitle text (used for Add Segment description)
+
+
 ## [1.1.0] — 2026-05-26
 
 ### Summary

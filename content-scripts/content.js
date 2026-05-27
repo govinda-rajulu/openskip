@@ -13,7 +13,7 @@
 
   // ── User prefs ─────────────────────────────────────────────────────────────
 
-  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true };
+  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, addSegment: false };
   let prefs = { ...PREF_DEFAULTS };
 
   async function loadPrefs() {
@@ -363,11 +363,17 @@
     btn.id = SKIP_BTN_ID;
     btn.setAttribute('data-skipstream-btn', '1');
     btn.textContent = label;
+    // Attach to fullscreen element if active, else document body
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    const container = fsEl || document.body || document.documentElement;
+
+    // Position relative to viewport; ensure visible in fullscreen
+    const isFs = !!fsEl;
     Object.assign(btn.style, {
       all: 'unset',
-      position: 'fixed',
-      bottom: '88px',
-      right: '28px',
+      position: isFs ? 'absolute' : 'fixed',
+      bottom: '10%',
+      right: '3%',
       zIndex: '2147483647',
       display: 'inline-flex',
       alignItems: 'center',
@@ -392,9 +398,24 @@
     btn.onmouseover = () => { btn.style.background = 'rgba(37,99,235,0.95)'; btn.style.transform = 'scale(1.04)'; };
     btn.onmouseout  = () => { btn.style.background = 'rgba(10,10,18,0.88)'; btn.style.transform = 'scale(1)'; };
     btn.onclick = e => { e.preventDefault(); e.stopPropagation(); onSkip(); removeSkipBtn(); };
-    const target = document.body || document.documentElement;
-    target.appendChild(btn);
-    btnAutoHideTimer = setTimeout(removeSkipBtn, 8000);
+    container.appendChild(btn);
+
+    // Re-anchor if user enters/exits fullscreen while button is visible
+    const onFsChange = () => {
+      if (document.getElementById(SKIP_BTN_ID)) {
+        const newFs = document.fullscreenElement || document.webkitFullscreenElement;
+        btn.style.position = newFs ? 'absolute' : 'fixed';
+        (newFs || document.body || document.documentElement).appendChild(btn);
+      }
+    };
+    document.addEventListener('fullscreenchange', onFsChange, { once: true });
+    document.addEventListener('webkitfullscreenchange', onFsChange, { once: true });
+
+    // Auto-hide: reset timer on mousemove near button
+    let _moved = false;
+    const _onMove = () => { _moved = true; clearTimeout(btnAutoHideTimer); btnAutoHideTimer = setTimeout(removeSkipBtn, 8000); };
+    document.addEventListener('mousemove', _onMove, { passive: true });
+    btnAutoHideTimer = setTimeout(() => { document.removeEventListener('mousemove', _onMove); removeSkipBtn(); }, 8000);
   }
 
   function showSkipBtn(label, onSkip) {
