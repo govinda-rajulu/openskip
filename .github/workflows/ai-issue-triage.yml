@@ -56,8 +56,17 @@ jobs:
                   headers={"Content-Type": "application/json"},
                   method="POST"
               )
-              with urllib.request.urlopen(req, timeout=30) as r:
-                  data = json.load(r)
+              import time as _time
+              for _attempt in range(3):
+                  try:
+                      with urllib.request.urlopen(req, timeout=30) as r:
+                          data = json.load(r)
+                      break
+                  except urllib.error.HTTPError as _e:
+                      if _e.code == 429 and _attempt < 2:
+                          _time.sleep(30 * (_attempt + 1))
+                          continue
+                      raise
                   text = data["candidates"][0]["content"]["parts"][0]["text"]
                   text = text.strip().strip("```json").strip("```").strip()
                   result = json.loads(text)
