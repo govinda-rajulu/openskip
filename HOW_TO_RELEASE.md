@@ -68,3 +68,47 @@ Write detailed issues — the more specific, the better the AI can handle it:
 **Bad issue:**
 > skip not working
 
+
+---
+
+## Using the AI agent (after Gemini key is added)
+
+### Step 1 — Get a free Gemini API key
+1. Go to **aistudio.google.com** → sign in with Google
+2. Click **Get API key** → **Create API key**
+3. Copy the key
+
+### Step 2 — Add it to your repo
+1. Go to your repo → **Settings** → **Secrets and variables** → **Actions**
+2. Click **New repository secret**
+3. Name: `GEMINI_API_KEY` → paste your key → Save
+
+### Step 3 — The full AI workflow
+```
+You open an issue (from phone, describe bug or feature)
+         ↓
+AI reads it, posts analysis: type / priority / component / suggestion
+         ↓
+If it looks fixable: add label "ai-fix"
+         ↓
+AI reads full codebase, writes fix, opens PR automatically
+         ↓
+CI runs on the PR (syntax, security, manifest checks)
+         ↓
+You review the PR — read the diff, check CI is green
+         ↓
+Merge → done
+```
+
+### Workflows summary (all 6 active)
+
+| Workflow | Triggers | What it does |
+|----------|----------|-------------|
+| `validate.yml` | Every push | Syntax, manifest, security, builds ZIP |
+| `pr-check.yml` | Every PR | Same checks + posts review checklist |
+| `auto-label.yml` | New issue | Labels by keyword automatically |
+| `release.yml` | `v*` tag push | Validates, builds ZIP, attaches to release |
+| `codeql.yml` | Push/PR/weekly | Security vulnerability scanning |
+| `ai-issue-triage.yml` | New issue | Gemini analyzes and comments |
+| `ai-fix-pr.yml` | `ai-fix` label added | Gemini writes fix, opens PR |
+| Dependabot | Weekly Monday | Keeps action versions current |
