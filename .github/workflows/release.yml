@@ -10,41 +10,49 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: Validate code
+        run: |
+          node --check background.js
+          node --check options.js
+          node --check popup.js
+          node --check content-scripts/content.js
+          echo "✅ All JS files valid"
 
       - name: Get version from manifest
         id: version
         run: |
           VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
+          echo "Manifest version: $VERSION"
 
-      - name: Validate before release
+      - name: Check tag matches manifest version
         run: |
-          node --check background.js
-          node --check options.js
-          node --check popup.js
-          node --check content-scripts/content.js
-          python3 -c "
-          import json
-          m = json.load(open('manifest.json'))
-          assert m['version'] == '${{ steps.version.outputs.version }}'
-          print('✅ manifest version matches tag')
-          "
+          TAG="${{ github.ref_name }}"
+          MANIFEST_VER="${{ steps.version.outputs.version }}"
+          TAG_VER="${TAG#v}"
+          if [ "$TAG_VER" != "$MANIFEST_VER" ]; then
+            echo "❌ Tag $TAG does not match manifest version $MANIFEST_VER"
+            exit 1
+          fi
+          echo "✅ Tag $TAG matches manifest version $MANIFEST_VER"
 
       - name: Build ZIP
         run: |
-          zip -r skipstream-${{ steps.version.outputs.version }}-firefox.zip \
+          ZIP_NAME="skipstream-${{ steps.version.outputs.version }}-firefox.zip"
+          zip -r "$ZIP_NAME" \
             manifest.json background.js \
             content-scripts/ icons/ \
             popup.html popup.js \
             options.html options.js \
             supabase_setup.sql
-          echo "Built: $(du -h skipstream-*.zip | cut -f1)"
+          echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
 
-      - name: Upload to GitHub Release
+      - name: Upload ZIP to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: skipstream-*.zip
+          files: "skipstream-${{ steps.version.outputs.version }}-firefox.zip"
           fail_on_unmatched_files: true
