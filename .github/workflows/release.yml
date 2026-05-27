@@ -1,0 +1,50 @@
+name: Build & Release ZIP
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from manifest
+        id: version
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Validate before release
+        run: |
+          node --check background.js
+          node --check options.js
+          node --check popup.js
+          node --check content-scripts/content.js
+          python3 -c "
+          import json
+          m = json.load(open('manifest.json'))
+          assert m['version'] == '${{ steps.version.outputs.version }}'
+          print('✅ manifest version matches tag')
+          "
+
+      - name: Build ZIP
+        run: |
+          zip -r skipstream-${{ steps.version.outputs.version }}-firefox.zip \
+            manifest.json background.js \
+            content-scripts/ icons/ \
+            popup.html popup.js \
+            options.html options.js \
+            supabase_setup.sql
+          echo "Built: $(du -h skipstream-*.zip | cut -f1)"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: skipstream-*.zip
+          fail_on_unmatched_files: true
