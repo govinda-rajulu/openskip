@@ -3,7 +3,7 @@
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
-const CRED_KEYS = ['supabaseUrl', 'supabaseAnonKey', 'tmdbApiKey', 'introdbApiKey', 'omdbApiKey'];
+const CRED_KEYS = ['supabaseUrl', 'supabaseAnonKey', 'tmdbApiKey', 'introdbApiKey', 'omdbApiKey', 'subDLApiKey'];
 
 const fields = {
   supabaseUrl:     document.getElementById('supabaseUrl'),
@@ -50,10 +50,12 @@ function showGlobal(type, text) {
 // ── Load saved values ─────────────────────────────────────────────────────────
 
 async function load() {
-  const stored = await br.storage.local.get(CRED_KEYS);
+  const stored = await br.storage.local.get([...CRED_KEYS, 'animeSkipEnabled']);
   for (const key of CRED_KEYS) {
     if (fields[key] && stored[key]) fields[key].value = stored[key];
   }
+  const asEl = document.getElementById('animeSkipEnabled');
+  if (asEl) asEl.checked = stored.animeSkipEnabled !== false;
 }
 
 // ── Run simultaneous verification via background ───────────────────────────────
@@ -124,6 +126,8 @@ async function save() {
   btn.disabled  = true;
   const sp = document.createElement('span'); sp.className = 'spinner'; btn.replaceChildren(sp, document.createTextNode('Saving…'));
 
+  const asEl2 = document.getElementById('animeSkipEnabled');
+  if (asEl2) data.animeSkipEnabled = asEl2.checked;
   await br.storage.local.set(data);
   try { await br.runtime.sendMessage({ type: 'INVALIDATE_USER_ID' }); } catch { /* ok */ }
   await runCheck();

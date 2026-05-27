@@ -66,7 +66,14 @@
     try {
       const stored = await br.storage.local.get(CACHE_KEY);
       const cache = stored[CACHE_KEY] || {};
-      cache[mediaId] = { p: Math.round(position * 10) / 10, d: duration, t: Date.now() };
+      cache[mediaId] = {
+        p: Math.round(position * 10) / 10,
+        d: duration,
+        t: Date.now(),
+        url: location.href,
+        title: document.title.slice(0, 120),
+        site: location.hostname,
+      };
       const keys = Object.keys(cache);
       if (keys.length > 100) {
         keys.sort((a, b) => cache[a].t - cache[b].t).slice(0, keys.length - 100).forEach(k => delete cache[k]);
@@ -513,7 +520,21 @@
       }
       resolved = true;
       segments = await fetchSegments(info.imdbId, info.season, info.episode);
-      if (!segments) console.warn('[SkipStream] No segment data for', info.imdbId, `S${info.season}E${info.episode}`);
+      if (!segments) {
+        console.warn('[SkipStream] No segment data for', info.imdbId, `S${info.season}E${info.episode}`);
+        // Report missing segment if user opted in
+        if (prefs.addSegment) {
+          try {
+            await br.runtime.sendMessage({
+              type: 'REPORT_SEGMENT',
+              imdbId:  info.imdbId,
+              season:  info.season,
+              episode: info.episode,
+              site:    location.hostname,
+            });
+          } catch { /* background not ready */ }
+        }
+      }
     }
 
     video.addEventListener('loadedmetadata', resolveSegments);

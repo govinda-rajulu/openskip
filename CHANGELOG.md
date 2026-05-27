@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.3.0] — 2026-05-28
+
+### Added
+- **History tab** in popup — searchable list of recently watched items with progress bars and deep-links back to exact timestamp (YouTube/Vimeo) or resume position (all other sites)
+- **Multi-provider segment engine** — IntroDB, AnimeSkip, SubDL queried in parallel; results merged (IntroDB wins on conflict)
+- **AnimeSkip provider** — automatic fallback for anime intro/outro detection via animeskip.online (no key required, toggle in Settings)
+- **SubDL provider** — chapter-marker based segment detection for sites with SubDL data (optional API key)
+- **IntroDB segment reporting** — when Add Missing Segments is on and no data is found, automatically reports the episode to IntroDB
+- **Chrome MV3 manifest** (`manifest-chrome.json`) — Chrome-compatible manifest with service worker, host_permissions, action API
+- `animeSkipEnabled` and `subDLApiKey` fields in Settings
+
+### Changed
+- `cacheWrite` now stores `url`, `title`, `site` alongside position — enables history deep-links
+- `FETCH_SEGMENTS` message now uses multi-provider engine instead of IntroDB-only
+- Background script header updated with MV3 service worker compatibility detection
+
+
 ## [1.2.0] — 2026-05-27
 
 ### Fixed
