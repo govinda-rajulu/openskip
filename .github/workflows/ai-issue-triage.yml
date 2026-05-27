@@ -2,7 +2,7 @@ name: AI Issue Triage
 
 on:
   issues:
-    types: [opened]
+    types: [opened, reopened]
 
 jobs:
   triage:
@@ -17,109 +17,76 @@ jobs:
         id: ai
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
-          # Write issue content to file to avoid shell escaping issues
-          cat > /tmp/issue.txt << 'ISSUEEOF'
-          ${{ github.event.issue.title }}
-          ${{ github.event.issue.body }}
-          ISSUEEOF
-
-          ISSUE_CONTENT=$(cat /tmp/issue.txt)
-
-          python3 << 'PYEOF'
-          import os, json, urllib.request, urllib.error
+          python3 - << 'PYEOF'
+          import os, json, urllib.request
 
           api_key = os.environ.get("GEMINI_API_KEY", "")
+          title   = os.environ.get("ISSUE_TITLE", "")
+          body    = os.environ.get("ISSUE_BODY", "")
+
           if not api_key:
-              print("NO_KEY")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write("result=NO_KEY\n")
               exit(0)
 
-          with open("/tmp/issue.txt") as f:
-              issue = f.read().strip()
-
-          prompt = """You are a senior developer reviewing issues for SkipStream — a Firefox browser extension that:
-          - Skips intros/recaps/outros on any streaming site using IntroDB API
-          - Syncs playback position across devices via user-owned Supabase
-          - Written in plain JavaScript, no build step, Manifest V2
-
-          Key architecture rules (violations are bugs):
-          - No localStorage in content script — must use browser.storage.local
-          - No fetch() in content script — all API calls go through background.js via runtime.sendMessage
-          - No innerHTML — use DOM API only
-          - No console.log — only console.warn for diagnostics
-          - userId = SHA-256 hash of Supabase anon key — never random
-          - SPA navigation via pushState/replaceState intercept — no polling
-
-          Given this issue, respond with ONLY a JSON object (no markdown, no explanation):
-          {
-            "type": "bug|feature|question|docs",
-            "priority": "high|medium|low",
-            "component": "content-script|background|options|popup|supabase|ci|other",
-            "summary": "one sentence analysis",
-            "suggestion": "specific technical suggestion referencing the codebase",
-            "needs_ai_fix": true/false
-          }
-
-          Issue:
-          """ + issue
+          prompt = (
+              "You are reviewing issues for SkipStream — a Firefox extension that skips intros/recaps/outros "
+              "on streaming sites (IntroDB API) and syncs playback via user-owned Supabase. "
+              "Plain JavaScript, MV2, no build step. Key rules: no localStorage in content script, "
+              "no fetch() in content script (must go via background.js), no innerHTML, no console.log.\n\n"
+              "Respond ONLY with valid JSON (no markdown):\n"
+              '{"type":"bug|feature|question|docs","priority":"high|medium|low",'
+              '"component":"content-script|background|options|popup|supabase|ci|other",'
+              '"summary":"one sentence","suggestion":"specific fix approach","needs_ai_fix":true}\n\n'
+              f"Issue title: {title}\nIssue body: {body}"
+          )
 
           payload = {
               "contents": [{"parts": [{"text": prompt}]}],
-              "generationConfig": {"temperature": 0.1, "maxOutputTokens": 500}
+              "generationConfig": {"temperature": 0.1, "maxOutputTokens": 400}
           }
 
-          req = urllib.request.Request(
-              f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
-              data=json.dumps(payload).encode(),
-              headers={"Content-Type": "application/json"},
-              method="POST"
-          )
-
           try:
-              with urllib.request.urlopen(req) as r:
+              req = urllib.request.Request(
+                  f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
+                  data=json.dumps(payload).encode(),
+                  headers={"Content-Type": "application/json"},
+                  method="POST"
+              )
+              with urllib.request.urlopen(req, timeout=30) as r:
                   data = json.load(r)
                   text = data["candidates"][0]["content"]["parts"][0]["text"]
-                  # Strip markdown fences if present
                   text = text.strip().strip("```json").strip("```").strip()
                   result = json.loads(text)
                   with open("/tmp/ai_result.json", "w") as f:
                       json.dump(result, f)
-                  print("OK")
+                  with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                      f.write("result=OK\n")
           except Exception as e:
-              print(f"ERROR: {e}")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write(f"result=ERROR:{e}\n")
           PYEOF
 
       - name: Post triage comment
         uses: actions/github-script@v7
+        env:
+          AI_STATUS: ${{ steps.ai.outputs.result }}
         with:
           script: |
             const fs = require('fs');
+            const status = process.env.AI_STATUS || '';
             let comment = '';
 
-            try {
+            if (status === 'OK') {
               const result = JSON.parse(fs.readFileSync('/tmp/ai_result.json', 'utf8'));
-
-              const typeEmoji = {bug:'🐛', feature:'✨', question:'❓', docs:'📝'}[result.type] || '🔍';
-              const prioEmoji = {high:'🔴', medium:'🟡', low:'🟢'}[result.priority] || '⚪';
-
-              comment = `## 🤖 AI Triage
-
-**Type:** ${typeEmoji} ${result.type} &nbsp;&nbsp; **Priority:** ${prioEmoji} ${result.priority} &nbsp;&nbsp; **Component:** \`${result.component}\`
-
-**Analysis:** ${result.summary}
-
-**Suggestion:** ${result.suggestion}
-
----
-${result.needs_ai_fix
-  ? '> 💡 This looks like a well-defined fix. Add the `ai-fix` label to have the AI attempt a pull request automatically.'
-  : '> ℹ️ This may need manual discussion before an automated fix is appropriate.'
-}
-
-*Triage by Gemini 2.0 Flash — always verify before acting on suggestions.*`;
-
-            } catch(e) {
-              comment = `## 🤖 AI Triage\n\n_AI triage unavailable — GEMINI_API_KEY may not be configured or the AI returned an unexpected response. Manual review needed._`;
+              const typeEmoji  = {bug:'🐛',feature:'✨',question:'❓',docs:'📝'}[result.type] || '🔍';
+              const prioEmoji  = {high:'🔴',medium:'🟡',low:'🟢'}[result.priority] || '⚪';
+              comment = `## 🤖 AI Triage\n\n**Type:** ${typeEmoji} ${result.type} &nbsp; **Priority:** ${prioEmoji} ${result.priority} &nbsp; **Component:** \`${result.component}\`\n\n**Analysis:** ${result.summary}\n\n**Suggestion:** ${result.suggestion}\n\n---\n${result.needs_ai_fix ? '> 💡 Add the `ai-fix` label to have the AI attempt a pull request.' : '> ℹ️ This may need manual discussion first.'}\n\n*Powered by Gemini 2.0 Flash — verify before acting.*`;
+            } else {
+              comment = `## 🤖 AI Triage\n\n_Triage unavailable (${status}). Manual review needed._`;
             }
 
             await github.rest.issues.createComment({
