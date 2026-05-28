@@ -67,7 +67,7 @@ function buildDeepLink(entry) {
 
 let _allEntries = [];
 
-async function renderHistory(filter = '') {
+async function renderHistory(titleFilter = '', siteFilter = '') {
   const list = document.getElementById('history-list');
   list.replaceChildren();
 
@@ -78,12 +78,29 @@ async function renderHistory(filter = '') {
     .filter(([, v]) => v.url && v.p > 10)
     .sort(([, a], [, b]) => b.t - a.t);
 
-  const q = filter.trim().toLowerCase();
-  const filtered = q
-    ? _allEntries.filter(([, v]) =>
-        (v.title || '').toLowerCase().includes(q) ||
-        (v.site  || '').toLowerCase().includes(q))
-    : _allEntries;
+  // Populate site filter dropdown
+  const siteSelect = document.getElementById('historyFilter');
+  if (siteSelect) {
+    const sites = [...new Set(_allEntries.map(([, v]) => v.site).filter(Boolean))].sort();
+    const current = siteSelect.value;
+    siteSelect.replaceChildren();
+    const allOpt = document.createElement('option');
+    allOpt.value = ''; allOpt.textContent = 'All sites';
+    siteSelect.appendChild(allOpt);
+    sites.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      if (s === current) opt.selected = true;
+      siteSelect.appendChild(opt);
+    });
+  }
+
+  const q = titleFilter.trim().toLowerCase();
+  const filtered = _allEntries.filter(([, v]) => {
+    if (siteFilter && v.site !== siteFilter) return false;
+    if (q && !(v.title || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
 
   if (!filtered.length) {
     const empty = document.createElement('div');
@@ -131,7 +148,13 @@ async function renderHistory(filter = '') {
 }
 
 document.getElementById('historySearch').addEventListener('input', e => {
-  renderHistory(e.target.value);
+  const site = document.getElementById('historyFilter')?.value || '';
+  renderHistory(e.target.value, site);
+});
+
+document.getElementById('historyFilter')?.addEventListener('change', e => {
+  const q = document.getElementById('historySearch')?.value || '';
+  renderHistory(q, e.target.value);
 });
 
 // ── Status & toggles ──────────────────────────────────────────────────────────

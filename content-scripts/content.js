@@ -183,11 +183,18 @@
     prompt.appendChild(btns);
     container.appendChild(prompt);
 
-    // Auto-dismiss after 12s
-    setTimeout(() => {
+    // Cancel and clean up if user presses play manually (they chose to start fresh)
+    const onPlay = () => {
+      clearTimeout(autoTimer);
+      if (prompt.isConnected) prompt.remove();
+    };
+    video.addEventListener('play', onPlay, { once: true });
+
+    // Auto-confirm resume after 12s if user hasn't interacted
+    const autoTimer = setTimeout(() => {
+      video.removeEventListener('play', onPlay);
       if (prompt.isConnected) {
-        // Default: resume (most likely intent)
-        try { if (video.isConnected) video.currentTime = position; } catch { /* ok */ }
+        try { if (video.isConnected && video.currentTime < 3) video.currentTime = position; } catch { /* ok */ }
         prompt.remove();
       }
     }, 12000);
@@ -210,9 +217,18 @@
     if (!saved || saved.p < 10 || (saved.d && saved.p / saved.d > 0.95)) return;
 
     const doPrompt = () => {
+      // Don't show if user already started playing or video has been seeked
+      if (video.currentTime > 3 || (video.played && video.played.length > 0)) return;
+      // Don't show if prompt already visible for this video
+      if (document.getElementById('skipstream-resume-prompt')) return;
       try { showResumePrompt(video, saved.p); } catch { /* ok */ }
     };
-    video.readyState >= 1 ? doPrompt() : video.addEventListener('loadedmetadata', doPrompt, { once: true });
+
+    if (video.readyState >= 1) {
+      doPrompt();
+    } else {
+      video.addEventListener('loadedmetadata', doPrompt, { once: true });
+    }
   }
 
   // ── Show / episode detection ───────────────────────────────────────────────

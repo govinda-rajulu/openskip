@@ -3,9 +3,6 @@
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
-
-// MV3 Chrome service worker: re-register listener on each wake-up
-// (service workers can be terminated between messages)
 const IS_SW = typeof ServiceWorkerGlobalScope !== 'undefined' &&
               self instanceof ServiceWorkerGlobalScope;
 
@@ -18,20 +15,24 @@ async function getConfig() {
   try {
     const r = await br.storage.local.get([
       'supabaseUrl','supabaseAnonKey','tmdbApiKey','introdbApiKey','omdbApiKey',
-      'animeSkipEnabled','subDLApiKey',
+      'animeSkipClientId','animeSkipAuthToken','animeSkipEnabled',
     ]);
     return {
-      supabaseUrl:      r.supabaseUrl      || null,
-      supabaseAnonKey:  r.supabaseAnonKey  || null,
-      tmdbApiKey:       r.tmdbApiKey       || null,
-      introdbApiKey:    r.introdbApiKey    || null,
-      omdbApiKey:       r.omdbApiKey       || null,
-      animeSkipEnabled: r.animeSkipEnabled ?? true,
-      subDLApiKey:      r.subDLApiKey      || null,
+      supabaseUrl:        r.supabaseUrl        || null,
+      supabaseAnonKey:    r.supabaseAnonKey    || null,
+      tmdbApiKey:         r.tmdbApiKey         || null,
+      introdbApiKey:      r.introdbApiKey      || null,
+      omdbApiKey:         r.omdbApiKey         || null,
+      animeSkipClientId:  r.animeSkipClientId  || null,
+      animeSkipAuthToken: r.animeSkipAuthToken || null,
+      animeSkipEnabled:   r.animeSkipEnabled   ?? false,
     };
   } catch {
-    return { supabaseUrl:null, supabaseAnonKey:null, tmdbApiKey:null,
-             introdbApiKey:null, omdbApiKey:null, animeSkipEnabled:true, subDLApiKey:null };
+    return {
+      supabaseUrl:null,supabaseAnonKey:null,tmdbApiKey:null,
+      introdbApiKey:null,omdbApiKey:null,
+      animeSkipClientId:null,animeSkipAuthToken:null,animeSkipEnabled:false,
+    };
   }
 }
 
@@ -55,7 +56,7 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url, options);
-      if (res.status === 401 || res.status === 403 || res.status === 404) return res;
+      if ([401, 403, 404].includes(res.status)) return res;
       if (res.ok) return res;
       lastErr = new Error(`Status ${res.status}`);
     } catch (e) { lastErr = e; }
@@ -65,8 +66,6 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
 }
 
 // ── Segment providers ─────────────────────────────────────────────────────────
-// Provider interface: async fn(imdbId, season, episode, config) → segments|null
-// segments shape: { intro?:{start_sec,end_sec}, recap?:{...}, outro?:{...} }
 
 async function providerIntroDB(imdbId, season, episode, { introdbApiKey }) {
   if (!introdbApiKey) return null;
@@ -80,87 +79,72 @@ async function providerIntroDB(imdbId, season, episode, { introdbApiKey }) {
   } catch { return null; }
 }
 
-async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled }) {
-  if (!animeSkipEnabled) return null;
-  // AnimeSkip uses AniDB/MAL IDs — we attempt a lookup by IMDB id via their search endpoint
+// AnimeSkip: GraphQL API — requires X-Client-ID header (user supplies their own)
+// Get a client ID at https://anime-skip.com/account/api-clients
+async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, animeSkipClientId, animeSkipAuthToken }) {
+  if (!animeSkipEnabled || !animeSkipClientId) return null;
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Client-ID': animeSkipClientId,
+  };
+  if (animeSkipAuthToken) headers['Authorization'] = `Bearer ${animeSkipAuthToken}`;
+
   try {
+    // Step 1: find show by IMDB ID via search
+    const searchQuery = `{ searchShowsByExternalId(externalId: "${imdbId}", service: "imdb") { id name } }`;
     const searchRes = await fetchWithRetry(
-      `https://api.animeskip.online/shows?imdb_id=${imdbId}`,
-      { headers: { 'Accept': 'application/json' } }
+      'https://api.anime-skip.com/graphql',
+      { method: 'POST', headers, body: JSON.stringify({ query: searchQuery }) }
     );
     if (!searchRes.ok) return null;
-    const shows = await searchRes.json();
-    const show = Array.isArray(shows) ? shows[0] : shows;
-    if (!show?.id) return null;
+    const searchData = await searchRes.json();
+    const shows = searchData?.data?.searchShowsByExternalId;
+    if (!shows?.length) return null;
+    const showId = shows[0].id;
 
+    // Step 2: fetch episode timestamps
+    const epQuery = `{
+      findEpisodesByShowId(showId: "${showId}", season: ${season}) {
+        items {
+          seasonNumber
+          number
+          timestamps { at duration type { name } }
+        }
+      }
+    }`;
     const epRes = await fetchWithRetry(
-      `https://api.animeskip.online/episodes/${show.id}/${season}/${episode}`
+      'https://api.anime-skip.com/graphql',
+      { method: 'POST', headers, body: JSON.stringify({ query: epQuery }) }
     );
     if (!epRes.ok) return null;
-    const ep = await epRes.json();
-    if (!ep?.timestamps) return null;
+    const epData = await epRes.json();
+    const episodes = epData?.data?.findEpisodesByShowId?.items || [];
+    const ep = episodes.find(e => e.number === episode || e.number === String(episode));
+    if (!ep?.timestamps?.length) return null;
 
-    // Normalise AnimeSkip timestamps → SkipStream segment shape
+    // Normalise to SkipStream segment shape
     const segments = {};
     for (const ts of ep.timestamps) {
       const type = (ts.type?.name || '').toLowerCase();
-      if (type.includes('intro') || type === 'op')  segments.intro  = { start_sec: ts.at, end_sec: ts.at + (ts.duration || 90) };
-      if (type.includes('recap'))                    segments.recap  = { start_sec: ts.at, end_sec: ts.at + (ts.duration || 60) };
-      if (type.includes('outro') || type === 'ed')   segments.outro  = { start_sec: ts.at, end_sec: ts.at + (ts.duration || 90) };
+      const end = ts.at + (ts.duration || 90);
+      if (type.includes('intro') || type === 'op')  segments.intro  = { start_sec: ts.at, end_sec: end };
+      if (type.includes('recap'))                    segments.recap  = { start_sec: ts.at, end_sec: end };
+      if (type.includes('outro') || type === 'ed')   segments.outro  = { start_sec: ts.at, end_sec: end };
     }
     return Object.keys(segments).length ? segments : null;
   } catch { return null; }
 }
 
-async function providerSubDL(imdbId, season, episode, { subDLApiKey }) {
-  // SubDL provides subtitle/chapter data; we use chapter markers as segment hints
-  if (!subDLApiKey) return null;
-  try {
-    const r = await fetchWithRetry(
-      `https://api.subdl.com/api/v1/subtitles?imdb_id=${imdbId}&season=${season}&episode=${episode}&type=episode`,
-      { headers: { 'Api-Key': subDLApiKey } }
-    );
-    if (!r.ok) return null;
-    const data = await r.json();
-    // SubDL chapters: look for intro/recap/credits markers in chapter data
-    const chapters = data?.chapters || data?.subtitles?.[0]?.chapters || [];
-    if (!chapters.length) return null;
-    const segments = {};
-    for (const ch of chapters) {
-      const label = (ch.label || ch.title || '').toLowerCase();
-      if (label.includes('intro') || label.includes('opening')) {
-        segments.intro = { start_sec: ch.start_time, end_sec: ch.end_time };
-      }
-      if (label.includes('recap')) {
-        segments.recap = { start_sec: ch.start_time, end_sec: ch.end_time };
-      }
-      if (label.includes('outro') || label.includes('credits') || label.includes('ending')) {
-        segments.outro = { start_sec: ch.start_time, end_sec: ch.end_time };
-      }
-    }
-    return Object.keys(segments).length ? segments : null;
-  } catch { return null; }
-}
-
-// Fetch from all providers, merge results (IntroDB wins on conflict)
+// Merge: IntroDB wins on conflict
 async function fetchSegmentsMulti(imdbId, season, episode) {
   const config = await getConfig();
-  const [introdb, animeskip, subdl] = await Promise.all([
+  const [introdb, animeskip] = await Promise.all([
     providerIntroDB(imdbId, season, episode, config),
     providerAnimeSkip(imdbId, season, episode, config),
-    providerSubDL(imdbId, season, episode, config),
   ]);
-
-  if (!introdb && !animeskip && !subdl) return null;
-
-  // Merge: IntroDB > AnimeSkip > SubDL
-  const merged = {};
-  for (const src of [subdl, animeskip, introdb]) {
-    if (!src) continue;
-    for (const [k, v] of Object.entries(src)) {
-      merged[k] = v;
-    }
-  }
+  if (!introdb && !animeskip) return null;
+  const merged = Object.assign({}, animeskip || {}, introdb || {});
   return Object.keys(merged).length ? merged : null;
 }
 
@@ -176,12 +160,12 @@ async function checkSupabase(supabaseUrl, supabaseAnonKey) {
     if (res.ok || res.status === 406) return { ok: true, message: 'Connected' };
     if (res.status === 404 || res.status === 400) return {
       ok: false, needsManualSetup: true,
-      message: 'Table missing — run supabase_setup.sql in your Supabase SQL Editor once.',
+      message: 'Table missing — run supabase_setup.sql once.',
     };
     if (res.status === 401 || res.status === 403) return {
-      ok: false, message: 'Invalid credentials — check your URL and anon key.',
+      ok: false, message: 'Invalid credentials.',
     };
-    return { ok: false, message: `Unexpected status ${res.status}` };
+    return { ok: false, message: `Status ${res.status}` };
   } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
 }
 
@@ -233,8 +217,7 @@ br.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (msg.type === 'GET_USER_ID') {
     getConfig().then(async ({ supabaseAnonKey }) => {
       if (!supabaseAnonKey) { sendResponse({ userId: null }); return; }
-      const userId = await getDerivedUserId(supabaseAnonKey);
-      sendResponse({ userId });
+      sendResponse({ userId: await getDerivedUserId(supabaseAnonKey) });
     });
     return true;
   }
@@ -256,61 +239,42 @@ br.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  // OMDB: only used if user provides their own key — no demo fallback
   if (msg.type === 'OMDB_LOOKUP') {
     if (!msg.title) { sendResponse({ imdbId: null }); return true; }
     getConfig().then(({ omdbApiKey }) => {
-      const key = omdbApiKey || 'trilogy';
-      fetchWithRetry(`https://www.omdbapi.com/?t=${encodeURIComponent(msg.title)}&type=series&apikey=${key}`)
+      if (!omdbApiKey) { sendResponse({ imdbId: null }); return; }
+      fetchWithRetry(`https://www.omdbapi.com/?t=${encodeURIComponent(msg.title)}&type=series&apikey=${omdbApiKey}`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          const id = (data?.Response === 'True' && data?.imdbID) ? data.imdbID : null;
-          sendResponse({ imdbId: id });
+          sendResponse({ imdbId: (data?.Response === 'True' && data?.imdbID) ? data.imdbID : null });
         })
         .catch(() => sendResponse({ imdbId: null }));
     });
     return true;
   }
 
-  // Multi-provider segment fetch (IntroDB + AnimeSkip + SubDL)
   if (msg.type === 'FETCH_SEGMENTS') {
     fetchSegmentsMulti(msg.imdbId, msg.season, msg.episode)
-      .then(data => {
-        if (!data) {
-          sendResponse({ data: null, err: 'no_data' });
-          return;
-        }
-        sendResponse({ data });
-      })
+      .then(data => sendResponse({ data: data || null, err: data ? null : 'no_data' }))
       .catch(e => sendResponse({ data: null, err: String(e) }));
     return true;
   }
 
-  // IntroDB segment reporting — fires when user toggles addSegment and a video has no data
   if (msg.type === 'REPORT_SEGMENT') {
     getConfig().then(async ({ introdbApiKey }) => {
       if (!introdbApiKey) { sendResponse({ ok: false, err: 'not_configured' }); return; }
       try {
-        const r = await fetchWithRetry(
-          'https://api.introdb.app/segments/report',
-          {
-            method: 'POST',
-            headers: {
-              'x-api-key': introdbApiKey,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              imdb_id:  msg.imdbId,
-              season:   msg.season,
-              episode:  msg.episode,
-              site:     msg.site,
-              reported_at: new Date().toISOString(),
-            }),
-          }
-        );
+        const r = await fetchWithRetry('https://api.introdb.app/segments/report', {
+          method: 'POST',
+          headers: { 'x-api-key': introdbApiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imdb_id: msg.imdbId, season: msg.season, episode: msg.episode,
+            site: msg.site, reported_at: new Date().toISOString(),
+          }),
+        });
         sendResponse({ ok: r.ok, status: r.status });
-      } catch (e) {
-        sendResponse({ ok: false, err: String(e) });
-      }
+      } catch (e) { sendResponse({ ok: false, err: String(e) }); }
     });
     return true;
   }
@@ -323,17 +287,14 @@ br.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         {
           method: 'POST',
           headers: {
-            apikey: supabaseAnonKey,
-            Authorization: `Bearer ${supabaseAnonKey}`,
+            apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
             'Content-Type': 'application/json',
             Prefer: 'resolution=merge-duplicates,return=minimal',
           },
           body: JSON.stringify(msg.body),
         }
       )
-        .then(r => r.ok
-          ? sendResponse({ ok: true })
-          : r.text().then(err => sendResponse({ ok: false, err })))
+        .then(r => r.ok ? sendResponse({ ok: true }) : r.text().then(err => sendResponse({ ok: false, err })))
         .catch(err => sendResponse({ ok: false, err: String(err) }));
     });
     return true;

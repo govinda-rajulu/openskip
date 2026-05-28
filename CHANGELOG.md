@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.4.0] — 2026-05-28
+
+### Removed
+- **OMDB demo key** (`trilogy`) fully removed — OMDB lookup only fires if user supplies their own key; no shared/rate-limited fallback
+- **SubDL provider** removed — SubDL is a subtitle repository with no chapter/timestamp data; irrelevant for skip segments
+- `subDLApiKey` field removed from options
+
+### Fixed
+- **AnimeSkip provider** rewritten to correct GraphQL endpoint (`api.anime-skip.com/graphql`). Previous code used a dead REST URL. Now uses `X-Client-ID` header (required by anime-skip.com API) with optional `Authorization: Bearer` token for submitting timestamps
+- **Resume prompt loop** — prompt no longer fires if user has already started playing or seeked past 3s; auto-confirm cancelled if user presses play manually; de-duplicated so only one prompt per video attach
+- **AnimeSkip** now disabled by default (requires user to supply Client ID); toggle reveals Client ID + Auth Token fields
+
+### Added
+- **Site filter dropdown** in history tab — filter watched items by streaming site
+- **Title filter** now filters title only (was mixing title + site); site has its own dedicated dropdown
+- AnimeSkip `animeSkipClientId` and `animeSkipAuthToken` fields in Settings (shown when toggle is on)
+
+### Changed
+- "Report Missing Segments" renamed to "Report Segments"
+
+
 ## [1.3.1] — 2026-05-28
 
 ### Added

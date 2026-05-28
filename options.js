@@ -3,7 +3,7 @@
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
-const CRED_KEYS = ['supabaseUrl', 'supabaseAnonKey', 'tmdbApiKey', 'introdbApiKey', 'omdbApiKey', 'subDLApiKey'];
+const CRED_KEYS = ['supabaseUrl', 'supabaseAnonKey', 'tmdbApiKey', 'introdbApiKey', 'omdbApiKey', 'animeSkipClientId', 'animeSkipAuthToken'];
 
 const fields = {
   supabaseUrl:     document.getElementById('supabaseUrl'),
@@ -49,13 +49,23 @@ function showGlobal(type, text) {
 
 // ── Load saved values ─────────────────────────────────────────────────────────
 
+function toggleAnimeSkipFields() {
+  const checked = document.getElementById('animeSkipEnabled')?.checked;
+  const fieldsDiv = document.getElementById('animeSkipFields');
+  if (fieldsDiv) fieldsDiv.style.display = checked ? 'block' : 'none';
+}
+
 async function load() {
   const stored = await br.storage.local.get([...CRED_KEYS, 'animeSkipEnabled']);
   for (const key of CRED_KEYS) {
     if (fields[key] && stored[key]) fields[key].value = stored[key];
   }
   const asEl = document.getElementById('animeSkipEnabled');
-  if (asEl) asEl.checked = stored.animeSkipEnabled !== false;
+  if (asEl) {
+    asEl.checked = stored.animeSkipEnabled === true;
+    asEl.addEventListener('change', toggleAnimeSkipFields);
+    toggleAnimeSkipFields();
+  }
 }
 
 // ── Run simultaneous verification via background ───────────────────────────────

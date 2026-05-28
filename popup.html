@@ -152,8 +152,8 @@
       </div>
       <div class="row">
         <div class="rlabel">
-          <span>Report Missing Segments</span>
-          <small>Submit undetected intros to IntroDB</small>
+          <span>Report Segments</span>
+          <small>Submit missing intros/outros to IntroDB</small>
         </div>
         <label class="toggle"><input type="checkbox" id="addSegment"><span class="slider"></span></label>
       </div>
@@ -167,7 +167,10 @@
 
     <!-- History panel -->
     <div id="history" class="panel">
-      <input type="search" id="historySearch" class="search" placeholder="Search title or site…">
+      <input type="search" id="historySearch" class="search" placeholder="Filter by title…">
+      <select id="historyFilter" class="search" style="margin-bottom:8px;cursor:pointer">
+        <option value="">All sites</option>
+      </select>
       <div id="history-list"><div class="h-empty">Loading…</div></div>
     </div>
   </div>
