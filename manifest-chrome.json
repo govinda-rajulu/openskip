@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
   "name": "SkipStream",
-  "description": "Automatically skip intros, recaps, and outros — and resume playback across all your devices.",
-  "version": "1.5.0",
+  "description": "Automatically skip intros, recaps, and outros \u2014 and resume playback across all your devices.",
+  "version": "1.5.1",
   "icons": {
-    "16":  "icons/icon-16.png",
-    "32":  "icons/icon-32.png",
-    "48":  "icons/icon-48.png",
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
   "permissions": [
@@ -27,9 +27,9 @@
     "default_title": "SkipStream",
     "default_popup": "popup.html",
     "default_icon": {
-      "16":  "icons/icon-16.png",
-      "32":  "icons/icon-32.png",
-      "48":  "icons/icon-48.png",
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
       "128": "icons/icon-128.png"
     }
   },
@@ -39,10 +39,14 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "<all_urls>"
+      ],
       "all_frames": true,
       "run_at": "document_idle",
-      "js": ["content-scripts/content.js"]
+      "js": [
+        "content-scripts/content.js"
+      ]
     }
   ]
 }
