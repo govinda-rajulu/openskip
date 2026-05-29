@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.0] — 2026-05-29
+
+### Added
+- **Master Skip toggle** — single parent "Skip Segments" toggle; three child toggles (Intro/Recap/Outro) expand beneath it; badge shows active count (e.g. "2/3")
+- **Corrected auto-skip logic** — child toggle ON = auto-skip silently; child toggle OFF = show skip-button prompt (was inverted)
+- **Report Segment tool** — button below master toggle; flow: click → Start (records video timestamp) → Stop (records end) → select type (Intro/Recap/Outro) → POST to IntroDB + AnimeSkip APIs simultaneously
+- **History pre-load** — local cache loaded on popup init, not only when History tab clicked
+- **iframe parent URL fix** — content script running inside embedded player iframes (e.g. vidup.to inside 1shows.org) now extracts show/episode info from `document.referrer` (parent site) in addition to `window.location` (player URL); uses whichever yields a valid IMDb ID first
+- `GET_VIDEO_TIME` and `GET_SHOW_INFO` runtime message handlers in content script (used by popup report tool)
+
+### Removed
+- **OMDB fully purged** — `omdbApiKey` field removed from `options.html`, `OMDB_LOOKUP` handler removed from `background.js`, `omdbApiKey` removed from `CRED_KEYS` and `fields` in `options.js`; no trace remains
+- `addSegment` auto-report toggle removed from popup (replaced by manual Report Segment tool)
+
 ## [1.4.0] — 2026-05-28
 
 ### Removed

@@ -14,7 +14,7 @@ let cachedUserId = null;
 async function getConfig() {
   try {
     const r = await br.storage.local.get([
-      'supabaseUrl','supabaseAnonKey','tmdbApiKey','introdbApiKey','omdbApiKey',
+      'supabaseUrl','supabaseAnonKey','tmdbApiKey','introdbApiKey',
       'animeSkipClientId','animeSkipAuthToken','animeSkipEnabled',
     ]);
     return {
@@ -22,7 +22,6 @@ async function getConfig() {
       supabaseAnonKey:    r.supabaseAnonKey    || null,
       tmdbApiKey:         r.tmdbApiKey         || null,
       introdbApiKey:      r.introdbApiKey      || null,
-      omdbApiKey:         r.omdbApiKey         || null,
       animeSkipClientId:  r.animeSkipClientId  || null,
       animeSkipAuthToken: r.animeSkipAuthToken || null,
       animeSkipEnabled:   r.animeSkipEnabled   ?? false,
@@ -30,7 +29,7 @@ async function getConfig() {
   } catch {
     return {
       supabaseUrl:null,supabaseAnonKey:null,tmdbApiKey:null,
-      introdbApiKey:null,omdbApiKey:null,
+      introdbApiKey:null,
       animeSkipClientId:null,animeSkipAuthToken:null,animeSkipEnabled:false,
     };
   }
@@ -239,21 +238,6 @@ br.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  // OMDB: only used if user provides their own key — no demo fallback
-  if (msg.type === 'OMDB_LOOKUP') {
-    if (!msg.title) { sendResponse({ imdbId: null }); return true; }
-    getConfig().then(({ omdbApiKey }) => {
-      if (!omdbApiKey) { sendResponse({ imdbId: null }); return; }
-      fetchWithRetry(`https://www.omdbapi.com/?t=${encodeURIComponent(msg.title)}&type=series&apikey=${omdbApiKey}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          sendResponse({ imdbId: (data?.Response === 'True' && data?.imdbID) ? data.imdbID : null });
-        })
-        .catch(() => sendResponse({ imdbId: null }));
-    });
-    return true;
-  }
-
   if (msg.type === 'FETCH_SEGMENTS') {
     fetchSegmentsMulti(msg.imdbId, msg.season, msg.episode)
       .then(data => sendResponse({ data: data || null, err: data ? null : 'no_data' }))
@@ -262,19 +246,59 @@ br.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (msg.type === 'REPORT_SEGMENT') {
-    getConfig().then(async ({ introdbApiKey }) => {
-      if (!introdbApiKey) { sendResponse({ ok: false, err: 'not_configured' }); return; }
-      try {
-        const r = await fetchWithRetry('https://api.introdb.app/segments/report', {
-          method: 'POST',
-          headers: { 'x-api-key': introdbApiKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+    getConfig().then(async ({ introdbApiKey, animeSkipEnabled, animeSkipClientId, animeSkipAuthToken }) => {
+      if (!introdbApiKey && !animeSkipClientId) { sendResponse({ ok: false, err: 'not_configured' }); return; }
+      const results = [];
+
+      // Report to IntroDB
+      if (introdbApiKey) {
+        try {
+          const body = {
             imdb_id: msg.imdbId, season: msg.season, episode: msg.episode,
             site: msg.site, reported_at: new Date().toISOString(),
-          }),
-        });
-        sendResponse({ ok: r.ok, status: r.status });
-      } catch (e) { sendResponse({ ok: false, err: String(e) }); }
+          };
+          if (msg.startSec != null) body.start_sec = msg.startSec;
+          if (msg.endSec   != null) body.end_sec   = msg.endSec;
+          if (msg.segType)          body.type       = msg.segType;
+          const r = await fetchWithRetry('https://api.introdb.app/segments/report', {
+            method: 'POST',
+            headers: { 'x-api-key': introdbApiKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          results.push({ provider: 'introdb', ok: r.ok, status: r.status });
+        } catch (e) { results.push({ provider: 'introdb', ok: false, err: String(e) }); }
+      }
+
+      // Report to AnimeSkip (only if user-timed segment)
+      if (animeSkipEnabled && animeSkipClientId && msg.startSec != null && msg.endSec != null && msg.segType) {
+        try {
+          const headers = {
+            'Content-Type': 'application/json',
+            'X-Client-ID': animeSkipClientId,
+          };
+          if (animeSkipAuthToken) headers['Authorization'] = `Bearer ${animeSkipAuthToken}`;
+          const mutation = `mutation($showId:ID!,$epNum:Int!,$season:Int!,$at:Float!,$dur:Float!,$typeId:ID!){
+            createTimestamp(showId:$showId,episodeNumber:$epNum,season:$season,at:$at,duration:$dur,typeId:$typeId){id}
+          }`;
+          const typeMap = { intro: '1', recap: '3', outro: '2' };
+          const r = await fetchWithRetry('https://api.anime-skip.com/graphql', {
+            method: 'POST', headers,
+            body: JSON.stringify({
+              query: mutation,
+              variables: {
+                showId: msg.animeSkipShowId || '',
+                epNum: msg.episode, season: msg.season,
+                at: msg.startSec, dur: msg.endSec - msg.startSec,
+                typeId: typeMap[msg.segType] || '1',
+              },
+            }),
+          });
+          results.push({ provider: 'animeskip', ok: r.ok, status: r.status });
+        } catch (e) { results.push({ provider: 'animeskip', ok: false, err: String(e) }); }
+      }
+
+      const anyOk = results.some(r => r.ok);
+      sendResponse({ ok: anyOk, results });
     });
     return true;
   }

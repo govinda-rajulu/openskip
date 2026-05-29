@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "SkipStream",
   "description": "Automatically skip intros, recaps, and outros \u2014 and resume playback across all your devices.",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",

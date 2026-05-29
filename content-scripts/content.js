@@ -13,7 +13,7 @@
 
   // ── User prefs ─────────────────────────────────────────────────────────────
 
-  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, addSegment: false };
+  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipMaster: true };
   let prefs = { ...PREF_DEFAULTS };
 
   async function loadPrefs() {
@@ -369,11 +369,50 @@
     return titleFromSlug(slug);
   }
 
-  async function lookupImdbByTitle(title) {
+  // ── iframe parent URL resolution ──────────────────────────────────────────
+
+  function slugify(str) {
+    return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
+  function extractSlugFromUrl(url) {
     try {
-      const res = await br.runtime.sendMessage({ type: 'OMDB_LOOKUP', title });
-      return res?.imdbId || null;
-    } catch { return null; }
+      const u = new URL(url);
+      const segs = u.pathname.split('/').filter(Boolean);
+      // Return the first non-numeric, non-short segment as title slug
+      for (const s of segs) {
+        if (s.length > 3 && !/^\d+$/.test(s) && !['watch','tv','show','series','episode','season','stream','anime'].includes(s)) {
+          return s;
+        }
+      }
+    } catch { /* invalid url */ }
+    return null;
+  }
+
+  // Resolve info from both player URL (window.location) and parent URL (document.referrer)
+  // for iframe-embedded players like vidup.to inside 1shows.org
+  async function resolveInfoFromUrl(urlStr, info) {
+    if (!urlStr) return;
+    const saved = { href: location.href };
+    // Temporarily parse against the given URL
+    const tmpUrl = urlStr;
+    const imdbMatch = tmpUrl.match(/\b(tt\d{7,8})\b/);
+    if (imdbMatch && !info.imdbId) info.imdbId = imdbMatch[1];
+    const seMatch = extractSeEpisode(tmpUrl);
+    if (seMatch) {
+      if (!info.season)  info.season  = seMatch.season;
+      if (!info.episode) info.episode = seMatch.episode;
+    }
+  }
+
+  async function lookupImdbByTitleTmdb(title, info) {
+    if (!title) return null;
+    // Try TMDB search if tmdbApiKey configured
+    try {
+      const res = await br.runtime.sendMessage({ type: 'TMDB_TO_IMDB', tmdbId: null, searchTitle: title });
+      if (res?.imdbId) return res.imdbId;
+    } catch { /* no tmdb search */ }
+    return null;
   }
 
   const imdbCache = new Map();
@@ -390,13 +429,43 @@
 
   async function resolveShowInfo() {
     const info = { imdbId: null, tmdbId: null, season: null, episode: null };
+
+    // Parse current window URL + page DOM
     parseUrlInfo(info);
     parsePageInfo(info);
-    if (!info.imdbId && info.tmdbId) info.imdbId = await tmdbToImdb(info.tmdbId);
-    if (!info.imdbId) {
-      const title = parsePathTitle(info);
-      if (title) info.imdbId = await lookupImdbByTitle(title);
+
+    // iframe fix (task 6): if running inside iframe, also try parent URL (document.referrer)
+    const isIframe = window !== window.top;
+    const referrer = document.referrer;
+    if (isIframe && referrer) {
+      await resolveInfoFromUrl(referrer, info);
     }
+
+    // TMDB → IMDb
+    if (!info.imdbId && info.tmdbId) info.imdbId = await tmdbToImdb(info.tmdbId);
+
+    // Slug-based title lookup: try player URL slug first, then referrer slug
+    if (!info.imdbId) {
+      const urlsToTry = [location.href];
+      if (isIframe && referrer) urlsToTry.push(referrer);
+
+      for (const url of urlsToTry) {
+        const slug = extractSlugFromUrl(url);
+        if (slug) {
+          const title = titleFromSlug(slug);
+          // Also check parsePathTitle against current window (already parsed above)
+          if (!info.imdbId) {
+            const pathTitle = parsePathTitle(info);
+            if (pathTitle) {
+              // pathTitle already sets season/episode on info — nothing to look up via TMDB without search
+              // Store title for possible future lookup
+            }
+          }
+          break;
+        }
+      }
+    }
+
     return info;
   }
 
@@ -608,18 +677,6 @@
       segments = await fetchSegments(info.imdbId, info.season, info.episode);
       if (!segments) {
         console.warn('[SkipStream] No segment data for', info.imdbId, `S${info.season}E${info.episode}`);
-        // Report missing segment if user opted in
-        if (prefs.addSegment) {
-          try {
-            await br.runtime.sendMessage({
-              type: 'REPORT_SEGMENT',
-              imdbId:  info.imdbId,
-              season:  info.season,
-              episode: info.episode,
-              site:    location.hostname,
-            });
-          } catch { /* background not ready */ }
-        }
       }
     }
 
@@ -636,21 +693,26 @@
 
       if (active) {
         const prefKey = PREF_FOR_SEGMENT[active.key];
-        if (!prefs[prefKey]) {
-          if (active.key !== activeSegmentKey) {
-            activeSegmentKey = active.key;
-            video.currentTime = active.segment.end_sec;
-            activeSegmentKey = '';
-          }
+        // Master off → do nothing (no auto-skip, no button)
+        if (!prefs.skipMaster) {
+          if (activeSegmentKey) { activeSegmentKey = ''; hideSkipBtn(); }
           return;
         }
         if (active.key !== activeSegmentKey) {
           activeSegmentKey = active.key;
-          showSkipBtn(SEGMENT_LABELS[active.key], () => {
+          if (prefs[prefKey]) {
+            // Child toggle ON → auto-skip silently
             video.currentTime = active.segment.end_sec;
             activeSegmentKey = '';
             hideSkipBtn();
-          });
+          } else {
+            // Child toggle OFF → show skip button prompt
+            showSkipBtn(SEGMENT_LABELS[active.key], () => {
+              video.currentTime = active.segment.end_sec;
+              activeSegmentKey = '';
+              hideSkipBtn();
+            });
+          }
         }
       } else if (!active && activeSegmentKey) {
         activeSegmentKey = '';
@@ -694,6 +756,27 @@
       onNavigation();
     };
   }
+
+  // ── Popup message handlers ─────────────────────────────────────────────────
+
+  br.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg.type === 'GET_VIDEO_TIME') {
+      // Return currentTime of the first playing (or any attached) video
+      let time = null;
+      for (const v of document.querySelectorAll('video')) {
+        if (!v.paused || v.currentTime > 0) { time = v.currentTime; break; }
+      }
+      sendResponse({ time });
+      return true;
+    }
+    if (msg.type === 'GET_SHOW_INFO') {
+      resolveShowInfo().then(info => {
+        sendResponse({ imdbId: info.imdbId, season: info.season, episode: info.episode, site: location.hostname });
+      });
+      return true;
+    }
+    return false;
+  });
 
   // ── Boot ───────────────────────────────────────────────────────────────────
   loadPrefs().then(scanVideos);

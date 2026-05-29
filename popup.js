@@ -3,17 +3,40 @@
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
-const TOGGLES  = ['skipIntro', 'skipRecap', 'skipOutro', 'resumePlayback', 'addSegment'];
-const DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, addSegment: false };
+const CHILD_KEYS = ['skipIntro', 'skipRecap', 'skipOutro'];
+const ALL_TOGGLES = [...CHILD_KEYS, 'resumePlayback'];
+const DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true };
 const CACHE_KEY = 'skipstream_cache';
 
 // ── Prefs ─────────────────────────────────────────────────────────────────────
 
 async function loadPrefs() {
-  const stored = await br.storage.local.get(TOGGLES);
-  const prefs = { ...DEFAULTS };
-  for (const key of TOGGLES) if (key in stored) prefs[key] = stored[key];
+  const stored = await br.storage.local.get([...ALL_TOGGLES, 'skipMaster']);
+  const prefs = { ...DEFAULTS, skipMaster: true };
+  for (const key of ALL_TOGGLES) if (key in stored) prefs[key] = stored[key];
+  if ('skipMaster' in stored) prefs.skipMaster = stored.skipMaster;
   return prefs;
+}
+
+// ── Master toggle + badge ─────────────────────────────────────────────────────
+
+function updateMasterUI(masterChecked) {
+  const childRows = document.getElementById('childRows');
+  if (masterChecked) {
+    childRows.classList.remove('collapsed');
+  } else {
+    childRows.classList.add('collapsed');
+  }
+  updateBadge();
+}
+
+function updateBadge() {
+  const master = document.getElementById('skipMaster');
+  const badge  = document.getElementById('skipBadge');
+  if (!master.checked) { badge.classList.add('hidden'); return; }
+  const active = CHILD_KEYS.filter(k => document.getElementById(k)?.checked).length;
+  badge.textContent = `${active}/${CHILD_KEYS.length}`;
+  badge.classList.toggle('hidden', false);
 }
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
@@ -54,13 +77,11 @@ function buildDeepLink(entry) {
   if (!entry.url) return null;
   try {
     const u = new URL(entry.url);
-    // Inject timestamp param where supported
     if (u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be')) {
       u.searchParams.set('t', Math.floor(entry.p));
     } else if (u.hostname.includes('vimeo.com')) {
       u.hash = `t=${Math.floor(entry.p)}s`;
     }
-    // Other sites: return base URL — content script will restore position on load
     return u.toString();
   } catch { return entry.url; }
 }
@@ -157,17 +178,164 @@ document.getElementById('historyFilter')?.addEventListener('change', e => {
   renderHistory(q, e.target.value);
 });
 
+// ── Report Segment flow ───────────────────────────────────────────────────────
+
+let rfState = 'idle';  // idle | recording | stopped
+let rfStartSec = null;
+let rfEndSec   = null;
+let rfType     = null;
+
+const rfLabel     = document.getElementById('rfLabel');
+const rfActionRow = document.getElementById('rfActionRow');
+const rfTypeRow   = document.getElementById('rfTypeRow');
+const rfSubmitRow = document.getElementById('rfSubmitRow');
+const rfStartBtn  = document.getElementById('rfStartBtn');
+const rfCancelBtn = document.getElementById('rfCancelBtn');
+const rfSubmitBtn = document.getElementById('rfSubmitBtn');
+const reportFlow  = document.getElementById('reportFlow');
+const reportToggleBtn = document.getElementById('reportToggleBtn');
+
+function rfReset() {
+  rfState = 'idle'; rfStartSec = null; rfEndSec = null; rfType = null;
+  rfLabel.textContent = 'Press Start when the segment begins playing.';
+  rfStartBtn.textContent = '▶ Start';
+  rfStartBtn.className = 'rf-btn primary';
+  rfActionRow.style.display = '';
+  rfTypeRow.style.display = 'none';
+  rfSubmitRow.style.display = 'none';
+  document.querySelectorAll('#rfTypeRow .rf-btn').forEach(b => b.classList.remove('selected'));
+  reportToggleBtn.classList.remove('active');
+  reportFlow.classList.remove('visible');
+}
+
+reportToggleBtn.addEventListener('click', () => {
+  const open = reportFlow.classList.contains('visible');
+  if (open) { rfReset(); } else {
+    reportFlow.classList.add('visible');
+    reportToggleBtn.classList.add('active');
+  }
+});
+
+rfCancelBtn.addEventListener('click', rfReset);
+
+rfStartBtn.addEventListener('click', async () => {
+  if (rfState === 'idle') {
+    // Query active tab for current video time
+    rfState = 'recording';
+    rfStartSec = null;
+    try {
+      const tabs = await br.tabs.query({ active: true, currentWindow: true });
+      if (tabs[0]?.id) {
+        const res = await br.tabs.sendMessage(tabs[0].id, { type: 'GET_VIDEO_TIME' });
+        rfStartSec = res?.time ?? null;
+      }
+    } catch { /* tab not reachable */ }
+    rfLabel.textContent = rfStartSec != null
+      ? `Start recorded at ${fmtTime(rfStartSec)}. Press Stop when segment ends.`
+      : 'Start recorded (no video time). Press Stop when segment ends.';
+    rfStartBtn.textContent = '⏹ Stop';
+    rfStartBtn.className = 'rf-btn danger';
+  } else if (rfState === 'recording') {
+    rfState = 'stopped';
+    rfEndSec = null;
+    try {
+      const tabs = await br.tabs.query({ active: true, currentWindow: true });
+      if (tabs[0]?.id) {
+        const res = await br.tabs.sendMessage(tabs[0].id, { type: 'GET_VIDEO_TIME' });
+        rfEndSec = res?.time ?? null;
+      }
+    } catch { /* tab not reachable */ }
+    const timeInfo = (rfStartSec != null && rfEndSec != null)
+      ? ` (${fmtTime(rfStartSec)}–${fmtTime(rfEndSec)})`
+      : '';
+    rfLabel.textContent = `Segment recorded${timeInfo}. Select type:`;
+    rfActionRow.style.display = 'none';
+    rfTypeRow.style.display = '';
+  }
+});
+
+document.querySelectorAll('#rfTypeRow .rf-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#rfTypeRow .rf-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    rfType = btn.dataset.type;
+    rfSubmitRow.style.display = '';
+  });
+});
+
+rfSubmitBtn.addEventListener('click', async () => {
+  if (!rfType) return;
+  rfSubmitBtn.disabled = true;
+  rfSubmitBtn.textContent = 'Submitting…';
+  try {
+    const tabs = await br.tabs.query({ active: true, currentWindow: true });
+    const tabId = tabs[0]?.id;
+    let imdbId = null, season = null, episode = null, site = null;
+    if (tabId) {
+      try {
+        const info = await br.tabs.sendMessage(tabId, { type: 'GET_SHOW_INFO' });
+        imdbId  = info?.imdbId  || null;
+        season  = info?.season  || null;
+        episode = info?.episode || null;
+        site    = info?.site    || null;
+      } catch { /* not reachable */ }
+    }
+    const res = await br.runtime.sendMessage({
+      type: 'REPORT_SEGMENT',
+      imdbId, season, episode, site,
+      startSec: rfStartSec,
+      endSec:   rfEndSec,
+      segType:  rfType,
+    });
+    rfLabel.textContent = res?.ok ? '✓ Submitted! Thanks for contributing.' : '⚠ Submit failed — check your API key in Settings.';
+    rfActionRow.style.display = 'none';
+    rfTypeRow.style.display = 'none';
+    rfSubmitRow.style.display = 'none';
+    setTimeout(rfReset, 3000);
+  } catch (e) {
+    rfLabel.textContent = `Error: ${e.message}`;
+    rfSubmitBtn.disabled = false;
+    rfSubmitBtn.textContent = 'Submit';
+  }
+});
+
 // ── Status & toggles ──────────────────────────────────────────────────────────
 
 async function init() {
   // Load and apply toggle prefs
   const prefs = await loadPrefs();
-  for (const key of TOGGLES) {
+
+  // Master toggle
+  const masterEl = document.getElementById('skipMaster');
+  masterEl.checked = prefs.skipMaster;
+  updateMasterUI(prefs.skipMaster);
+  masterEl.addEventListener('change', () => {
+    br.storage.local.set({ skipMaster: masterEl.checked });
+    updateMasterUI(masterEl.checked);
+  });
+
+  // Child toggles
+  for (const key of CHILD_KEYS) {
     const el = document.getElementById(key);
     if (!el) continue;
     el.checked = prefs[key];
-    el.addEventListener('change', () => br.storage.local.set({ [key]: el.checked }));
+    el.addEventListener('change', () => {
+      br.storage.local.set({ [key]: el.checked });
+      updateBadge();
+    });
   }
+
+  // Other toggles
+  const resumeEl = document.getElementById('resumePlayback');
+  if (resumeEl) {
+    resumeEl.checked = prefs.resumePlayback;
+    resumeEl.addEventListener('change', () => br.storage.local.set({ resumePlayback: resumeEl.checked }));
+  }
+
+  updateBadge();
+
+  // Load history eagerly in background (task 1)
+  renderHistory();
 
   const statusEl = document.getElementById('status');
   const noConfig = document.getElementById('noConfig');

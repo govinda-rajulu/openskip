@@ -3,7 +3,7 @@
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
-const CRED_KEYS = ['supabaseUrl', 'supabaseAnonKey', 'tmdbApiKey', 'introdbApiKey', 'omdbApiKey', 'animeSkipClientId', 'animeSkipAuthToken'];
+const CRED_KEYS = ['supabaseUrl', 'supabaseAnonKey', 'tmdbApiKey', 'introdbApiKey', 'animeSkipClientId', 'animeSkipAuthToken'];
 
 const fields = {
   supabaseUrl:     document.getElementById('supabaseUrl'),

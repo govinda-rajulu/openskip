@@ -93,6 +93,60 @@
     input:checked+.slider{background:var(--accent)}
     input:checked+.slider::before{transform:translateX(16px)}
 
+    /* Master toggle row */
+    .row-master{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:8px 2px 6px;border-bottom:1px solid var(--divider);font-size:13px;gap:10px;
+    }
+    .master-left{display:flex;align-items:center;gap:6px;flex:1}
+    .master-left span{color:var(--text);font-weight:600}
+    .skip-badge{
+      font-size:9px;font-weight:700;background:rgba(37,99,235,0.15);color:var(--accent);
+      border-radius:4px;padding:2px 5px;transition:opacity .2s;
+    }
+    .skip-badge.hidden{opacity:0}
+
+    /* Child toggle rows (indented) */
+    .child-rows{overflow:hidden;transition:max-height .25s ease,opacity .25s ease;max-height:200px;opacity:1}
+    .child-rows.collapsed{max-height:0;opacity:0;pointer-events:none}
+    .row-child{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:7px 2px 7px 14px;border-bottom:1px solid var(--divider);font-size:12px;gap:10px;
+    }
+    .row-child:last-child{border-bottom:none}
+    .row-child .rlabel span{color:var(--muted)}
+
+    /* Report Segment button */
+    .report-wrap{padding:8px 2px 4px;border-bottom:1px solid var(--divider)}
+    .report-btn{
+      width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--divider);
+      border-radius:8px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;
+      font-family:inherit;text-align:left;transition:border-color .15s,color .15s;
+    }
+    .report-btn:hover{border-color:var(--accent);color:var(--accent)}
+    .report-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(37,99,235,0.07)}
+
+    /* Report flow */
+    .report-flow{
+      display:none;margin-top:7px;padding:9px 10px;
+      background:var(--surface);border:1px solid var(--divider);
+      border-radius:8px;font-size:11px;
+    }
+    .report-flow.visible{display:block}
+    .report-flow .rf-label{color:var(--muted);margin-bottom:6px;line-height:1.5}
+    .rf-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+    .rf-btn{
+      padding:5px 10px;border-radius:6px;font-size:11px;font-weight:600;
+      background:var(--surface);border:1px solid var(--divider);
+      color:var(--text);cursor:pointer;font-family:inherit;transition:background .15s,border-color .15s;
+    }
+    .rf-btn:hover{border-color:var(--accent);color:var(--accent)}
+    .rf-btn.selected{background:rgba(37,99,235,0.12);border-color:var(--accent);color:var(--accent)}
+    .rf-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .rf-btn.primary:hover{background:#1d4ed8}
+    .rf-btn.danger{background:rgba(220,38,38,0.08);border-color:rgba(220,38,38,0.3);color:#dc2626}
+    .rf-time{font-size:10px;color:var(--ok);font-weight:600;margin-left:2px}
+
     /* History panel */
     .search{
       width:100%;padding:7px 10px;background:var(--surface);
@@ -123,7 +177,7 @@
     <header>
       <div class="logo"><img src="icons/icon-48.png" alt="SkipStream"></div>
       <h1>SkipStream</h1>
-      <span class="badge">v1.3</span>
+      <span class="badge" id="versionBadge">v1.5</span>
       <button class="hdr-btn" id="optionsBtn" title="Settings">⚙</button>
     </header>
 
@@ -137,25 +191,49 @@
       <div id="noConfig" class="alert-warn"></div>
       <div id="status">Checking…</div>
 
+      <!-- Master Skip Segments toggle -->
       <span class="slabel">Skip Segments</span>
-      <div class="row">
-        <div class="rlabel"><span>Skip Intros</span></div>
-        <label class="toggle"><input type="checkbox" id="skipIntro"><span class="slider"></span></label>
-      </div>
-      <div class="row">
-        <div class="rlabel"><span>Skip Recaps</span></div>
-        <label class="toggle"><input type="checkbox" id="skipRecap"><span class="slider"></span></label>
-      </div>
-      <div class="row">
-        <div class="rlabel"><span>Skip Outros</span></div>
-        <label class="toggle"><input type="checkbox" id="skipOutro"><span class="slider"></span></label>
-      </div>
-      <div class="row">
-        <div class="rlabel">
-          <span>Report Segments</span>
-          <small>Submit missing intros/outros to IntroDB</small>
+      <div class="row-master">
+        <div class="master-left">
+          <span>Skip Segments</span>
+          <span class="skip-badge hidden" id="skipBadge">0/3</span>
         </div>
-        <label class="toggle"><input type="checkbox" id="addSegment"><span class="slider"></span></label>
+        <label class="toggle"><input type="checkbox" id="skipMaster"><span class="slider"></span></label>
+      </div>
+      <!-- Child toggles -->
+      <div class="child-rows collapsed" id="childRows">
+        <div class="row-child">
+          <div class="rlabel"><span>Intros</span></div>
+          <label class="toggle"><input type="checkbox" id="skipIntro"><span class="slider"></span></label>
+        </div>
+        <div class="row-child">
+          <div class="rlabel"><span>Recaps</span></div>
+          <label class="toggle"><input type="checkbox" id="skipRecap"><span class="slider"></span></label>
+        </div>
+        <div class="row-child">
+          <div class="rlabel"><span>Outros</span></div>
+          <label class="toggle"><input type="checkbox" id="skipOutro"><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <!-- Report Segment tool -->
+      <div class="report-wrap">
+        <button class="report-btn" id="reportToggleBtn">📌 Report Segment</button>
+        <div class="report-flow" id="reportFlow">
+          <div class="rf-label" id="rfLabel">Press Start when the segment begins playing.</div>
+          <div class="rf-row" id="rfActionRow">
+            <button class="rf-btn primary" id="rfStartBtn">▶ Start</button>
+            <button class="rf-btn danger" id="rfCancelBtn">✕ Cancel</button>
+          </div>
+          <div class="rf-row" id="rfTypeRow" style="display:none">
+            <button class="rf-btn" data-type="intro">Intro</button>
+            <button class="rf-btn" data-type="recap">Recap</button>
+            <button class="rf-btn" data-type="outro">Outro</button>
+          </div>
+          <div id="rfSubmitRow" style="display:none">
+            <button class="rf-btn primary" id="rfSubmitBtn">Submit</button>
+          </div>
+        </div>
       </div>
 
       <span class="slabel" style="margin-top:8px">Playback</span>
