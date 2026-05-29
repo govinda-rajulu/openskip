@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.5.1] — 2026-05-30
+
+### Changed (UI overhaul)
+- Full popup redesign: unified design system with CSS token variables, Inter/system font, glass-morphism card, proper dark mode
+- **Skip Segments** and **Add Segment** use identical "folder" chrome — collapsed header with icon, chevron, expand/collapse animation
+- Skip master toggle expands child rows (Intro/Recap/Outro) inline; badge shows "N/3" active; sub-label summarises active types
+- **Add Segment** (renamed from "Report Segment"): Start/Stop/type-select/submit flow as 3 stepped screens within the folder; matches Skip Segments styling exactly
+- History panel: Source pills (Local / Cloud / Merged) let user switch data source; cloud rows show ☁ badge; richer item cards with progress bar and time label
+- Status row replaced with compact dot + text pill; sync status row in History panel shows cloud sync state
+
+### Fixed
+- **Supabase history bug**: History now fetches all rows for the user from Supabase (`playback_states`) in the popup and merges with local cache — previously only local `browser.storage.local` was shown
+- Merged history: cloud's `playback_time` wins if more recent than local; local provides `title` and `url` for cloud-only rows
+- `tabs` permission already added in 1.5.0 — used by Add Segment Start/Stop to read current video time
+- All SVG icons built with DOM API, no `innerHTML` (CI-compliant)
+
 ## [1.5.0] — 2026-05-29
 
 ### Added

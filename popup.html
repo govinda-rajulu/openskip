@@ -5,255 +5,637 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SkipStream</title>
   <style>
+    /* ── Tokens ──────────────────────────────────────────────────────────── */
     :root {
-      --bg:#eef0f5; --glass:rgba(255,255,255,0.45); --border:rgba(255,255,255,0.6);
-      --surface:rgba(0,0,0,0.04); --text:#0f1117; --muted:#586070;
-      --accent:#2563eb; --ok:#16a34a; --warn:#b45309;
-      --off:rgba(0,0,0,0.14); --divider:rgba(0,0,0,0.07);
-      --shadow:0 8px 32px rgba(0,0,0,0.10),0 1.5px 6px rgba(0,0,0,0.06);
+      --bg: #f0f2f7;
+      --card: rgba(255,255,255,0.70);
+      --card-border: rgba(255,255,255,0.85);
+      --surface: rgba(0,0,0,0.038);
+      --surface2: rgba(0,0,0,0.055);
+      --divider: rgba(0,0,0,0.072);
+      --text: #0d0f14;
+      --text2: #515c70;
+      --text3: #8a95a8;
+      --accent: #2860f0;
+      --accent-dim: rgba(40,96,240,0.13);
+      --accent-hover: #1a4fd8;
+      --ok: #15a350;
+      --ok-dim: rgba(21,163,80,0.12);
+      --warn: #c0720a;
+      --warn-dim: rgba(192,114,10,0.10);
+      --danger: #d93025;
+      --danger-dim: rgba(217,48,37,0.09);
+      --toggle-off: rgba(0,0,0,0.16);
+      --shadow-card: 0 12px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
+      --shadow-sm: 0 1px 4px rgba(0,0,0,0.09);
+      --radius-card: 18px;
+      --radius-md: 10px;
+      --radius-sm: 7px;
+      --font: 'Inter', system-ui, -apple-system, sans-serif;
+      --transition: 0.18s cubic-bezier(0.4,0,0.2,1);
     }
-    @media(prefers-color-scheme:dark){
-      :root{
-        --bg:#0c0d12; --glass:rgba(22,24,32,0.72); --border:rgba(255,255,255,0.10);
-        --surface:rgba(255,255,255,0.05); --text:#eef0f5; --muted:#7a8494;
-        --ok:#4ade80; --warn:#fbbf24; --off:rgba(255,255,255,0.13);
-        --divider:rgba(255,255,255,0.07); --shadow:0 8px 32px rgba(0,0,0,0.55);
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b0d12;
+        --card: rgba(20,22,30,0.80);
+        --card-border: rgba(255,255,255,0.09);
+        --surface: rgba(255,255,255,0.055);
+        --surface2: rgba(255,255,255,0.08);
+        --divider: rgba(255,255,255,0.075);
+        --text: #edf0f7;
+        --text2: #7e8da4;
+        --text3: #4e5a6e;
+        --ok: #34d474;
+        --ok-dim: rgba(52,212,116,0.12);
+        --warn: #f5a623;
+        --warn-dim: rgba(245,166,35,0.11);
+        --danger: #f25a4f;
+        --danger-dim: rgba(242,90,79,0.10);
+        --toggle-off: rgba(255,255,255,0.16);
+        --shadow-card: 0 12px 40px rgba(0,0,0,0.55);
       }
     }
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    html{background:var(--bg)}
-    body{
-      width:300px;font-family:system-ui,-apple-system,sans-serif;
-      background:var(--bg);color:var(--text);padding:10px;
-    }
-    @media(max-width:300px){body{width:100%;padding:8px}}
 
-    .glass{
-      background:var(--glass);
-      backdrop-filter:blur(18px) saturate(160%);
-      -webkit-backdrop-filter:blur(18px) saturate(160%);
-      border:1px solid var(--border);border-radius:16px;
-      box-shadow:var(--shadow);padding:12px 14px 10px;
+    /* ── Reset ───────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { background: var(--bg); }
+    body {
+      width: 320px;
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.4;
+      background: var(--bg);
+      color: var(--text);
+      padding: 10px;
     }
 
-    /* Header */
-    header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-    .logo{width:24px;height:24px;border-radius:7px;overflow:hidden;flex-shrink:0}
-    .logo img{width:100%;height:100%}
-    header h1{font-size:15px;font-weight:800;letter-spacing:-.02em;flex:1}
-    .badge{font-size:9px;font-weight:700;background:var(--accent);color:#fff;border-radius:4px;padding:2px 5px;flex-shrink:0}
-    .hdr-btn{background:none;border:none;cursor:pointer;color:var(--muted);font-size:15px;padding:3px 5px;border-radius:6px;transition:color .15s;font-family:inherit}
-    .hdr-btn:hover{color:var(--accent)}
-
-    /* Tabs */
-    .tabs{display:flex;gap:2px;margin-bottom:10px;border-bottom:1px solid var(--divider);padding-bottom:0}
-    .tab{
-      background:none;border:none;cursor:pointer;font-family:inherit;
-      padding:6px 10px;font-size:11px;font-weight:600;color:var(--muted);
-      border-bottom:2px solid transparent;transition:color .15s;
-    }
-    .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-
-    /* Panels */
-    .panel{display:none}
-    .panel.active{display:block}
-
-    /* Status */
-    #status{font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5}
-    #status.ok{color:var(--ok)} #status.warn{color:var(--warn)}
-    .alert-warn{
-      font-size:11px;color:var(--warn);background:rgba(180,83,9,.09);
-      border:1px solid rgba(180,83,9,.22);border-radius:8px;
-      padding:7px 9px;margin-bottom:8px;line-height:1.5;display:none;
+    /* ── Card shell ──────────────────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
+      padding: 14px 14px 12px;
     }
 
-    /* Section label */
-    .slabel{
-      font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--muted);
-      text-transform:uppercase;padding:0 2px 4px;margin-top:6px;display:block;
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .logo {
+      width: 26px; height: 26px;
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+    }
+    .logo img { width: 100%; height: 100%; display: block; }
+    .header-title { font-size: 15px; font-weight: 800; letter-spacing: -0.03em; flex: 1; }
+    .ver-badge {
+      font-size: 9px; font-weight: 700;
+      background: var(--accent); color: #fff;
+      border-radius: 5px; padding: 2px 6px;
+      letter-spacing: 0.03em; flex-shrink: 0;
+    }
+    .icon-btn {
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--surface); border: 1px solid var(--divider);
+      border-radius: 8px; cursor: pointer; color: var(--text2);
+      transition: background var(--transition), color var(--transition), border-color var(--transition);
+      flex-shrink: 0;
+    }
+    .icon-btn:hover { background: var(--surface2); color: var(--accent); border-color: var(--accent); }
+    .icon-btn svg { display: block; }
+
+    /* ── Status pill ─────────────────────────────────────────────────────── */
+    .status-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 10px;
+      background: var(--surface);
+      border: 1px solid var(--divider);
+      border-radius: var(--radius-md);
+      margin-bottom: 10px;
+      min-height: 30px;
+    }
+    .status-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+      background: var(--text3);
+    }
+    .status-dot.ok  { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-dim); }
+    .status-dot.warn{ background: var(--warn); box-shadow: 0 0 0 3px var(--warn-dim); }
+    .status-dot.err { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-dim); }
+    #statusText { font-size: 11px; font-weight: 500; color: var(--text2); flex: 1; }
+
+    /* ── Tabs ────────────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--divider);
+      border-radius: var(--radius-md);
+      padding: 3px;
+      gap: 2px;
+      margin-bottom: 12px;
+    }
+    .tab {
+      flex: 1; padding: 5px 8px;
+      font-family: var(--font); font-size: 11px; font-weight: 600;
+      color: var(--text2); background: none; border: none;
+      border-radius: 7px; cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+      white-space: nowrap;
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+    }
+    .tab svg { flex-shrink: 0; }
+    .tab.active { background: var(--card); color: var(--text); box-shadow: var(--shadow-sm); }
+
+    /* ── Panels ──────────────────────────────────────────────────────────── */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Alert banner ────────────────────────────────────────────────────── */
+    .alert {
+      font-size: 11px; line-height: 1.5;
+      border-radius: var(--radius-sm);
+      padding: 7px 10px; margin-bottom: 10px; display: none;
+    }
+    .alert.warn { display: block; color: var(--warn); background: var(--warn-dim); border: 1px solid rgba(192,114,10,0.20); }
+    .alert.err  { display: block; color: var(--danger); background: var(--danger-dim); border: 1px solid rgba(217,48,37,0.20); }
+
+    /* ── Section label ───────────────────────────────────────────────────── */
+    .section-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text3);
+      padding: 0 2px; margin: 10px 0 4px;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .section-label::after {
+      content: ''; flex: 1; height: 1px; background: var(--divider);
     }
 
-    /* Toggle rows */
-    .row{
-      display:flex;justify-content:space-between;align-items:center;
-      padding:8px 2px;border-bottom:1px solid var(--divider);font-size:13px;gap:10px;
+    /* ── Segment folder ──────────────────────────────────────────────────── */
+    /*  Both "Skip Segments" and "Add Segment" share identical folder chrome  */
+    .seg-folder {
+      border: 1px solid var(--divider);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin-bottom: 8px;
     }
-    .row:last-child{border-bottom:none}
-    .rlabel{display:flex;flex-direction:column;gap:1px}
-    .rlabel span{color:var(--text);line-height:1.3}
-    .rlabel small{font-size:10px;color:var(--muted)}
-    .toggle{position:relative;width:38px;height:22px;flex-shrink:0}
-    .toggle input{opacity:0;width:0;height:0;position:absolute}
-    .slider{position:absolute;inset:0;background:var(--off);border-radius:22px;transition:background .2s;cursor:pointer}
-    .slider::before{
-      content:'';position:absolute;width:16px;height:16px;
-      left:3px;bottom:3px;background:#fff;border-radius:50%;
-      transition:transform .2s;box-shadow:0 1px 4px rgba(0,0,0,.22);
-    }
-    input:checked+.slider{background:var(--accent)}
-    input:checked+.slider::before{transform:translateX(16px)}
 
-    /* Master toggle row */
-    .row-master{
-      display:flex;justify-content:space-between;align-items:center;
-      padding:8px 2px 6px;border-bottom:1px solid var(--divider);font-size:13px;gap:10px;
+    /* Header row — the "Skip" trigger / "Add Segment" trigger */
+    .seg-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 12px;
+      background: var(--surface);
+      cursor: default;
+      user-select: none;
     }
-    .master-left{display:flex;align-items:center;gap:6px;flex:1}
-    .master-left span{color:var(--text);font-weight:600}
-    .skip-badge{
-      font-size:9px;font-weight:700;background:rgba(37,99,235,0.15);color:var(--accent);
-      border-radius:4px;padding:2px 5px;transition:opacity .2s;
-    }
-    .skip-badge.hidden{opacity:0}
+    .seg-header.clickable { cursor: pointer; }
+    .seg-header.clickable:hover { background: var(--surface2); }
 
-    /* Child toggle rows (indented) */
-    .child-rows{overflow:hidden;transition:max-height .25s ease,opacity .25s ease;max-height:200px;opacity:1}
-    .child-rows.collapsed{max-height:0;opacity:0;pointer-events:none}
-    .row-child{
-      display:flex;justify-content:space-between;align-items:center;
-      padding:7px 2px 7px 14px;border-bottom:1px solid var(--divider);font-size:12px;gap:10px;
+    .seg-icon {
+      width: 28px; height: 28px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; font-size: 14px;
     }
-    .row-child:last-child{border-bottom:none}
-    .row-child .rlabel span{color:var(--muted)}
+    .seg-icon.blue   { background: var(--accent-dim); }
+    .seg-icon.green  { background: var(--ok-dim); }
 
-    /* Report Segment button */
-    .report-wrap{padding:8px 2px 4px;border-bottom:1px solid var(--divider)}
-    .report-btn{
-      width:100%;padding:8px 12px;background:var(--surface);border:1px solid var(--divider);
-      border-radius:8px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;
-      font-family:inherit;text-align:left;transition:border-color .15s,color .15s;
-    }
-    .report-btn:hover{border-color:var(--accent);color:var(--accent)}
-    .report-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(37,99,235,0.07)}
+    .seg-title-wrap { flex: 1; min-width: 0; }
+    .seg-title { font-size: 13px; font-weight: 600; line-height: 1.2; }
+    .seg-sub   { font-size: 10px; color: var(--text3); margin-top: 1px; }
 
-    /* Report flow */
-    .report-flow{
-      display:none;margin-top:7px;padding:9px 10px;
-      background:var(--surface);border:1px solid var(--divider);
-      border-radius:8px;font-size:11px;
+    /* Skip-specific right side — toggle + badge */
+    .seg-right { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+    .seg-badge {
+      font-size: 9px; font-weight: 700;
+      background: var(--accent-dim); color: var(--accent);
+      border-radius: 4px; padding: 2px 5px;
+      transition: opacity var(--transition);
     }
-    .report-flow.visible{display:block}
-    .report-flow .rf-label{color:var(--muted);margin-bottom:6px;line-height:1.5}
-    .rf-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
-    .rf-btn{
-      padding:5px 10px;border-radius:6px;font-size:11px;font-weight:600;
-      background:var(--surface);border:1px solid var(--divider);
-      color:var(--text);cursor:pointer;font-family:inherit;transition:background .15s,border-color .15s;
-    }
-    .rf-btn:hover{border-color:var(--accent);color:var(--accent)}
-    .rf-btn.selected{background:rgba(37,99,235,0.12);border-color:var(--accent);color:var(--accent)}
-    .rf-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-    .rf-btn.primary:hover{background:#1d4ed8}
-    .rf-btn.danger{background:rgba(220,38,38,0.08);border-color:rgba(220,38,38,0.3);color:#dc2626}
-    .rf-time{font-size:10px;color:var(--ok);font-weight:600;margin-left:2px}
+    .seg-badge.hidden { opacity: 0; pointer-events: none; }
 
-    /* History panel */
-    .search{
-      width:100%;padding:7px 10px;background:var(--surface);
-      border:1px solid var(--divider);border-radius:8px;
-      font-size:12px;color:var(--text);font-family:inherit;
-      outline:none;margin-bottom:8px;
+    /* Add-segment right side — chevron */
+    .seg-chevron {
+      color: var(--text3);
+      transition: transform var(--transition);
+      flex-shrink: 0;
     }
-    .search:focus{border-color:var(--accent)}
-    #history-list{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
-    .h-item{
-      background:var(--surface);border:1px solid var(--divider);border-radius:8px;
-      padding:8px 10px;cursor:pointer;text-decoration:none;color:inherit;display:block;
-      transition:border-color .15s;
-    }
-    .h-item:hover{border-color:var(--accent)}
-    .h-title{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px}
-    .h-meta{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:5px}
-    .h-bar{width:100%;height:3px;background:var(--divider);border-radius:2px;overflow:hidden}
-    .h-fill{height:100%;background:var(--accent);border-radius:2px}
-    .h-empty{font-size:12px;color:var(--muted);text-align:center;padding:24px 0}
+    .seg-chevron.open { transform: rotate(180deg); }
 
-    footer{text-align:center;font-size:10px;color:var(--muted);padding:6px 0 2px;opacity:.6}
-    footer a{color:inherit;text-decoration:none}
+    /* ── Toggle ──────────────────────────────────────────────────────────── */
+    .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .slider {
+      position: absolute; inset: 0;
+      background: var(--toggle-off); border-radius: 20px;
+      transition: background var(--transition); cursor: pointer;
+    }
+    .slider::before {
+      content: ''; position: absolute;
+      width: 14px; height: 14px; left: 3px; bottom: 3px;
+      background: #fff; border-radius: 50%;
+      transition: transform var(--transition);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    }
+    input:checked + .slider { background: var(--accent); }
+    input:checked + .slider::before { transform: translateX(16px); }
+
+    /* ── Expandable body (shared: child rows + add-seg flow) ─────────────── */
+    .seg-body {
+      overflow: hidden;
+      transition: max-height 0.26s cubic-bezier(0.4,0,0.2,1),
+                  opacity    0.22s cubic-bezier(0.4,0,0.2,1);
+      max-height: 0; opacity: 0;
+    }
+    .seg-body.open { max-height: 400px; opacity: 1; }
+
+    /* Child toggle rows */
+    .child-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px 8px 20px;
+      border-top: 1px solid var(--divider);
+    }
+    .child-row-label { flex: 1; font-size: 12px; color: var(--text2); }
+    .child-row-sub   { font-size: 10px; color: var(--text3); }
+
+    /* ── Add Segment flow ────────────────────────────────────────────────── */
+    .add-seg-flow {
+      padding: 10px 12px 12px;
+      border-top: 1px solid var(--divider);
+    }
+    .flow-label {
+      font-size: 11px; color: var(--text2);
+      margin-bottom: 8px; line-height: 1.5;
+    }
+    .flow-label.ok   { color: var(--ok); }
+    .flow-label.warn { color: var(--warn); }
+
+    .flow-step { display: none; }
+    .flow-step.active { display: block; }
+
+    /* Step 1 – Record buttons */
+    .flow-btns { display: flex; gap: 6px; }
+    .flow-btn {
+      flex: 1; padding: 7px 10px;
+      font-family: var(--font); font-size: 11px; font-weight: 700;
+      border-radius: var(--radius-sm); border: none;
+      cursor: pointer; text-align: center;
+      transition: opacity var(--transition), background var(--transition);
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+    .flow-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .flow-btn.primary { background: var(--accent); color: #fff; }
+    .flow-btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .flow-btn.stop { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(217,48,37,0.25); }
+    .flow-btn.stop:hover:not(:disabled) { background: rgba(217,48,37,0.16); }
+    .flow-btn.ghost { background: var(--surface); color: var(--text2); border: 1px solid var(--divider); }
+    .flow-btn.ghost:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+
+    /* Step 2 – Type chips */
+    .type-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .type-chip {
+      flex: 1; padding: 6px 8px;
+      font-family: var(--font); font-size: 11px; font-weight: 600;
+      background: var(--surface); border: 1px solid var(--divider);
+      border-radius: var(--radius-sm); cursor: pointer; color: var(--text2);
+      text-align: center;
+      transition: background var(--transition), border-color var(--transition), color var(--transition);
+    }
+    .type-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .type-chip.selected {
+      background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
+    }
+
+    /* Time pill */
+    .time-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 600; color: var(--ok);
+      background: var(--ok-dim); border-radius: 4px;
+      padding: 2px 6px; margin-bottom: 8px;
+    }
+
+    /* ── Playback row ────────────────────────────────────────────────────── */
+    .play-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px;
+      background: var(--surface);
+      border: 1px solid var(--divider);
+      border-radius: var(--radius-md);
+      margin-bottom: 8px;
+    }
+    .play-row-icon {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: var(--ok-dim);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; font-size: 14px;
+    }
+    .play-row-label { flex: 1; font-size: 13px; font-weight: 600; }
+    .play-row-sub   { font-size: 10px; color: var(--text3); }
+
+    /* ── History panel ───────────────────────────────────────────────────── */
+    .hist-controls {
+      display: flex; gap: 6px; margin-bottom: 8px;
+    }
+    .hist-input {
+      flex: 1; padding: 7px 10px;
+      background: var(--surface); border: 1px solid var(--divider);
+      border-radius: var(--radius-sm); font-family: var(--font);
+      font-size: 12px; color: var(--text);
+      outline: none; transition: border-color var(--transition);
+    }
+    .hist-input:focus { border-color: var(--accent); }
+    .hist-select {
+      padding: 7px 8px; min-width: 90px;
+      background: var(--surface); border: 1px solid var(--divider);
+      border-radius: var(--radius-sm); font-family: var(--font);
+      font-size: 11px; color: var(--text2); cursor: pointer;
+      outline: none;
+    }
+    .hist-source-row {
+      display: flex; align-items: center; gap: 6px;
+      margin-bottom: 8px; font-size: 10px; color: var(--text3);
+    }
+    .source-pill {
+      padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 10px;
+      cursor: pointer; border: 1px solid transparent;
+      transition: background var(--transition), border-color var(--transition), color var(--transition);
+    }
+    .source-pill.active {
+      background: var(--accent-dim); color: var(--accent); border-color: var(--accent);
+    }
+    .source-pill:not(.active) {
+      background: var(--surface); color: var(--text2); border-color: var(--divider);
+    }
+    #historyList {
+      max-height: 270px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 5px;
+      scrollbar-width: thin; scrollbar-color: var(--divider) transparent;
+    }
+    .h-item {
+      display: block; text-decoration: none; color: inherit;
+      background: var(--surface); border: 1px solid var(--divider);
+      border-radius: var(--radius-md); padding: 9px 11px;
+      transition: border-color var(--transition), background var(--transition);
+      position: relative;
+    }
+    .h-item:hover { border-color: var(--accent); background: var(--surface2); }
+    .h-item-top {
+      display: flex; align-items: flex-start; gap: 8px; margin-bottom: 5px;
+    }
+    .h-thumb {
+      width: 38px; height: 28px; border-radius: 5px;
+      background: var(--surface2); flex-shrink: 0;
+      overflow: hidden; display: flex; align-items: center; justify-content: center;
+    }
+    .h-thumb svg { opacity: 0.3; }
+    .h-info { flex: 1; min-width: 0; }
+    .h-title {
+      font-size: 12px; font-weight: 600;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      line-height: 1.3; margin-bottom: 2px;
+    }
+    .h-meta {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 10px; color: var(--text3); flex-wrap: wrap;
+    }
+    .h-site {
+      background: var(--surface2); border-radius: 3px;
+      padding: 1px 5px; font-weight: 600; color: var(--text2);
+    }
+    .h-cloud {
+      color: var(--accent); font-size: 9px; font-weight: 700;
+      background: var(--accent-dim); border-radius: 3px; padding: 1px 4px;
+    }
+    .h-bar { width: 100%; height: 2px; background: var(--divider); border-radius: 1px; overflow: hidden; }
+    .h-fill { height: 100%; background: var(--accent); border-radius: 1px; transition: width 0.3s; }
+    .h-time { font-size: 10px; color: var(--text3); margin-top: 4px; text-align: right; }
+    .h-empty {
+      text-align: center; padding: 28px 16px;
+      color: var(--text3); font-size: 12px; line-height: 1.6;
+    }
+    .h-empty svg { display: block; margin: 0 auto 10px; opacity: 0.25; }
+    .h-loading {
+      text-align: center; padding: 20px 0;
+      color: var(--text3); font-size: 11px;
+    }
+    .sync-status {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 10px; color: var(--text3); margin-bottom: 6px;
+      padding: 4px 8px; background: var(--surface); border-radius: var(--radius-sm);
+    }
+    .sync-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text3); }
+    .sync-dot.ok   { background: var(--ok); }
+    .sync-dot.warn { background: var(--warn); }
+
+    /* ── Footer ──────────────────────────────────────────────────────────── */
+    footer {
+      text-align: center; font-size: 10px; color: var(--text3);
+      padding: 7px 0 2px; opacity: 0.7;
+    }
+    footer a { color: inherit; text-decoration: none; }
+    footer a:hover { color: var(--accent); }
   </style>
 </head>
 <body>
-  <div class="glass">
-    <header>
-      <div class="logo"><img src="icons/icon-48.png" alt="SkipStream"></div>
-      <h1>SkipStream</h1>
-      <span class="badge" id="versionBadge">v1.5</span>
-      <button class="hdr-btn" id="optionsBtn" title="Settings">⚙</button>
-    </header>
 
-    <div class="tabs">
-      <button class="tab active" data-tab="settings">⚙ Settings</button>
-      <button class="tab" data-tab="history">📺 History</button>
-    </div>
+<div class="card">
 
-    <!-- Settings panel -->
-    <div id="settings" class="panel active">
-      <div id="noConfig" class="alert-warn"></div>
-      <div id="status">Checking…</div>
+  <!-- Header -->
+  <div class="header">
+    <div class="logo"><img src="icons/icon-48.png" alt=""></div>
+    <span class="header-title">SkipStream</span>
+    <span class="ver-badge" id="versionBadge">v1.5</span>
+    <button class="icon-btn" id="optionsBtn" title="Open Settings">
+      <!-- gear -->
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="8" cy="8" r="2.4"/>
+        <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/>
+      </svg>
+    </button>
+  </div>
 
-      <!-- Master Skip Segments toggle -->
-      <span class="slabel">Skip Segments</span>
-      <div class="row-master">
-        <div class="master-left">
-          <span>Skip Segments</span>
-          <span class="skip-badge hidden" id="skipBadge">0/3</span>
+  <!-- Status -->
+  <div class="status-row">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Checking services…</span>
+  </div>
+
+  <!-- Config warning -->
+  <div class="alert" id="alertBanner"></div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="settings">
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <circle cx="8" cy="8" r="2.4"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/>
+      </svg>
+      Settings
+    </button>
+    <button class="tab" data-tab="history">
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/>
+      </svg>
+      History
+    </button>
+  </div>
+
+  <!-- ═══ Settings panel ══════════════════════════════════════════════════ -->
+  <div id="settings" class="panel active">
+
+    <div class="section-label">Segments</div>
+
+    <!-- Skip Segments folder -->
+    <div class="seg-folder" id="skipFolder">
+      <div class="seg-header" id="skipHeader">
+        <div class="seg-icon blue">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/>
+          </svg>
         </div>
-        <label class="toggle"><input type="checkbox" id="skipMaster"><span class="slider"></span></label>
+        <div class="seg-title-wrap">
+          <div class="seg-title">Skip Segments</div>
+          <div class="seg-sub" id="skipSub">Disabled</div>
+        </div>
+        <div class="seg-right">
+          <span class="seg-badge hidden" id="skipBadge">0/3</span>
+          <label class="toggle" onclick="event.stopPropagation()">
+            <input type="checkbox" id="skipMaster">
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
-      <!-- Child toggles -->
-      <div class="child-rows collapsed" id="childRows">
-        <div class="row-child">
-          <div class="rlabel"><span>Intros</span></div>
+      <!-- Child rows expand when master is ON -->
+      <div class="seg-body" id="skipBody">
+        <div class="child-row">
+          <div class="child-row-label">
+            <div>Intros</div>
+            <div class="child-row-sub">ON = auto-skip · OFF = show button</div>
+          </div>
           <label class="toggle"><input type="checkbox" id="skipIntro"><span class="slider"></span></label>
         </div>
-        <div class="row-child">
-          <div class="rlabel"><span>Recaps</span></div>
+        <div class="child-row">
+          <div class="child-row-label">
+            <div>Recaps</div>
+            <div class="child-row-sub">ON = auto-skip · OFF = show button</div>
+          </div>
           <label class="toggle"><input type="checkbox" id="skipRecap"><span class="slider"></span></label>
         </div>
-        <div class="row-child">
-          <div class="rlabel"><span>Outros</span></div>
+        <div class="child-row">
+          <div class="child-row-label">
+            <div>Outros</div>
+            <div class="child-row-sub">ON = auto-skip · OFF = show button</div>
+          </div>
           <label class="toggle"><input type="checkbox" id="skipOutro"><span class="slider"></span></label>
         </div>
       </div>
+    </div>
 
-      <!-- Report Segment tool -->
-      <div class="report-wrap">
-        <button class="report-btn" id="reportToggleBtn">📌 Report Segment</button>
-        <div class="report-flow" id="reportFlow">
-          <div class="rf-label" id="rfLabel">Press Start when the segment begins playing.</div>
-          <div class="rf-row" id="rfActionRow">
-            <button class="rf-btn primary" id="rfStartBtn">▶ Start</button>
-            <button class="rf-btn danger" id="rfCancelBtn">✕ Cancel</button>
+    <!-- Add Segment folder -->
+    <div class="seg-folder" id="addFolder">
+      <div class="seg-header clickable" id="addHeader">
+        <div class="seg-icon green">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round">
+            <circle cx="8" cy="8" r="6.5"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/>
+          </svg>
+        </div>
+        <div class="seg-title-wrap">
+          <div class="seg-title">Add Segment</div>
+          <div class="seg-sub" id="addSub">Record a missing intro, recap, or outro</div>
+        </div>
+        <svg class="seg-chevron" id="addChevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="2,4 6,8 10,4"/>
+        </svg>
+      </div>
+      <div class="seg-body" id="addBody">
+        <div class="add-seg-flow">
+          <!-- Step 1: Record -->
+          <div class="flow-step active" id="flowStep1">
+            <div class="flow-label" id="flowLabel">Press <strong>Start</strong> when the segment begins.</div>
+            <div class="flow-btns">
+              <button class="flow-btn primary" id="flowStartBtn">
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor"><polygon points="2,1 11,6 2,11"/></svg>
+                Start
+              </button>
+              <button class="flow-btn ghost" id="flowCancelBtn">Cancel</button>
+            </div>
           </div>
-          <div class="rf-row" id="rfTypeRow" style="display:none">
-            <button class="rf-btn" data-type="intro">Intro</button>
-            <button class="rf-btn" data-type="recap">Recap</button>
-            <button class="rf-btn" data-type="outro">Outro</button>
+          <!-- Step 2: Select type -->
+          <div class="flow-step" id="flowStep2">
+            <div class="time-pill" id="flowTimePill">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="6" r="5"/><path d="M6 3v3l2 1"/></svg>
+              <span id="flowTimeText">0:00 – 0:00</span>
+            </div>
+            <div class="flow-label">Select the segment type:</div>
+            <div class="type-chips">
+              <button class="type-chip" data-type="intro">Intro</button>
+              <button class="type-chip" data-type="recap">Recap</button>
+              <button class="type-chip" data-type="outro">Outro</button>
+            </div>
+            <div class="flow-btns">
+              <button class="flow-btn primary" id="flowSubmitBtn" disabled>Submit</button>
+              <button class="flow-btn ghost" id="flowBackBtn">← Back</button>
+            </div>
           </div>
-          <div id="rfSubmitRow" style="display:none">
-            <button class="rf-btn primary" id="rfSubmitBtn">Submit</button>
+          <!-- Step 3: Result -->
+          <div class="flow-step" id="flowStep3">
+            <div class="flow-label" id="flowResultLabel"></div>
           </div>
         </div>
       </div>
-
-      <span class="slabel" style="margin-top:8px">Playback</span>
-      <div class="row">
-        <div class="rlabel"><span>Resume Playback</span></div>
-        <label class="toggle"><input type="checkbox" id="resumePlayback"><span class="slider"></span></label>
-      </div>
     </div>
 
-    <!-- History panel -->
-    <div id="history" class="panel">
-      <input type="search" id="historySearch" class="search" placeholder="Filter by title…">
-      <select id="historyFilter" class="search" style="margin-bottom:8px;cursor:pointer">
+    <div class="section-label">Playback</div>
+
+    <!-- Resume toggle -->
+    <div class="play-row">
+      <div class="play-row-icon">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="3,2 13,8 3,14"/>
+        </svg>
+      </div>
+      <div class="seg-title-wrap">
+        <div class="play-row-label">Resume Playback</div>
+        <div class="play-row-sub">Continue where you left off</div>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" id="resumePlayback">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+  </div><!-- /settings -->
+
+  <!-- ═══ History panel ═══════════════════════════════════════════════════ -->
+  <div id="history" class="panel">
+    <div class="hist-controls">
+      <input type="search" id="historySearch" class="hist-input" placeholder="Search title…" autocomplete="off">
+      <select id="historyFilter" class="hist-select">
         <option value="">All sites</option>
       </select>
-      <div id="history-list"><div class="h-empty">Loading…</div></div>
     </div>
+    <div class="hist-source-row">
+      <span>Source:</span>
+      <span class="source-pill active" data-source="local" id="srcLocal">Local</span>
+      <span class="source-pill" data-source="cloud" id="srcCloud">Cloud</span>
+      <span class="source-pill" data-source="merged" id="srcMerged">Merged</span>
+    </div>
+    <div class="sync-status" id="syncStatus">
+      <div class="sync-dot" id="syncDot"></div>
+      <span id="syncText">Loading history…</span>
+    </div>
+    <div id="historyList"><div class="h-loading">Loading…</div></div>
   </div>
 
-  <footer><a href="https://github.com/govinda-rajulu/openskip" target="_blank">SkipStream</a></footer>
-  <script src="popup.js"></script>
+</div><!-- /card -->
+
+<footer><a href="https://github.com/govinda-rajulu/openskip" target="_blank">SkipStream</a></footer>
+
+<script src="popup.js"></script>
 </body>
 </html>
