@@ -276,7 +276,19 @@
         <input type="checkbox" id="animeSkipEnabled" style="margin-right:6px">
         Enable AnimeSkip fallback for anime intro detection
       </label>
-      <p class="help">Uses <a href="https://animeskip.online" target="_blank" rel="noopener">animeskip.online</a> as a fallback when IntroDB has no data. No API key required.</p>
+      <p class="help">Uses <a href="https://anime-skip.com" target="_blank" rel="noopener">anime-skip.com</a> as a fallback when IntroDB has no data. A Client ID is required.</p>
+    </div>
+    <div id="animeSkipFields" style="display:none">
+      <div class="field">
+        <label for="animeSkipClientId">Client ID <span style="font-weight:400;opacity:.7">(required)</span></label>
+        <input type="password" id="animeSkipClientId" placeholder="Your AnimeSkip Client ID" autocomplete="off" spellcheck="false">
+        <p class="help">Get a free Client ID at <a href="https://anime-skip.com/account/api-clients" target="_blank" rel="noopener">anime-skip.com/account/api-clients</a>. Required to query the GraphQL API.</p>
+      </div>
+      <div class="field">
+        <label for="animeSkipAuthToken">Auth Token <span style="font-weight:400;opacity:.7">(optional — for submitting timestamps)</span></label>
+        <input type="password" id="animeSkipAuthToken" placeholder="Your AnimeSkip auth token" autocomplete="off" spellcheck="false">
+        <p class="help">Only needed if you want the Report Segment tool to submit timestamps to AnimeSkip. Leave blank for read-only usage.</p>
+      </div>
     </div>
   </div>
 

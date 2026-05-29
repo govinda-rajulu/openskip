@@ -12,10 +12,10 @@ jobs:
     name: Lint & Validate
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
@@ -39,7 +39,7 @@ jobs:
           assert 'background' in m, 'background missing'
           assert 'content_scripts' in m, 'content_scripts missing'
           assert 'storage' in m['permissions'], 'storage permission missing'
-          assert 'tabs' not in m['permissions'], 'tabs permission must not be present (unused)'
+          assert 'tabs' in m['permissions'], 'tabs permission required for report tool'
           assert 'activeTab' not in m['permissions'], 'activeTab permission must not be present (unused)'
           assert 'content_security_policy' in m, 'CSP missing'
           gecko = m['browser_specific_settings']['gecko']
@@ -90,7 +90,7 @@ jobs:
           echo "✅ ZIP built: $(du -h skipstream-firefox.zip | cut -f1)"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: skipstream-firefox-zip
           path: "skipstream-firefox.zip"

@@ -6,10 +6,12 @@ const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chr
 const CRED_KEYS = ['supabaseUrl', 'supabaseAnonKey', 'tmdbApiKey', 'introdbApiKey', 'animeSkipClientId', 'animeSkipAuthToken'];
 
 const fields = {
-  supabaseUrl:     document.getElementById('supabaseUrl'),
-  supabaseAnonKey: document.getElementById('supabaseAnonKey'),
-  tmdbApiKey:      document.getElementById('tmdbApiKey'),
-  introdbApiKey:   document.getElementById('introdbApiKey'),
+  supabaseUrl:        document.getElementById('supabaseUrl'),
+  supabaseAnonKey:    document.getElementById('supabaseAnonKey'),
+  tmdbApiKey:         document.getElementById('tmdbApiKey'),
+  introdbApiKey:      document.getElementById('introdbApiKey'),
+  animeSkipClientId:  document.getElementById('animeSkipClientId'),
+  animeSkipAuthToken: document.getElementById('animeSkipAuthToken'),
 };
 
 // ── Status helpers ────────────────────────────────────────────────────────────

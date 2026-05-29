@@ -370,50 +370,7 @@
   }
 
   // ── iframe parent URL resolution ──────────────────────────────────────────
-
-  function slugify(str) {
-    return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  }
-
-  function extractSlugFromUrl(url) {
-    try {
-      const u = new URL(url);
-      const segs = u.pathname.split('/').filter(Boolean);
-      // Return the first non-numeric, non-short segment as title slug
-      for (const s of segs) {
-        if (s.length > 3 && !/^\d+$/.test(s) && !['watch','tv','show','series','episode','season','stream','anime'].includes(s)) {
-          return s;
-        }
-      }
-    } catch { /* invalid url */ }
-    return null;
-  }
-
-  // Resolve info from both player URL (window.location) and parent URL (document.referrer)
-  // for iframe-embedded players like vidup.to inside 1shows.org
-  async function resolveInfoFromUrl(urlStr, info) {
-    if (!urlStr) return;
-    const saved = { href: location.href };
-    // Temporarily parse against the given URL
-    const tmpUrl = urlStr;
-    const imdbMatch = tmpUrl.match(/\b(tt\d{7,8})\b/);
-    if (imdbMatch && !info.imdbId) info.imdbId = imdbMatch[1];
-    const seMatch = extractSeEpisode(tmpUrl);
-    if (seMatch) {
-      if (!info.season)  info.season  = seMatch.season;
-      if (!info.episode) info.episode = seMatch.episode;
-    }
-  }
-
-  async function lookupImdbByTitleTmdb(title, info) {
-    if (!title) return null;
-    // Try TMDB search if tmdbApiKey configured
-    try {
-      const res = await br.runtime.sendMessage({ type: 'TMDB_TO_IMDB', tmdbId: null, searchTitle: title });
-      if (res?.imdbId) return res.imdbId;
-    } catch { /* no tmdb search */ }
-    return null;
-  }
+  // (logic inlined into resolveShowInfo below)
 
   const imdbCache = new Map();
 
@@ -434,37 +391,28 @@
     parseUrlInfo(info);
     parsePageInfo(info);
 
-    // iframe fix (task 6): if running inside iframe, also try parent URL (document.referrer)
-    const isIframe = window !== window.top;
-    const referrer = document.referrer;
-    if (isIframe && referrer) {
-      await resolveInfoFromUrl(referrer, info);
+    // iframe fix: if running inside an embedded player iframe (e.g. vidup.to inside 1shows.org),
+    // also try extracting IMDb ID and S×E from document.referrer (the parent site URL)
+    if (window !== window.top && document.referrer) {
+      const ref = document.referrer;
+      if (!info.imdbId) {
+        const m = ref.match(/\b(tt\d{7,8})\b/);
+        if (m) info.imdbId = m[1];
+      }
+      if (!info.season || !info.episode) {
+        const se = extractSeEpisode(ref);
+        if (se) {
+          if (!info.season)  info.season  = se.season;
+          if (!info.episode) info.episode = se.episode;
+        }
+      }
     }
 
     // TMDB → IMDb
     if (!info.imdbId && info.tmdbId) info.imdbId = await tmdbToImdb(info.tmdbId);
 
-    // Slug-based title lookup: try player URL slug first, then referrer slug
-    if (!info.imdbId) {
-      const urlsToTry = [location.href];
-      if (isIframe && referrer) urlsToTry.push(referrer);
-
-      for (const url of urlsToTry) {
-        const slug = extractSlugFromUrl(url);
-        if (slug) {
-          const title = titleFromSlug(slug);
-          // Also check parsePathTitle against current window (already parsed above)
-          if (!info.imdbId) {
-            const pathTitle = parsePathTitle(info);
-            if (pathTitle) {
-              // pathTitle already sets season/episode on info — nothing to look up via TMDB without search
-              // Store title for possible future lookup
-            }
-          }
-          break;
-        }
-      }
-    }
+    // Slug-based path title extraction (sets season/episode as side-effect)
+    if (!info.imdbId) parsePathTitle(info);
 
     return info;
   }

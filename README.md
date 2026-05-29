@@ -4,7 +4,7 @@
 
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-pending%20review-orange?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.0-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.1.0)
+[![Version](https://img.shields.io/badge/version-1.5.0-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.5.0)
 
 A Firefox extension (Desktop & Android) that detects skip segments on any streaming site and syncs your playback position to the cloud via Supabase.
 
@@ -25,7 +25,9 @@ A Firefox extension (Desktop & Android) that detects skip segments on any stream
 
 ## Features
 
-- **Skip intros, recaps & outros** — via [IntroDB](https://introdb.app) segment data
+- **Skip intros, recaps & outros** — via [IntroDB](https://introdb.app) and [AnimeSkip](https://anime-skip.com) segment data
+- **Master skip toggle** — one switch with per-type child toggles (Intro/Recap/Outro); ON = auto-skip silently, OFF = show button prompt
+- **Report Segment tool** — record start/stop timestamps and submit missing segments to IntroDB and AnimeSkip
 - **Resume playback** — picks up where you left off, across devices and browsers
 - **Cloud sync** — powered by your own Supabase project (free tier works)
 - **Works everywhere** — any site with an HTML5 `<video>` element
@@ -57,12 +59,6 @@ Get a free API key at **[introdb.app](https://introdb.app)**. Without this, the 
 ### Optional — TMDB (improves show detection)
 
 Free key at **[themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)**.
-
-### Optional — OMDB (last-resort show detection)
-
-Free key at **[omdbapi.com](https://www.omdbapi.com)**. A demo key is available for testing, but you can provide your own for production use.
-
----
 
 
 ## Site Compatibility

@@ -14,7 +14,7 @@ CI runs automatically and checks everything
 
 ## Step 2 — Bump the version
 
-Edit `manifest.json` — change `"version": "1.1.0"` to your new version  
+Edit `manifest.json` — change `"version": "1.5.0"` to your new version  
 Edit `CHANGELOG.md` — add a new section at the top describing what changed  
 Commit both files
 

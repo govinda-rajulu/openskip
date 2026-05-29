@@ -10,7 +10,7 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: JS syntax check
         run: |
@@ -38,7 +38,7 @@ jobs:
           python3 -c "
           import json
           m = json.load(open('manifest.json'))
-          assert 'tabs' not in m.get('permissions',[]), 'tabs permission must not be present'
+          assert 'tabs' in m.get('permissions',[]), 'tabs permission required for report tool'
           assert 'activeTab' not in m.get('permissions',[]), 'activeTab must not be present'
           assert 'content_security_policy' in m, 'CSP missing'
           gecko = m['browser_specific_settings']['gecko']

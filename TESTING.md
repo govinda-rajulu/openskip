@@ -44,7 +44,7 @@ SkipStream integrates with three optional third-party services. The extension is
 
 ## Why `<all_urls>` permission is needed
 
-SkipStream is a universal skip tool — it needs to work on any streaming site (Netflix, Hulu, Crunchyroll, Plex, Jellyfin, self-hosted players, etc.). A restricted host list would make it non-functional on the vast majority of sites. The content script only activates meaningful logic when it finds a `<video>` element that passes a size threshold (≥15% viewport width, ≥12% viewport height) — it ignores thumbnails, ads, and tiny preview tiles.
+SkipStream is a universal skip tool — it needs to work on any streaming site (Netflix, Hulu, Crunchyroll, Plex, Jellyfin, self-hosted players, etc.). A restricted host list would make it non-functional on the vast majority of sites. The content script only activates meaningful logic when it finds a `<video>` element that passes a size threshold (≥25% viewport width, ≥20% viewport height) — it ignores thumbnails, ads, and tiny preview tiles.
 
 ## Data transmission — `technicalAndInteraction` declared as optional
 
@@ -60,6 +60,7 @@ Nothing is sent if the user has not configured the relevant service. No data is 
 | Permission | Reason |
 |-----------|--------|
 | `storage` | `browser.storage.local` for credentials, prefs, playback cache |
+| `tabs` | Report Segment tool queries the active tab's video time and show info |
 | `<all_urls>` | Content script must run on all streaming sites |
 
-No `tabs`, `activeTab`, `webRequest`, `history`, `cookies`, or other sensitive permissions are requested.
+No `activeTab`, `webRequest`, `history`, `cookies`, or other sensitive permissions are requested.
