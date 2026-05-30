@@ -2,7 +2,7 @@
 
 **Automatically skip intros, recaps, and outros — and resume playback across all your devices.**
 
-[![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-pending%20review-orange?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
+[![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-Active-blue?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.5.3-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.5.3)
 
