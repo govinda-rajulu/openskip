@@ -10,15 +10,38 @@ create table if not exists public.playback_states (
   playback_time integer      not null default 0,
   duration      integer,
   site          text,
+  site_name     text,
+  video_title   text,
   updated_at    timestamptz  not null default now(),
   constraint playback_states_user_media_uq unique (user_id, media_id)
 );
 
--- ── 2. Index for fast per-user lookups ───────────────────────────────────────
+-- ── 2. Add new columns to existing tables (idempotent via DO block) ───────────
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name   = 'playback_states'
+      and column_name  = 'site_name'
+  ) then
+    alter table public.playback_states add column site_name text;
+  end if;
+
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name   = 'playback_states'
+      and column_name  = 'video_title'
+  ) then
+    alter table public.playback_states add column video_title text;
+  end if;
+end $$;
+
+-- ── 3. Index for fast per-user lookups ───────────────────────────────────────
 create index if not exists playback_states_user_id_idx
   on public.playback_states (user_id);
 
--- ── 3. Row-level security ─────────────────────────────────────────────────────
+-- ── 4. Row-level security ─────────────────────────────────────────────────────
 alter table public.playback_states enable row level security;
 
 do $$ begin
@@ -50,7 +73,7 @@ do $$ begin
   end if;
 end $$;
 
--- ── 4. Auto-update updated_at trigger ────────────────────────────────────────
+-- ── 5. Auto-update updated_at trigger ────────────────────────────────────────
 create or replace function public.ss_set_updated_at()
   returns trigger language plpgsql as $$
 begin

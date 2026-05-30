@@ -6,7 +6,7 @@
  *   1. Generates a signed JWT for AMO API auth
  *   2. Uploads the extension ZIP to AMO (upload/create endpoint)
  *   3. Polls until validation passes (up to 10 min)
- *   4. Creates a new version on the listing (or prints instructions if add-on not yet listed)
+ *   4. Creates a new version on the listing (gracefully skips HTTP 409 duplicates)
  *   5. PATCHes the listing metadata: summary, description, categories, homepage, tags
  *
  * Required env vars (set as GitHub Actions secrets):
@@ -25,7 +25,6 @@ const fs      = require('fs');
 const path    = require('path');
 const crypto  = require('crypto');
 const https   = require('https');
-const { execSync } = require('child_process');
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -53,7 +52,7 @@ if (!fs.existsSync(ZIP_PATH)) { console.error(`❌  ZIP not found: ${ZIP_PATH}`)
 const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
 const VERSION  = manifest.version;
 
-// Release notes: prefer env var, fall back to reading CHANGELOG.md entry
+// Release notes
 const RELEASE_NOTES = process.env.RELEASE_NOTES || extractChangelogNotes(VERSION);
 
 console.log(`\n🚀  SkipStream AMO Update — v${VERSION}`);
@@ -64,7 +63,7 @@ if (DRY_RUN) console.log('    DRY_RUN=1 — mutating calls will be skipped\n');
 // ── JWT ───────────────────────────────────────────────────────────────────────
 
 function makeJwt() {
-  const iat = Math.floor(Date.now() / 1000);
+  const iat    = Math.floor(Date.now() / 1000);
   const header  = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const payload = b64url(JSON.stringify({
     iss: API_KEY,
@@ -85,10 +84,10 @@ function b64url(data) {
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
-function apiRequest(method, path, { json, formData, retries = 3 } = {}) {
+function apiRequest(method, urlPath, { json, formData, retries = 3 } = {}) {
   return new Promise((resolve, reject) => {
     const attempt = (n) => {
-      const jwt = makeJwt();   // fresh JWT per attempt
+      const jwt = makeJwt();
       let body, contentType;
 
       if (formData) {
@@ -97,10 +96,9 @@ function apiRequest(method, path, { json, formData, retries = 3 } = {}) {
         const parts = [];
         for (const [key, val] of Object.entries(formData)) {
           if (val && val._file) {
-            // file field
             const fileData = fs.readFileSync(val._file);
             parts.push(
-              `--${boundary}\r\nContent-Disposition: form-data; name="${key}"; filename="${path_basename(val._file)}"\r\nContent-Type: application/octet-stream\r\n\r\n`
+              `--${boundary}\r\nContent-Disposition: form-data; name="${key}"; filename="${pathBasename(val._file)}"\r\nContent-Type: application/octet-stream\r\n\r\n`
             );
             parts.push(fileData);
             parts.push('\r\n');
@@ -117,7 +115,7 @@ function apiRequest(method, path, { json, formData, retries = 3 } = {}) {
 
       const options = {
         hostname: 'addons.mozilla.org',
-        path,
+        path: urlPath,
         method,
         headers: {
           Authorization: `JWT ${jwt}`,
@@ -153,7 +151,7 @@ function apiRequest(method, path, { json, formData, retries = 3 } = {}) {
   });
 }
 
-function path_basename(p) { return p.split(/[\\/]/).pop(); }
+function pathBasename(p) { return p.split(/[\\/]/).pop(); }
 
 // ── Poll helper ───────────────────────────────────────────────────────────────
 
@@ -174,10 +172,10 @@ async function poll(fn, label, { interval = 8000, timeout = 600_000 } = {}) {
 function extractChangelogNotes(version) {
   try {
     const cl = fs.readFileSync('CHANGELOG.md', 'utf8');
-    const re = new RegExp(`## \\[${version.replace('.','\\.')}\\][^\\n]*\\n([\\s\\S]*?)(?=\\n## \\[|$)`);
+    const escaped = version.replace(/\./g, '\\.');
+    const re = new RegExp(`## \\[${escaped}\\][^\\n]*\\n([\\s\\S]*?)(?=\\n## \\[|$)`);
     const m  = cl.match(re);
     if (!m) return '';
-    // Strip markdown headers, keep bullet content, max 3000 chars
     return m[1]
       .replace(/###[^\n]*/g, '')
       .replace(/\*\*(.*?)\*\*/g, '$1')
@@ -204,15 +202,26 @@ async function main() {
         channel: 'listed',
       },
     });
-    if (uploadRes.status !== 201) {
+
+    // 409 = this exact ZIP/version already uploaded — treat as success
+    if (uploadRes.status === 409) {
+      console.warn('    ⚠  HTTP 409 — ZIP already uploaded for this version. Skipping upload gracefully.');
+      // Extract uuid from conflict response if available
+      uploadUuid = uploadRes.data?.uuid || null;
+      if (!uploadUuid) {
+        console.warn('    ⚠  No UUID in 409 response. Cannot proceed to version create. Exiting cleanly.');
+        process.exit(0);
+      }
+    } else if (uploadRes.status !== 201) {
       const body = typeof uploadRes.data === 'string'
         ? uploadRes.data.slice(0, 500)
         : JSON.stringify(uploadRes.data, null, 2);
       console.error(`❌  Upload failed (HTTP ${uploadRes.status}):\n${body}`);
       process.exit(1);
+    } else {
+      uploadUuid = uploadRes.data.uuid;
+      console.log(`    UUID: ${uploadUuid}`);
     }
-    uploadUuid = uploadRes.data.uuid;
-    console.log(`    UUID: ${uploadUuid}`);
 
     // ── Step 2: Poll validation ─────────────────────────────────────────────
     console.log('\n🔍  Step 2/4 — Waiting for validation…');
@@ -239,12 +248,10 @@ async function main() {
     ...(RELEASE_NOTES ? { release_notes: { 'en-US': RELEASE_NOTES } } : {}),
   };
 
-  let versionId;
   if (DRY_RUN) {
     console.log('    [dry-run] skipping version create');
     console.log('    Body would be:', JSON.stringify(versionBody, null, 2));
   } else {
-    // Try creating on existing listing first
     const versionRes = await apiRequest(
       'POST',
       `/api/v5/addons/addon/${ADDON_SLUG}/versions/`,
@@ -252,8 +259,10 @@ async function main() {
     );
 
     if (versionRes.status === 201) {
-      versionId = versionRes.data.id;
-      console.log(`    ✅  Version ${VERSION} created (id: ${versionId})`);
+      console.log(`    ✅  Version ${VERSION} created (id: ${versionRes.data.id})`);
+    } else if (versionRes.status === 409) {
+      // Version already exists on AMO — not a failure, just a duplicate run
+      console.warn(`    ⚠  HTTP 409 — Version ${VERSION} already exists on AMO. Skipping version create gracefully.`);
     } else if (versionRes.status === 404) {
       // Add-on not yet listed — create it
       console.log('    Add-on not yet listed. Creating new add-on…');
@@ -267,7 +276,6 @@ async function main() {
         console.error(`❌  Create add-on failed (HTTP ${createRes.status}):`, JSON.stringify(createRes.data, null, 2));
         process.exit(1);
       }
-      versionId = createRes.data.current_version?.id;
       console.log(`    ✅  New add-on created (id: ${createRes.data.id})`);
     } else {
       console.error(`❌  Version create failed (HTTP ${versionRes.status}):`, JSON.stringify(versionRes.data, null, 2));
@@ -287,7 +295,7 @@ async function main() {
     categories:  { firefox: ['photos-music-videos'] },
     tags:        ['streaming', 'video', 'skip', 'intros', 'outros', 'resume', 'sync'],
     is_experimental: false,
-    requires_payment: true,   // third-party free services needed (IntroDB, Supabase, TMDB)
+    requires_payment: true,
     default_locale: 'en-US',
   };
 
@@ -302,17 +310,19 @@ async function main() {
     );
     if (patchRes.status === 200) {
       console.log('    ✅  Listing metadata updated');
+    } else if (patchRes.status === 409) {
+      console.warn(`    ⚠  HTTP 409 on PATCH — metadata may already be current. Continuing.`);
     } else {
       console.error(`❌  PATCH failed (HTTP ${patchRes.status}):`, JSON.stringify(patchRes.data, null, 2));
       process.exit(1);
     }
   }
 
-  console.log(`\n✅  Done — SkipStream v${VERSION} submitted to AMO.`);
+  console.log(`\n✅  Done — SkipStream v${VERSION} processed on AMO.`);
   console.log(`    View: https://addons.mozilla.org/en-US/firefox/addon/${ADDON_SLUG}/\n`);
 }
 
-// ── Listing description (kept here as single source of truth) ─────────────────
+// ── Listing description ───────────────────────────────────────────────────────
 
 function buildDescription() {
   return `SkipStream detects and skips intro sequences, recap segments, and outros on any streaming site — and remembers exactly where you left off across all your devices.
@@ -326,22 +336,18 @@ Features
 • Cloud history — History panel shows local cache and Supabase cloud entries merged, with a source switcher (Local / Cloud / Merged)
 • Works everywhere — any website with an HTML5 video player, not just specific platforms
 • SPA-aware — handles single-page apps like Netflix and Hulu correctly
-• Embedded player support — works when a video player is embedded inside an iframe (e.g. third-party players embedded on streaming sites)
+• Embedded player support — works when a video player is embedded inside an iframe
 • Light & dark mode — adapts to your system theme automatically
 • Private by design — credentials stored locally; sync goes only to your own Supabase project; no ads, no telemetry
 
 Setup
 
-Open the popup and click the gear icon (⚙) in the top-right corner.
+Open the popup and click the gear icon in the top-right corner.
 
 Required: IntroDB API key (free at introdb.app) — enables skip segments
 Optional: Supabase URL + anon key (free at supabase.com) — enables cross-device sync and cloud history
 Optional: TMDB API key (free at themoviedb.org) — improves show detection on Plex and similar
 Optional: AnimeSkip Client ID (free at anime-skip.com/account/api-clients) — enables anime intro/outro detection
-
-Site Compatibility
-
-Best results on self-hosted platforms (Plex, Jellyfin, Emby) and Crunchyroll. DRM-heavy commercial platforms (Netflix, Disney+, Apple TV+) have limited support due to obfuscated players.
 
 Privacy
 

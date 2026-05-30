@@ -6,8 +6,12 @@ const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chr
 const IS_SW = typeof ServiceWorkerGlobalScope !== 'undefined' &&
               self instanceof ServiceWorkerGlobalScope;
 
-const tmdbCache = {};
+const tmdbCache  = {};
 let cachedUserId = null;
+
+// Per-tab last-known playback state: tabId → { userId, body }
+// Used by tabs.onRemoved to force a final sync flush
+const tabPlaybackState = new Map();
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -64,6 +68,43 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
   throw lastErr;
 }
 
+// ── Supabase upsert (internal helper, used by both message handler and tab flush) ──
+
+async function supabaseUpsert(body) {
+  const { supabaseUrl, supabaseAnonKey } = await getConfig();
+  if (!supabaseUrl || !supabaseAnonKey) return { ok: false, err: 'not_configured' };
+  try {
+    const res = await fetchWithRetry(
+      `${supabaseUrl}/rest/v1/playback_states?on_conflict=user_id,media_id`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates,return=minimal',
+        },
+        body: JSON.stringify(body),
+      }
+    );
+    return res.ok ? { ok: true } : { ok: false, err: `HTTP ${res.status}` };
+  } catch (e) { return { ok: false, err: String(e) }; }
+}
+
+// ── Tab-close flush ───────────────────────────────────────────────────────────
+// When a tab is removed, fire a final upsert for its last-known playback state.
+
+if (br.tabs && br.tabs.onRemoved) {
+  br.tabs.onRemoved.addListener(async (tabId) => {
+    const state = tabPlaybackState.get(tabId);
+    if (!state) return;
+    tabPlaybackState.delete(tabId);
+    if (!state.userId || !state.body) return;
+    try {
+      await supabaseUpsert(state.body);
+    } catch { /* best-effort */ }
+  });
+}
+
 // ── Segment providers ─────────────────────────────────────────────────────────
 
 async function providerIntroDB(imdbId, season, episode, { introdbApiKey }) {
@@ -78,8 +119,6 @@ async function providerIntroDB(imdbId, season, episode, { introdbApiKey }) {
   } catch { return null; }
 }
 
-// AnimeSkip: GraphQL API — requires X-Client-ID header (user supplies their own)
-// Get a client ID at https://anime-skip.com/account/api-clients
 async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, animeSkipClientId, animeSkipAuthToken }) {
   if (!animeSkipEnabled || !animeSkipClientId) return null;
 
@@ -90,7 +129,6 @@ async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, an
   if (animeSkipAuthToken) headers['Authorization'] = `Bearer ${animeSkipAuthToken}`;
 
   try {
-    // Step 1: find show by IMDB ID via search
     const searchQuery = `{ searchShowsByExternalId(externalId: "${imdbId}", service: "imdb") { id name } }`;
     const searchRes = await fetchWithRetry(
       'https://api.anime-skip.com/graphql',
@@ -102,7 +140,6 @@ async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, an
     if (!shows?.length) return null;
     const showId = shows[0].id;
 
-    // Step 2: fetch episode timestamps
     const epQuery = `{
       findEpisodesByShowId(showId: "${showId}", season: ${season}) {
         items {
@@ -122,11 +159,10 @@ async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, an
     const ep = episodes.find(e => e.number === episode || e.number === String(episode));
     if (!ep?.timestamps?.length) return null;
 
-    // Normalise to SkipStream segment shape
     const segments = {};
     for (const ts of ep.timestamps) {
       const type = (ts.type?.name || '').toLowerCase();
-      const end = ts.at + (ts.duration || 90);
+      const end  = ts.at + (ts.duration || 90);
       if (type.includes('intro') || type === 'op')  segments.intro  = { start_sec: ts.at, end_sec: end };
       if (type.includes('recap'))                    segments.recap  = { start_sec: ts.at, end_sec: end };
       if (type.includes('outro') || type === 'ed')   segments.outro  = { start_sec: ts.at, end_sec: end };
@@ -135,7 +171,6 @@ async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, an
   } catch { return null; }
 }
 
-// Merge: IntroDB wins on conflict
 async function fetchSegmentsMulti(imdbId, season, episode) {
   const config = await getConfig();
   const [introdb, animeskip] = await Promise.all([
@@ -161,9 +196,7 @@ async function checkSupabase(supabaseUrl, supabaseAnonKey) {
       ok: false, needsManualSetup: true,
       message: 'Table missing — run supabase_setup.sql once.',
     };
-    if (res.status === 401 || res.status === 403) return {
-      ok: false, message: 'Invalid credentials.',
-    };
+    if (res.status === 401 || res.status === 403) return { ok: false, message: 'Invalid credentials.' };
     return { ok: false, message: `Status ${res.status}` };
   } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
 }
@@ -192,7 +225,7 @@ async function checkIntroDB(introdbApiKey) {
 
 // ── Message router ────────────────────────────────────────────────────────────
 
-br.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const msg = message;
 
   if (msg.type === 'CHECK_CONFIG') {
@@ -250,7 +283,6 @@ br.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (!introdbApiKey && !animeSkipClientId) { sendResponse({ ok: false, err: 'not_configured' }); return; }
       const results = [];
 
-      // Report to IntroDB
       if (introdbApiKey) {
         try {
           const body = {
@@ -269,7 +301,6 @@ br.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         } catch (e) { results.push({ provider: 'introdb', ok: false, err: String(e) }); }
       }
 
-      // Report to AnimeSkip (only if user-timed segment)
       if (animeSkipEnabled && animeSkipClientId && msg.startSec != null && msg.endSec != null && msg.segType) {
         try {
           const headers = {
@@ -304,23 +335,19 @@ br.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (msg.type === 'SUPABASE_UPSERT') {
-    getConfig().then(({ supabaseUrl, supabaseAnonKey }) => {
-      if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ ok: false, err: 'not_configured' }); return; }
-      fetchWithRetry(
-        `${supabaseUrl}/rest/v1/playback_states?on_conflict=user_id,media_id`,
-        {
-          method: 'POST',
-          headers: {
-            apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
-            'Content-Type': 'application/json',
-            Prefer: 'resolution=merge-duplicates,return=minimal',
-          },
-          body: JSON.stringify(msg.body),
+    // Cache last-known state per tab for tab-close flush
+    if (sender?.tab?.id && msg.body) {
+      getConfig().then(async ({ supabaseAnonKey }) => {
+        const userId = supabaseAnonKey ? await getDerivedUserId(supabaseAnonKey) : null;
+        if (userId) {
+          tabPlaybackState.set(sender.tab.id, { userId, body: msg.body });
         }
-      )
-        .then(r => r.ok ? sendResponse({ ok: true }) : r.text().then(err => sendResponse({ ok: false, err })))
-        .catch(err => sendResponse({ ok: false, err: String(err) }));
-    });
+      });
+    }
+
+    supabaseUpsert(msg.body)
+      .then(result => sendResponse(result))
+      .catch(err => sendResponse({ ok: false, err: String(err) }));
     return true;
   }
 
@@ -334,6 +361,22 @@ br.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       fetchWithRetry(url, { headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` } })
         .then(r => r.json())
         .then(data => sendResponse({ data: data[0] || null }))
+        .catch(err => sendResponse({ data: null, err: String(err) }));
+    });
+    return true;
+  }
+
+  // SUPABASE_GET_ALL — used by popup to fetch all history rows for the user
+  if (msg.type === 'SUPABASE_GET_ALL') {
+    getConfig().then(({ supabaseUrl, supabaseAnonKey }) => {
+      if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
+      const url = `${supabaseUrl}/rest/v1/playback_states` +
+        `?user_id=eq.${encodeURIComponent(msg.userId)}` +
+        `&select=media_id,playback_time,duration,site,site_name,video_title,updated_at` +
+        `&order=updated_at.desc&limit=200`;
+      fetchWithRetry(url, { headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` } })
+        .then(r => r.json())
+        .then(data => sendResponse({ data: Array.isArray(data) ? data : [] }))
         .catch(err => sendResponse({ data: null, err: String(err) }));
     });
     return true;

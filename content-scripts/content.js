@@ -11,6 +11,14 @@
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
   }
 
+  function throttle(fn, ms) {
+    let last = 0;
+    return (...args) => {
+      const now = Date.now();
+      if (now - last >= ms) { last = now; fn(...args); }
+    };
+  }
+
   // ── User prefs ─────────────────────────────────────────────────────────────
 
   const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipMaster: true };
@@ -41,9 +49,47 @@
     return parts.length ? `${base}?${parts.join('&')}` : base;
   }
 
-  // ── Deterministic user ID (derived in background, never localStorage) ──────
+  // ── Human-readable site name ───────────────────────────────────────────────
 
-  let _userIdCache = null;
+  function getSiteName() {
+    const h = location.hostname.replace(/^www\./, '');
+    const KNOWN = {
+      'youtube.com': 'YouTube', 'youtu.be': 'YouTube',
+      'vimeo.com': 'Vimeo',
+      'netflix.com': 'Netflix',
+      'primevideo.com': 'Prime Video', 'amazon.com': 'Prime Video',
+      'disneyplus.com': 'Disney+',
+      'hulu.com': 'Hulu',
+      'max.com': 'Max', 'hbomax.com': 'Max',
+      'crunchyroll.com': 'Crunchyroll',
+      'app.plex.tv': 'Plex',
+      'jellyfin.org': 'Jellyfin',
+      'emby.media': 'Emby',
+      'peacocktv.com': 'Peacock',
+      'paramountplus.com': 'Paramount+',
+      'appletv.apple.com': 'Apple TV+',
+      'tubi.tv': 'Tubi',
+    };
+    for (const [key, name] of Object.entries(KNOWN)) {
+      if (h === key || h.endsWith('.' + key)) return name;
+    }
+    // Capitalise first segment of hostname as fallback
+    return h.split('.')[0].replace(/^\w/, c => c.toUpperCase());
+  }
+
+  // ── Video title ────────────────────────────────────────────────────────────
+
+  function getVideoTitle() {
+    // Try OG title first, then document.title, strip site suffix
+    const og = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
+    const raw = og || document.title || '';
+    // Strip common " - SiteName" suffixes
+    return raw.replace(/\s*[-|–]\s*\S.*$/, '').trim().slice(0, 120) || raw.slice(0, 120);
+  }
+
+  // ── Deterministic user ID (derived in background) ──────────────────────────
+
+  let _userIdCache   = null;
   let _userIdFetched = false;
 
   async function getUserId() {
@@ -51,11 +97,30 @@
     try {
       const res = await br.runtime.sendMessage({ type: 'GET_USER_ID' });
       _userIdCache = res?.userId || null;
-    } catch {
-      _userIdCache = null;
-    }
+    } catch { _userIdCache = null; }
     _userIdFetched = true;
     return _userIdCache;
+  }
+
+  // ── Pending-resume cache (for history click → new tab flow) ───────────────
+  // Key: mediaId, Value: { position, ts }
+  // Written by popup via INJECT_RESUME message; consumed once on video attach.
+
+  const PENDING_KEY = 'skipstream_pending_resume';
+
+  async function checkPendingResume(mediaId) {
+    try {
+      const stored = await br.storage.local.get(PENDING_KEY);
+      const pending = stored[PENDING_KEY];
+      if (!pending || pending.mediaId !== mediaId) return null;
+      // Expire after 30s — enough time for a new tab to fully load
+      if (Date.now() - pending.ts > 30000) {
+        await br.storage.local.remove(PENDING_KEY);
+        return null;
+      }
+      await br.storage.local.remove(PENDING_KEY);
+      return pending.position;
+    } catch { return null; }
   }
 
   // ── Local playback cache (browser.storage.local) ───────────────────────────
@@ -65,14 +130,15 @@
   async function cacheWrite(mediaId, position, duration) {
     try {
       const stored = await br.storage.local.get(CACHE_KEY);
-      const cache = stored[CACHE_KEY] || {};
+      const cache  = stored[CACHE_KEY] || {};
       cache[mediaId] = {
-        p: Math.round(position * 10) / 10,
-        d: duration,
-        t: Date.now(),
-        url: location.href,
-        title: document.title.slice(0, 120),
-        site: location.hostname,
+        p:    Math.round(position * 10) / 10,
+        d:    duration,
+        t:    Date.now(),
+        url:  location.href,
+        title:     getVideoTitle(),
+        site:      location.hostname,
+        site_name: getSiteName(),
       };
       const keys = Object.keys(cache);
       if (keys.length > 100) {
@@ -89,8 +155,9 @@
     } catch { return null; }
   }
 
-  // ── Playback save / restore ────────────────────────────────────────────────
+  // ── Playback save ──────────────────────────────────────────────────────────
 
+  // Writes local cache immediately; queues cloud upsert 3s later.
   async function savePlayback(video, saveTimer) {
     if (!video.duration || video.currentTime < 5) return;
     const mediaId = getMediaId();
@@ -106,12 +173,14 @@
         const res = await br.runtime.sendMessage({
           type: 'SUPABASE_UPSERT',
           body: {
-            user_id: userId,
-            media_id: mediaId,
+            user_id:     userId,
+            media_id:    mediaId,
             playback_time: Math.floor(pos),
-            duration: dur,
-            site: location.hostname,
-            updated_at: new Date().toISOString(),
+            duration:    dur,
+            site:        location.hostname,
+            site_name:   getSiteName(),
+            video_title: getVideoTitle(),
+            updated_at:  new Date().toISOString(),
           },
         });
         if (!res.ok && res.err !== 'not_configured') {
@@ -120,6 +189,35 @@
       } catch { /* background not ready */ }
     }, 3000);
   }
+
+  // Immediate synchronous-as-possible flush (beforeunload — no async guarantee)
+  function flushPlaybackSync(video) {
+    if (!video.isConnected || !video.duration || video.currentTime < 5) return;
+    const mediaId = getMediaId();
+    const pos  = Math.round(video.currentTime * 10) / 10;
+    const dur  = Math.round(video.duration);
+    // Write local cache synchronously via a fire-and-forget
+    cacheWrite(mediaId, pos, dur);
+    // Best-effort cloud message (background may still be alive)
+    getUserId().then(userId => {
+      if (!userId) return;
+      br.runtime.sendMessage({
+        type: 'SUPABASE_UPSERT',
+        body: {
+          user_id:     userId,
+          media_id:    mediaId,
+          playback_time: Math.floor(pos),
+          duration:    dur,
+          site:        location.hostname,
+          site_name:   getSiteName(),
+          video_title: getVideoTitle(),
+          updated_at:  new Date().toISOString(),
+        },
+      }).catch(() => { /* page is unloading */ });
+    });
+  }
+
+  // ── Resume helpers ─────────────────────────────────────────────────────────
 
   function fmtTime(s) {
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = Math.floor(s % 60);
@@ -183,14 +281,9 @@
     prompt.appendChild(btns);
     container.appendChild(prompt);
 
-    // Cancel and clean up if user presses play manually (they chose to start fresh)
-    const onPlay = () => {
-      clearTimeout(autoTimer);
-      if (prompt.isConnected) prompt.remove();
-    };
+    const onPlay = () => { clearTimeout(autoTimer); if (prompt.isConnected) prompt.remove(); };
     video.addEventListener('play', onPlay, { once: true });
 
-    // Auto-confirm resume after 12s if user hasn't interacted
     const autoTimer = setTimeout(() => {
       video.removeEventListener('play', onPlay);
       if (prompt.isConnected) {
@@ -203,6 +296,22 @@
   async function restorePlayback(video) {
     if (!prefs.resumePlayback) return;
     const mediaId = getMediaId();
+
+    // Check if this tab was opened via history click (pending resume)
+    const pendingPos = await checkPendingResume(mediaId);
+    if (pendingPos && pendingPos >= 10) {
+      const doSeek = () => {
+        if (video.currentTime > 3 || (video.played && video.played.length > 0)) return;
+        try {
+          video.currentTime = pendingPos;
+          video.play().catch(() => { /* autoplay policy — user will press play */ });
+        } catch { /* ok */ }
+      };
+      if (video.readyState >= 1) doSeek();
+      else video.addEventListener('loadedmetadata', doSeek, { once: true });
+      return;
+    }
+
     const userId = await getUserId();
     let saved = null;
 
@@ -210,25 +319,19 @@
       try {
         const res = await br.runtime.sendMessage({ type: 'SUPABASE_GET', userId, mediaId });
         if (res.data) saved = { p: res.data.playback_time, d: res.data.duration };
-      } catch { /* fall through to local cache */ }
+      } catch { /* fall through */ }
     }
-
     if (!saved) saved = await cacheRead(mediaId);
     if (!saved || saved.p < 10 || (saved.d && saved.p / saved.d > 0.95)) return;
 
     const doPrompt = () => {
-      // Don't show if user already started playing or video has been seeked
       if (video.currentTime > 3 || (video.played && video.played.length > 0)) return;
-      // Don't show if prompt already visible for this video
       if (document.getElementById('skipstream-resume-prompt')) return;
       try { showResumePrompt(video, saved.p); } catch { /* ok */ }
     };
 
-    if (video.readyState >= 1) {
-      doPrompt();
-    } else {
-      video.addEventListener('loadedmetadata', doPrompt, { once: true });
-    }
+    if (video.readyState >= 1) doPrompt();
+    else video.addEventListener('loadedmetadata', doPrompt, { once: true });
   }
 
   // ── Show / episode detection ───────────────────────────────────────────────
@@ -265,11 +368,11 @@
     }
     const seFromUrl = extractSeEpisode(href);
     if (seFromUrl) {
-      if (!info.season) info.season = seFromUrl.season;
+      if (!info.season)  info.season  = seFromUrl.season;
       if (!info.episode) info.episode = seFromUrl.episode;
     }
     const sp = new URLSearchParams(location.search);
-    if (!info.season) { const s = sp.get('season') || sp.get('s'); if (s && /^\d+$/.test(s)) info.season = parseInt(s, 10); }
+    if (!info.season)  { const s = sp.get('season') || sp.get('s'); if (s && /^\d+$/.test(s)) info.season  = parseInt(s, 10); }
     if (!info.episode) { const e = sp.get('episode') || sp.get('ep') || sp.get('e'); if (e && /^\d+$/.test(e)) info.episode = parseInt(e, 10); }
   }
 
@@ -280,8 +383,8 @@
         const json = JSON.stringify(data);
         if (!info.imdbId) { const m = json.match(/\b(tt\d{7,8})\b/); if (m) info.imdbId = m[1]; }
         const obj = Array.isArray(data) ? data[0] : data;
-        if (!info.season && obj?.partOfSeason?.seasonNumber) info.season = parseInt(obj.partOfSeason.seasonNumber, 10);
-        if (!info.episode && obj?.episodeNumber) info.episode = parseInt(obj.episodeNumber, 10);
+        if (!info.season  && obj?.partOfSeason?.seasonNumber) info.season  = parseInt(obj.partOfSeason.seasonNumber, 10);
+        if (!info.episode && obj?.episodeNumber)               info.episode = parseInt(obj.episodeNumber, 10);
       } catch { /* malformed JSON-LD */ }
     });
     if (!info.imdbId) {
@@ -328,7 +431,7 @@
       for (const [re, swapped] of textPatterns) {
         const m = text.match(re);
         if (m) {
-          if (!info.season) info.season = parseInt(swapped ? m[2] : m[1], 10);
+          if (!info.season)  info.season  = parseInt(swapped ? m[2] : m[1], 10);
           if (!info.episode) info.episode = parseInt(swapped ? m[1] : m[2], 10);
           break;
         }
@@ -347,7 +450,7 @@
     const slug = segments[idx + 1];
     const combo = slug.match(/^(.+?)-s(\d+)e(\d+)$/i);
     if (combo) {
-      if (!info.season) info.season = parseInt(combo[2], 10);
+      if (!info.season)  info.season  = parseInt(combo[2], 10);
       if (!info.episode) info.episode = parseInt(combo[3], 10);
       return titleFromSlug(combo[1]);
     }
@@ -360,17 +463,14 @@
       if (eMatch) { episode = parseInt(eMatch[1], 10); continue; }
       const numMatch = seg.match(/^(\d+)$/);
       if (numMatch) {
-        if (season === null) season = parseInt(numMatch[1], 10);
+        if (season  === null) season  = parseInt(numMatch[1], 10);
         else if (episode === null) episode = parseInt(numMatch[1], 10);
       }
     }
-    if (!info.season && season) info.season = season;
+    if (!info.season  && season)  info.season  = season;
     if (!info.episode && episode) info.episode = episode;
     return titleFromSlug(slug);
   }
-
-  // ── iframe parent URL resolution ──────────────────────────────────────────
-  // (logic inlined into resolveShowInfo below)
 
   const imdbCache = new Map();
 
@@ -386,19 +486,13 @@
 
   async function resolveShowInfo() {
     const info = { imdbId: null, tmdbId: null, season: null, episode: null };
-
-    // Parse current window URL + page DOM
     parseUrlInfo(info);
     parsePageInfo(info);
 
-    // iframe fix: if running inside an embedded player iframe (e.g. vidup.to inside 1shows.org),
-    // also try extracting IMDb ID and S×E from document.referrer (the parent site URL)
+    // iframe fix: also check document.referrer
     if (window !== window.top && document.referrer) {
       const ref = document.referrer;
-      if (!info.imdbId) {
-        const m = ref.match(/\b(tt\d{7,8})\b/);
-        if (m) info.imdbId = m[1];
-      }
+      if (!info.imdbId) { const m = ref.match(/\b(tt\d{7,8})\b/); if (m) info.imdbId = m[1]; }
       if (!info.season || !info.episode) {
         const se = extractSeEpisode(ref);
         if (se) {
@@ -408,12 +502,8 @@
       }
     }
 
-    // TMDB → IMDb
     if (!info.imdbId && info.tmdbId) info.imdbId = await tmdbToImdb(info.tmdbId);
-
-    // Slug-based path title extraction (sets season/episode as side-effect)
     if (!info.imdbId) parsePathTitle(info);
-
     return info;
   }
 
@@ -452,13 +542,13 @@
 
   // ── Skip button ────────────────────────────────────────────────────────────
 
-  const SKIP_BTN_ID = 'skipstream-skip-btn';
-  const MSG_SHOW    = 'SKIPSTREAM_SHOW_BTN';
-  const MSG_HIDE    = 'SKIPSTREAM_HIDE_BTN';
-  const MSG_DO      = 'SKIPSTREAM_DO_SKIP';
+  const SKIP_BTN_ID     = 'skipstream-skip-btn';
+  const MSG_SHOW        = 'SKIPSTREAM_SHOW_BTN';
+  const MSG_HIDE        = 'SKIPSTREAM_HIDE_BTN';
+  const MSG_DO          = 'SKIPSTREAM_DO_SKIP';
 
-  let btnAutoHideTimer = null;
-  let pendingSkipFn    = null;
+  let btnAutoHideTimer  = null;
+  let pendingSkipFn     = null;
   let topFrameListening = false;
 
   function removeSkipBtn() {
@@ -473,36 +563,22 @@
     btn.id = SKIP_BTN_ID;
     btn.setAttribute('data-skipstream-btn', '1');
     btn.textContent = label;
-    // Attach to fullscreen element if active, else document body
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     const container = fsEl || document.body || document.documentElement;
-
-    // Position relative to viewport; ensure visible in fullscreen
     const isFs = !!fsEl;
     Object.assign(btn.style, {
-      all: 'unset',
-      position: isFs ? 'absolute' : 'fixed',
-      bottom: '10%',
-      right: '3%',
-      zIndex: '2147483647',
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: '11px 24px',
-      background: 'rgba(10,10,18,0.88)',
-      color: '#fff',
-      border: '1.5px solid rgba(255,255,255,0.18)',
-      borderRadius: '10px',
-      cursor: 'pointer',
-      fontSize: '14px',
-      fontWeight: '700',
+      all: 'unset', position: isFs ? 'absolute' : 'fixed',
+      bottom: '10%', right: '3%', zIndex: '2147483647',
+      display: 'inline-flex', alignItems: 'center',
+      padding: '11px 24px', background: 'rgba(10,10,18,0.88)',
+      color: '#fff', border: '1.5px solid rgba(255,255,255,0.18)',
+      borderRadius: '10px', cursor: 'pointer',
+      fontSize: '14px', fontWeight: '700',
       fontFamily: 'system-ui,-apple-system,sans-serif',
-      letterSpacing: '0.03em',
-      boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
-      backdropFilter: 'blur(14px)',
-      WebkitBackdropFilter: 'blur(14px)',
+      letterSpacing: '0.03em', boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
+      backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
       transition: 'background 0.15s,transform 0.1s',
-      userSelect: 'none',
-      pointerEvents: 'auto',
+      userSelect: 'none', pointerEvents: 'auto',
       WebkitFontSmoothing: 'antialiased',
     });
     btn.onmouseover = () => { btn.style.background = 'rgba(37,99,235,0.95)'; btn.style.transform = 'scale(1.04)'; };
@@ -510,7 +586,6 @@
     btn.onclick = e => { e.preventDefault(); e.stopPropagation(); onSkip(); removeSkipBtn(); };
     container.appendChild(btn);
 
-    // Re-anchor if user enters/exits fullscreen while button is visible
     const onFsChange = () => {
       if (document.getElementById(SKIP_BTN_ID)) {
         const newFs = document.fullscreenElement || document.webkitFullscreenElement;
@@ -521,9 +596,12 @@
     document.addEventListener('fullscreenchange', onFsChange, { once: true });
     document.addEventListener('webkitfullscreenchange', onFsChange, { once: true });
 
-    // Auto-hide: reset timer on mousemove near button
     let _moved = false;
-    const _onMove = () => { _moved = true; clearTimeout(btnAutoHideTimer); btnAutoHideTimer = setTimeout(removeSkipBtn, 8000); };
+    const _onMove = () => {
+      _moved = true;
+      clearTimeout(btnAutoHideTimer);
+      btnAutoHideTimer = setTimeout(removeSkipBtn, 8000);
+    };
     document.addEventListener('mousemove', _onMove, { passive: true });
     btnAutoHideTimer = setTimeout(() => { document.removeEventListener('mousemove', _onMove); removeSkipBtn(); }, 8000);
   }
@@ -564,15 +642,13 @@
 
   const attachedVideos = new WeakSet();
 
-  // Minimum size: 25% viewport width AND 16:9-compatible height (avoids carousels/thumbnails)
   function isMainPlayer(video) {
     const vw = window.innerWidth  || 800;
     const vh = window.innerHeight || 600;
     const rect = video.getBoundingClientRect();
-    if (!rect.width || !rect.height) return null; // not laid out yet — defer
+    if (!rect.width || !rect.height) return null;
     if (rect.width  < vw * 0.25) return false;
     if (rect.height < vh * 0.20) return false;
-    // Aspect ratio guard: main players are roughly 4:3 to 21:9
     const ar = rect.width / rect.height;
     if (ar < 1.2 || ar > 3.0) return false;
     const cs = window.getComputedStyle(video);
@@ -585,7 +661,6 @@
 
     const ready = isMainPlayer(video);
     if (ready === null) {
-      // Layout not established yet — defer to loadedmetadata
       video.addEventListener('loadedmetadata', () => attachVideo(video), { once: true });
       return;
     }
@@ -595,19 +670,21 @@
     await restorePlayback(video);
 
     const saveTimer = { id: null };
-    let saveInterval = null;
 
-    video.addEventListener('play', () => {
-      clearInterval(saveInterval);
-      saveInterval = setInterval(() => {
-        if (!video.isConnected) { clearInterval(saveInterval); saveInterval = null; return; }
-        savePlayback(video, saveTimer);
-      }, 10000);
+    // Throttled timeupdate — fires at most once every 2.5s while playing
+    const throttledSave = throttle(() => savePlayback(video, saveTimer), 2500);
+    video.addEventListener('timeupdate', () => {
+      if (!video.paused && video.currentTime > 5) throttledSave();
     });
-    video.addEventListener('pause',  () => { clearInterval(saveInterval); saveInterval = null; savePlayback(video, saveTimer); });
-    video.addEventListener('seeked', () => savePlayback(video, saveTimer));
-    window.addEventListener('pagehide',     () => savePlayback(video, saveTimer));
-    window.addEventListener('beforeunload', () => savePlayback(video, saveTimer));
+
+    // Event-based saves for pause / seek / unload
+    video.addEventListener('pause',  () => { savePlayback(video, saveTimer); });
+    video.addEventListener('seeked', () => { savePlayback(video, saveTimer); });
+
+    // beforeunload: synchronous best-effort flush
+    const flushHandler = () => flushPlaybackSync(video);
+    window.addEventListener('pagehide',     flushHandler);
+    window.addEventListener('beforeunload', flushHandler);
 
     // ── Segment resolution ──
     let segments = null;
@@ -641,7 +718,6 @@
 
       if (active) {
         const prefKey = PREF_FOR_SEGMENT[active.key];
-        // Master off → do nothing (no auto-skip, no button)
         if (!prefs.skipMaster) {
           if (activeSegmentKey) { activeSegmentKey = ''; hideSkipBtn(); }
           return;
@@ -649,12 +725,12 @@
         if (active.key !== activeSegmentKey) {
           activeSegmentKey = active.key;
           if (prefs[prefKey]) {
-            // Child toggle ON → auto-skip silently
+            // Toggle ON = auto-skip silently, no UI shown
             video.currentTime = active.segment.end_sec;
             activeSegmentKey = '';
             hideSkipBtn();
           } else {
-            // Child toggle OFF → show skip button prompt
+            // Toggle OFF = show interactive skip button prompt
             showSkipBtn(SEGMENT_LABELS[active.key], () => {
               video.currentTime = active.segment.end_sec;
               activeSegmentKey = '';
@@ -679,7 +755,6 @@
   new MutationObserver(debouncedScan).observe(document.documentElement, { childList: true, subtree: true });
   window.addEventListener('load', () => setTimeout(scanVideos, 1000));
 
-  // SPA navigation: intercept pushState/replaceState + popstate (no polling)
   let lastHref = location.href;
 
   function onNavigation() {
@@ -687,7 +762,7 @@
     lastHref = location.href;
     hideSkipBtn();
     _userIdFetched = false;
-    _userIdCache = null;
+    _userIdCache   = null;
     segmentCache.clear();
     loadPrefs();
     setTimeout(scanVideos, 1500);
@@ -696,7 +771,6 @@
 
   window.addEventListener('popstate', onNavigation);
 
-  // Intercept history.pushState and history.replaceState for SPA frameworks
   for (const method of ['pushState', 'replaceState']) {
     const original = history[method];
     history[method] = function (...args) {
@@ -709,7 +783,6 @@
 
   br.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg.type === 'GET_VIDEO_TIME') {
-      // Return currentTime of the first playing (or any attached) video
       let time = null;
       for (const v of document.querySelectorAll('video')) {
         if (!v.paused || v.currentTime > 0) { time = v.currentTime; break; }
