@@ -454,7 +454,7 @@ function applyHistoryFilters() {
     .filter(([, v]) => v.p > 10)
     .sort(([, a], [, b]) => (b.t || 0) - (a.t || 0));
 
-  if (siteVal) entries = entries.filter(([, v]) => v.site === siteVal);
+  if (siteVal) entries = entries.filter(([, v]) => v.site_name === siteVal);
   if (q)       entries = entries.filter(([, v]) => {
     const label = v.title || v.site_name || v.site || '';
     return label.toLowerCase().includes(q);
@@ -576,7 +576,7 @@ function renderHistoryList(entries) {
 
 function populateSiteFilter() {
   const allEntries = Object.values(mergeHistoryEntries());
-  const sites = [...new Set(allEntries.map(v => v.site).filter(Boolean))].sort();
+  const sites = [...new Set(allEntries.map(v => v.site_name).filter(Boolean))].sort();
 
   const sel = document.getElementById('historyFilter');
   if (!sel) return;
