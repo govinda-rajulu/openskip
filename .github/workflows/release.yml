@@ -56,3 +56,10 @@ jobs:
         with:
           files: "skipstream-${{ steps.version.outputs.version }}-firefox.zip"
           fail_on_unmatched_files: true
+
+      - name: Upload ZIP as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: skipstream-firefox-zip
+          path: "skipstream-${{ steps.version.outputs.version }}-firefox.zip"
+          retention-days: 1
