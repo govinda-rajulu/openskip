@@ -205,7 +205,10 @@ async function main() {
       },
     });
     if (uploadRes.status !== 201) {
-      console.error(`❌  Upload failed (HTTP ${uploadRes.status}):`, JSON.stringify(uploadRes.data, null, 2));
+      const body = typeof uploadRes.data === 'string'
+        ? uploadRes.data.slice(0, 500)
+        : JSON.stringify(uploadRes.data, null, 2);
+      console.error(`❌  Upload failed (HTTP ${uploadRes.status}):\n${body}`);
       process.exit(1);
     }
     uploadUuid = uploadRes.data.uuid;

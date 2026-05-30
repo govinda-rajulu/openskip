@@ -109,10 +109,8 @@ jobs:
           AMO_API_KEY:    ${{ secrets.AMO_API_KEY }}
           AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
           AMO_ADDON_SLUG: skipstream
-          DRY_RUN: ${{ inputs.dry_run == 'true' && '1' || '0' }}
-          RELEASE_NOTES: ${{ steps.notes.outputs.notes_file }}
+          DRY_RUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true') && '1' || '0' }}
         run: |
-          # Pass release notes as env var content (read from file)
           export RELEASE_NOTES="$(cat /tmp/release_notes.txt)"
           node scripts/amo-update.js
 
