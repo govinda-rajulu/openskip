@@ -392,7 +392,7 @@ async function loadCloudHistory(userId, supabaseUrl, supabaseAnonKey) {
     const url =
       `${supabaseUrl}/rest/v1/playback_states` +
       `?user_id=eq.${encodeURIComponent(userId)}` +
-      `&select=media_id,playback_time,duration,site,site_name,video_title,updated_at` +
+      `&select=media_id,playback_time,duration,site,site_name,video_title,updated_at,url` +
       `&order=updated_at.desc&limit=200`;
     const res = await fetch(url, {
       headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` },
@@ -409,6 +409,7 @@ async function loadCloudHistory(userId, supabaseUrl, supabaseAnonKey) {
         site:      row.site || '',
         site_name: row.site_name || '',
         title:     row.video_title || '',
+        url:       row.url || '', // Include URL
         fromCloud: true,
       };
     }

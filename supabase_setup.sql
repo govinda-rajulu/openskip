@@ -9,6 +9,7 @@ create table if not exists public.playback_states (
   media_id      text         not null,
   playback_time integer      not null default 0,
   duration      integer,
+  url           text,
   site          text,
   site_name     text,
   video_title   text,
@@ -18,6 +19,15 @@ create table if not exists public.playback_states (
 
 -- ── 2. Add new columns to existing tables (idempotent via DO block) ───────────
 do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name   = 'playback_states'
+      and column_name  = 'url'
+  ) then
+    alter table public.playback_states add column url text;
+  end if;
+
   if not exists (
     select 1 from information_schema.columns
     where table_schema = 'public'
