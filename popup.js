@@ -5,8 +5,8 @@ const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chr
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ALL_PREF_KEYS = ['skipMaster', 'skipIntro', 'skipRecap', 'skipOutro', 'resumePlayback'];
-const DEFAULTS      = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipMaster: true };
+const ALL_PREF_KEYS = ['skipIntro', 'skipRecap', 'skipOutro', 'resumePlayback'];
+const DEFAULTS      = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true };
 const CACHE_KEY   = 'skipstream_cache';
 const PENDING_KEY = 'skipstream_pending_resume';
 
@@ -25,36 +25,6 @@ async function loadPrefs() {
 
 // ── Skip Mode Helpers ─────────────────────────────────────────────────────────
 
-function getSkipModeFromPrefs(prefs) {
-  if (!prefs.skipMaster) return 'off';
-  if (!prefs.skipIntro && !prefs.skipRecap && !prefs.skipOutro) return 'prompt';
-  if (prefs.skipIntro && !prefs.skipRecap && !prefs.skipOutro) return 'auto-intro';
-  if (!prefs.skipIntro && prefs.skipRecap && !prefs.skipOutro) return 'auto-recap';
-  if (!prefs.skipIntro && !prefs.skipRecap && prefs.skipOutro) return 'auto-outro';
-  if (prefs.skipIntro && prefs.skipRecap && prefs.skipOutro) return 'auto-all';
-  // Fallback for unexpected combinations (e.g., intro and recap, but not outro)
-  return 'prompt';
-}
-
-function setSkipPrefsFromMode(skipMode) {
-  let skipMaster    = false;
-  let skipIntro     = false;
-  let skipRecap     = false;
-  let skipOutro     = false;
-
-  if (skipMode !== 'off') {
-    skipMaster = true;
-    if (skipMode === 'auto-intro')    skipIntro = true;
-    if (skipMode === 'auto-recap')    skipRecap = true;
-    if (skipMode === 'auto-outro')    skipOutro = true;
-    if (skipMode === 'auto-all') {
-      skipIntro = true;
-      skipRecap = true;
-      skipOutro = true;
-    }
-  }
-  br.storage.local.set({ skipMaster, skipIntro, skipRecap, skipOutro });
-}
 
 // ── Formatting ────────────────────────────────────────────────────────────────
 
@@ -135,6 +105,56 @@ document.querySelectorAll('.tab').forEach(btn => {
 });
 
 // ── Skip folder (master + children) ──────────────────────────────────────────
+
+// ── Segment Filters (Skip Rules) ──────────────────────────────────────────────
+
+let filtersOpen = false;
+const filtersHeader = document.getElementById('filtersHeader');
+const filtersBody = document.getElementById('filtersBody');
+const filtersChevron = document.getElementById('filtersChevron');
+const filtersFraction = document.getElementById('filtersFraction');
+const skipIntroEl = document.getElementById('skipIntro');
+const skipRecapEl = document.getElementById('skipRecap');
+const skipOutroEl = document.getElementById('skipOutro');
+
+function updateFiltersFraction() {
+  let activeCount = 0;
+  if (skipIntroEl?.checked) activeCount++;
+  if (skipRecapEl?.checked) activeCount++;
+  if (skipOutroEl?.checked) activeCount++;
+  if (filtersFraction) filtersFraction.textContent = `${activeCount}/3 Active`;
+}
+
+function toggleFiltersDropdown(open) {
+  filtersOpen = open;
+  if (filtersBody)    filtersBody.classList.toggle('open', open);
+  if (filtersChevron) filtersChevron.classList.toggle('open', open);
+}
+
+// Global click listener to collapse dropdown if clicked outside
+document.addEventListener('click', (event) => {
+  const segmentFilters = document.getElementById('segmentFilters');
+  if (filtersOpen && segmentFilters && !segmentFilters.contains(event.target)) {
+    toggleFiltersDropdown(false);
+  }
+});
+
+if (filtersHeader) {
+  filtersHeader.addEventListener('click', (event) => {
+    event.stopPropagation(); // Prevent document listener from closing immediately
+    toggleFiltersDropdown(!filtersOpen);
+  });
+}
+
+function handleSkipToggleChange(e) {
+  const { id, checked } = e.target;
+  br.storage.local.set({ [id]: checked });
+  updateFiltersFraction();
+}
+
+if (skipIntroEl) skipIntroEl.addEventListener('change', handleSkipToggleChange);
+if (skipRecapEl) skipRecapEl.addEventListener('change', handleSkipToggleChange);
+if (skipOutroEl) skipOutroEl.addEventListener('change', handleSkipToggleChange);
 
 // ── Add Segment folder ────────────────────────────────────────────────────────
 
@@ -671,12 +691,11 @@ async function init() {
   // ── Load prefs FIRST — must complete before any UI rendering ────
   const prefs = await loadPrefs();
 
-  // Skip Segments dropdown
-  const skipModeSelect = document.getElementById('skipModeSelect');
-  if (skipModeSelect) {
-    skipModeSelect.value = getSkipModeFromPrefs(prefs);
-    skipModeSelect.addEventListener('change', (e) => setSkipPrefsFromMode(e.target.value));
-  }
+  // Skip Rules Toggles
+  if (skipIntroEl) skipIntroEl.checked = prefs.skipIntro;
+  if (skipRecapEl) skipRecapEl.checked = prefs.skipRecap;
+  if (skipOutroEl) skipOutroEl.checked = prefs.skipOutro;
+  updateFiltersFraction(); // Initial update of fraction
 
   // Resume toggle
   const resumeEl = document.getElementById('resumePlayback');

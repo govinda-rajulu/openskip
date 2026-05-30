@@ -179,7 +179,7 @@
     }
 
     /* ── Segment folder ──────────────────────────────────────────────────── */
-    /*  Both "Skip Segments" and "Add Segment" share identical folder chrome  */
+    /* ── Segment folder (shared chrome) ──────────────────────────────────── */
     .seg-folder {
       border: 1px solid var(--divider);
       border-radius: var(--radius-md);
@@ -187,7 +187,7 @@
       margin-bottom: 8px;
     }
 
-    /* Header row — the "Skip" trigger / "Add Segment" trigger */
+    /* Header row */
     .seg-header {
       display: flex; align-items: center; gap: 8px;
       padding: 9px 12px;
@@ -197,6 +197,23 @@
     }
     .seg-header.clickable { cursor: pointer; }
     .seg-header.clickable:hover { background: var(--surface2); }
+
+    /* ── Segment filters ─────────────────────────────────────────────────── */
+    .seg-filters {
+      border: 1px solid var(--divider);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .seg-filters-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 12px;
+      background: var(--surface);
+      cursor: default;
+      user-select: none;
+    }
+    .seg-filters-header.clickable { cursor: pointer; }
+    .seg-filters-header.clickable:hover { background: var(--surface2); }
 
     .seg-icon {
       width: 28px; height: 28px; border-radius: 8px;
@@ -490,25 +507,44 @@
 
     <div class="section-label">Segments</div>
 
-    <!-- Skip Segments folder -->
-    <div class="seg-folder">
-      <div class="seg-header">
+    <!-- Active Filters block -->
+    <div class="seg-filters" id="segmentFilters">
+      <div class="seg-filters-header clickable" id="filtersHeader">
         <div class="seg-icon blue">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/>
           </svg>
         </div>
         <div class="seg-title-wrap">
-          <div class="seg-title">Skip Segments</div>
+          <div class="seg-title">Skip Rules</div>
+          <div class="seg-sub" id="filtersFraction">0/3 Active</div>
         </div>
-        <select id="skipModeSelect" class="hist-select" style="min-width: 120px; flex-shrink: 0;">
-          <option value="off">Disabled</option>
-          <option value="prompt">Prompt Before Skip</option>
-          <option value="auto-intro">Auto-skip Intros</option>
-          <option value="auto-recap">Auto-skip Recaps</option>
-          <option value="auto-outro">Auto-skip Outros</option>
-          <option value="auto-all">Auto-skip All Types</option>
-        </select>
+        <svg class="seg-chevron" id="filtersChevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="2,4 6,8 10,4"/>
+        </svg>
+      </div>
+      <div class="seg-body" id="filtersBody">
+        <div class="toggle-row">
+          <span class="toggle-row-label">Intro Segments</span>
+          <label class="toggle">
+            <input type="checkbox" id="skipIntro">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-row-label">Recap Segments</span>
+          <label class="toggle">
+            <input type="checkbox" id="skipRecap">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-row-label">Outro Segments</span>
+          <label class="toggle">
+            <input type="checkbox" id="skipOutro">
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
     </div>
 
