@@ -111,8 +111,18 @@ jobs:
           AMO_ADDON_SLUG: skipstream
           DRY_RUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true') && '1' || '0' }}
         run: |
+          echo "=== ENV CHECK ===" >> $GITHUB_STEP_SUMMARY
+          echo "API_KEY set: ${{ secrets.AMO_API_KEY != '' }}" >> $GITHUB_STEP_SUMMARY
+          echo "API_SECRET set: ${{ secrets.AMO_API_SECRET != '' }}" >> $GITHUB_STEP_SUMMARY
+          echo "DRY_RUN: ${DRY_RUN}" >> $GITHUB_STEP_SUMMARY
+          echo "ZIP: $(ls skipstream-*.zip 2>/dev/null || echo 'NOT FOUND')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           export RELEASE_NOTES="$(cat /tmp/release_notes.txt)"
-          node scripts/amo-update.js
+          node scripts/amo-update.js 2>&1 | tee /tmp/amo_output.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "=== SCRIPT OUTPUT ===" >> $GITHUB_STEP_SUMMARY
+          cat /tmp/amo_output.txt >> $GITHUB_STEP_SUMMARY
+          exit $EXIT_CODE
 
       - name: Summary
         if: success()
