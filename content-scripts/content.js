@@ -792,7 +792,14 @@
     }
     if (msg.type === 'GET_SHOW_INFO') {
       resolveShowInfo().then(info => {
-        sendResponse({ imdbId: info.imdbId, season: info.season, episode: info.episode, site: location.hostname });
+        sendResponse({
+          imdbId: info.imdbId, season: info.season, episode: info.episode,
+          site: location.hostname,
+          site_name: getSiteName(),
+          video_title: getVideoTitle(),
+          url: location.href,
+          mediaId: getMediaId(),
+        });
       });
       return true;
     }

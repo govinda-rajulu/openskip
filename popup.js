@@ -315,20 +315,24 @@ if (flowSubmitBtn) {
     try {
       const tabs = await br.tabs.query({ active: true, currentWindow: true });
       const tabId = tabs[0]?.id;
-      let imdbId = null, season = null, episode = null, site = null;
+      let imdbId = null, season = null, episode = null, site = null, site_name = null, video_title = null, url = null, mediaId = null;
       if (tabId) {
         try {
           const info = await br.tabs.sendMessage(tabId, { type: 'GET_SHOW_INFO' });
-          imdbId  = info?.imdbId  || null;
-          season  = info?.season  || null;
-          episode = info?.episode || null;
-          site    = info?.site    || null;
+          imdbId      = info?.imdbId      || null;
+          season      = info?.season      || null;
+          episode     = info?.episode     || null;
+          site        = info?.site        || null;
+          site_name   = info?.site_name   || null;
+          video_title = info?.video_title || null;
+          url         = info?.url         || null;
+          mediaId     = info?.mediaId     || null;
         } catch { /* content script not on this page */ }
       }
 
       const res = await br.runtime.sendMessage({
         type: 'REPORT_SEGMENT',
-        imdbId, season, episode, site,
+        imdbId, season, episode, site, site_name, video_title, url, mediaId,
         startSec: asStartSec,
         endSec:   asEndSec,
         segType:  asType,
@@ -341,7 +345,7 @@ if (flowSubmitBtn) {
           resultLabel.textContent = '✓ Submitted — thank you for contributing!';
         } else {
           resultLabel.className = 'flow-label warn';
-          resultLabel.textContent = '⚠ Submit failed — check your API key in Settings.';
+          resultLabel.textContent = `⚠ Submit failed: ${res?.err || 'Unknown error'}.`;
         }
       }
       const addSub = document.getElementById('addSub');
@@ -363,6 +367,47 @@ if (flowSubmitBtn) {
 let _localEntries  = {};   // mediaId → entry
 let _cloudEntries  = {};   // mediaId → entry
 let _historySource = 'merged';
+
+// Clear history button
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+if (clearHistoryBtn) {
+  clearHistoryBtn.addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to clear ALL your playback history (local and cloud)? This cannot be undone.')) {
+      return;
+    }
+
+    // Clear local history
+    try {
+      await br.storage.local.remove(CACHE_KEY);
+      _localEntries = {};
+    } catch (e) { console.error('Failed to clear local history:', e); }
+
+    // Clear cloud history
+    try {
+      const uidRes = await br.runtime.sendMessage({ type: 'GET_USER_ID' });
+      const userId = uidRes?.userId;
+      if (userId) {
+        const deleteRes = await br.runtime.sendMessage({ type: 'DELETE_ALL_HISTORY', userId });
+        if (deleteRes?.ok) {
+          _cloudEntries = {}; // Clear client-side cache
+        } else {
+          console.error('Failed to clear cloud history:', deleteRes?.err);
+          alert(`Failed to clear cloud history: ${deleteRes?.err || 'Unknown error'}. You may need to clear it manually in Supabase.`);
+        }
+      } else {
+        alert('Could not clear cloud history: User not authenticated with Supabase.');
+      }
+    } catch (e) {
+      console.error('Failed to clear cloud history:', e);
+      alert(`Failed to clear cloud history: ${e.message}. You may need to clear it manually in Supabase.`);
+    }
+
+    // Reload UI
+    populateSiteFilter();
+    applyHistoryFilters();
+    alert('History cleared.');
+  });
+}
 
 // Source pills
 document.querySelectorAll('.source-pill').forEach(pill => {
