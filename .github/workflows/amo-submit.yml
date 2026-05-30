@@ -1,17 +1,13 @@
 name: Submit to AMO
 
-# Runs automatically after the ZIP release workflow completes on a version tag.
-# Also runnable manually from the Actions tab.
-
 on:
   workflow_run:
     workflows: ["Build & Release ZIP"]
     types: [completed]
-    branches-ignore: []
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run (validate only, no AMO writes)'
+        description: 'Dry run (no AMO writes)'
         required: false
         default: 'false'
         type: choice
@@ -20,7 +16,6 @@ on:
 jobs:
   submit:
     name: Submit & update AMO listing
-    # Skip if the triggering workflow failed
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
@@ -38,7 +33,6 @@ jobs:
         with:
           node-version: '20'
 
-      # Download the ZIP that was built by the release workflow
       - name: Download release ZIP (from triggering workflow)
         if: github.event_name == 'workflow_run'
         uses: actions/download-artifact@v4
@@ -47,10 +41,9 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           name: skipstream-firefox-zip
           path: .
-        continue-on-error: true  # artifact may not exist if release used gh-release directly
+        continue-on-error: true
 
-      # Fall back: build the ZIP fresh from checkout (for workflow_dispatch or if artifact missing)
-      - name: Build ZIP (fallback)
+      - name: Build ZIP (fallback / manual trigger)
         run: |
           VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
           ZIP_NAME="skipstream-${VERSION}-firefox.zip"
@@ -64,83 +57,50 @@ jobs:
               supabase_setup.sql
             echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
           else
-            echo "✅ Using downloaded artifact: $ZIP_NAME"
+            echo "✅ Using artifact: $ZIP_NAME"
           fi
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Extract release notes from CHANGELOG
-        id: notes
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          # Extract the section for this version, strip markdown, cap at 3000 chars
-          NOTES=$(python3 << 'PY'
-          import re, sys
-          version = "${{ steps.version.outputs.version }}"
-          try:
-              cl = open("CHANGELOG.md").read()
-              m = re.search(
-                  r"## \[" + re.escape(version) + r"\][^\n]*\n([\s\S]*?)(?=\n## \[|$)",
-                  cl
-              )
-              if not m:
-                  print("")
-                  sys.exit(0)
-              text = m.group(1)
-              # Strip markdown headers, keep content
-              text = re.sub(r"###[^\n]*\n", "", text)
-              text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
-              text = text.strip()[:3000]
-              print(text)
-          except Exception as e:
-              print("")
-          PY
-          )
-          # Write to file to avoid shell escaping issues
-          echo "$NOTES" > /tmp/release_notes.txt
-          echo "notes_file=/tmp/release_notes.txt" >> $GITHUB_OUTPUT
 
       - name: Submit to AMO
         env:
           AMO_API_KEY:    ${{ secrets.AMO_API_KEY }}
           AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
           AMO_ADDON_SLUG: skipstream
-          DRY_RUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true') && '1' || '0' }}
+          DRY_RUN:        ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' && '1' || '0' }}
         run: |
-          echo "=== ENV CHECK ===" >> $GITHUB_STEP_SUMMARY
-          echo "API_KEY set: ${{ secrets.AMO_API_KEY != '' }}" >> $GITHUB_STEP_SUMMARY
-          echo "API_SECRET set: ${{ secrets.AMO_API_SECRET != '' }}" >> $GITHUB_STEP_SUMMARY
-          echo "DRY_RUN: ${DRY_RUN}" >> $GITHUB_STEP_SUMMARY
-          echo "ZIP: $(ls skipstream-*.zip 2>/dev/null || echo 'NOT FOUND')" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          export RELEASE_NOTES="$(cat /tmp/release_notes.txt)"
-          node scripts/amo-update.js 2>&1 | tee /tmp/amo_output.txt
-          EXIT_CODE=${PIPESTATUS[0]}
-          echo "=== SCRIPT OUTPUT ===" >> $GITHUB_STEP_SUMMARY
-          cat /tmp/amo_output.txt >> $GITHUB_STEP_SUMMARY
-          exit $EXIT_CODE
+          # Extract release notes inline (no heredoc)
+          python3 -c "
+          import re, json
+          version = json.load(open('manifest.json'))['version']
+          try:
+              cl = open('CHANGELOG.md').read()
+              m = re.search(r'## \[' + re.escape(version) + r'\][^\n]*\n([\s\S]*?)(?=\n## \[|\Z)', cl)
+              text = m.group(1) if m else ''
+              text = re.sub(r'###[^\n]*\n', '', text)
+              text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+              print(text.strip()[:3000])
+          except Exception:
+              print('')
+          " > /tmp/release_notes.txt
 
-      - name: Summary
+          export RELEASE_NOTES="$(cat /tmp/release_notes.txt)"
+          node scripts/amo-update.js
+
+      - name: Summary on success
         if: success()
         run: |
           echo "## ✅ AMO Submission Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
+          echo "**Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "**Listing:** https://addons.mozilla.org/en-US/firefox/addon/skipstream/" >> $GITHUB_STEP_SUMMARY
-          echo "**Developer Hub:** https://addons.mozilla.org/en-US/developers/addon/skipstream/versions" >> $GITHUB_STEP_SUMMARY
+          echo "**Dev Hub:** https://addons.mozilla.org/en-US/developers/addon/skipstream/versions" >> $GITHUB_STEP_SUMMARY
 
       - name: Summary on failure
         if: failure()
         run: |
           echo "## ❌ AMO Submission Failed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Check the logs above for details." >> $GITHUB_STEP_SUMMARY
+          echo "Check the step logs above for the error." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Common causes:" >> $GITHUB_STEP_SUMMARY
-          echo "- \`AMO_API_KEY\` or \`AMO_API_SECRET\` secrets not set in repo Settings → Secrets" >> $GITHUB_STEP_SUMMARY
-          echo "- ZIP failed validation (see validation errors in the log)" >> $GITHUB_STEP_SUMMARY
-          echo "- Add-on slug \`skipstream\` not yet claimed on AMO (run once manually first)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`AMO_API_KEY\` / \`AMO_API_SECRET\` secrets not set" >> $GITHUB_STEP_SUMMARY
+          echo "- ZIP failed validation" >> $GITHUB_STEP_SUMMARY
+          echo "- Add-on slug not yet claimed (submit first version manually)" >> $GITHUB_STEP_SUMMARY
