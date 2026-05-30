@@ -3,6 +3,8 @@
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
+import { supabase } from './lib/supabase'; // Adjust path if lib/supabase.ts is not directly under project root
+
 const IS_SW = typeof ServiceWorkerGlobalScope !== 'undefined' &&
               self instanceof ServiceWorkerGlobalScope;
 
@@ -71,23 +73,20 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
 // ── Supabase upsert (internal helper, used by both message handler and tab flush) ──
 
 async function supabaseUpsert(body) {
-  const { supabaseUrl, supabaseAnonKey } = await getConfig();
-  if (!supabaseUrl || !supabaseAnonKey) return { ok: false, err: 'not_configured' };
+  // The 'supabase' client is initialized with hardcoded URL/Key from lib/supabase.ts.
+  // No need for getConfig() here for the client itself.
   try {
-    const res = await fetchWithRetry(
-      `${supabaseUrl}/rest/v1/playback_states?on_conflict=user_id,media_id`,
-      {
-        method: 'POST',
-        headers: {
-          apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
-          'Content-Type': 'application/json',
-          Prefer: 'resolution=merge-duplicates,return=minimal',
-        },
-        body: JSON.stringify(body),
-      }
-    );
-    return res.ok ? { ok: true } : { ok: false, err: `HTTP ${res.status}: ${await res.text()}` };
-  } catch (e) { return { ok: false, err: String(e) }; }
+    const { data, error } = await supabase
+      .from('playback_states')
+      .upsert(body, { onConflict: 'user_id,media_id', ignoreDuplicates: false });
+
+    if (error) {
+      return { ok: false, err: error.message };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, err: String(e) };
+  }
 }
 
 // ── Tab-close flush ───────────────────────────────────────────────────────────
@@ -414,33 +413,47 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (msg.type === 'SUPABASE_GET') {
-    getConfig().then(({ supabaseUrl, supabaseAnonKey }) => {
+    // We still use getConfig() to determine if the user has configured Supabase
+    // to provide the 'not_configured' error, but the actual client uses hardcoded keys.
+    getConfig().then(async ({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
-      const url = `${supabaseUrl}/rest/v1/playback_states` +
-        `?user_id=eq.${encodeURIComponent(msg.userId)}` +
-        `&media_id=eq.${encodeURIComponent(msg.mediaId)}` +
-        `&select=playback_time,duration,url&limit=1`;
-      fetchWithRetry(url, { headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` } })
-        .then(r => r.json())
-        .then(data => sendResponse({ data: data[0] || null }))
-        .catch(err => sendResponse({ data: null, err: String(err) }));
-    });
+
+      const { data, error } = await supabase
+        .from('playback_states')
+        .select('playback_time,duration,url')
+        .eq('user_id', msg.userId)
+        .eq('media_id', msg.mediaId)
+        .maybeSingle(); // Use maybeSingle to get one item or null
+
+      if (error) {
+        sendResponse({ data: null, err: error.message });
+      } else if (data === null) {
+        sendResponse({ data: null }); // Explicitly send null if no data
+      } else {
+        sendResponse({ data: data });
+      }
+    }).catch(err => sendResponse({ data: null, err: String(err) }));
     return true;
   }
 
   // SUPABASE_GET_ALL — used by popup to fetch all history rows for the user
   if (msg.type === 'SUPABASE_GET_ALL') {
-    getConfig().then(({ supabaseUrl, supabaseAnonKey }) => {
+    getConfig().then(async ({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
-      const url = `${supabaseUrl}/rest/v1/playback_states` +
-        `?user_id=eq.${encodeURIComponent(msg.userId)}` +
-        `&select=media_id,playback_time,duration,site,site_name,video_title,updated_at,url` +
-        `&order=updated_at.desc&limit=200`;
-      fetchWithRetry(url, { headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` } })
-        .then(r => r.json())
-        .then(data => sendResponse({ data: Array.isArray(data) ? data : [] }))
-        .catch(err => sendResponse({ data: null, err: String(err) }));
-    });
+
+      const { data, error } = await supabase
+        .from('playback_states')
+        .select('media_id,playback_time,duration,site,site_name,video_title,updated_at,url')
+        .eq('user_id', msg.userId)
+        .order('updated_at', { ascending: false })
+        .limit(200);
+
+      if (error) {
+        sendResponse({ data: null, err: error.message });
+      } else {
+        sendResponse({ data: Array.isArray(data) ? data : [] });
+      }
+    }).catch(err => sendResponse({ data: null, err: String(err) }));
     return true;
   }
 
@@ -449,18 +462,18 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ ok: false, err: 'not_configured' }); return; }
       if (!msg.userId) { sendResponse({ ok: false, err: 'User ID missing.' }); return; }
 
-      try {
-        const res = await fetchWithRetry(`${supabaseUrl}/rest/v1/playback_states?user_id=eq.${encodeURIComponent(msg.userId)}`, {
-          method: 'DELETE',
-          headers: {
-            apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        sendResponse(res.ok ? { ok: true } : { ok: false, err: `HTTP ${res.status}: ${await res.text()}` });
-      } catch (e) {
-        sendResponse({ ok: false, err: String(e) });
+      const { error } = await supabase
+        .from('playback_states')
+        .delete()
+        .eq('user_id', msg.userId);
+
+      if (error) {
+        sendResponse({ ok: false, err: error.message });
+      } else {
+        sendResponse({ ok: true });
       }
+    }).catch(e => {
+      sendResponse({ ok: false, err: String(e) });
     });
     return true;
   }
