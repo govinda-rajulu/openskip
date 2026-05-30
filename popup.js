@@ -1,16 +1,16 @@
-/* SkipStream — popup v1.5.2 */
+/* SkipStream | popup v1.5.2 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// Constants
 
 const ALL_PREF_KEYS = ['skipIntro', 'skipRecap', 'skipOutro', 'resumePlayback'];
 const DEFAULTS      = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true };
 const CACHE_KEY   = 'skipstream_cache';
 const PENDING_KEY = 'skipstream_pending_resume';
 
-// ── Prefs ─────────────────────────────────────────────────────────────────────
+// Prefs
 
 async function loadPrefs() {
   try {
@@ -23,10 +23,10 @@ async function loadPrefs() {
   } catch { return { ...DEFAULTS }; }
 }
 
-// ── Skip Mode Helpers ─────────────────────────────────────────────────────────
+// Skip Mode Helpers
 
 
-// ── Formatting ────────────────────────────────────────────────────────────────
+// Formatting
 
 function fmtTime(secs) {
   if (!secs || isNaN(secs)) return '0:00';
@@ -48,7 +48,7 @@ function fmtDate(ts) {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-// ── Deep link builder ─────────────────────────────────────────────────────────
+// Deep link builder
 
 function buildDeepLink(entry) {
   if (!entry.url) return null;
@@ -66,7 +66,7 @@ function buildDeepLink(entry) {
   } catch { return entry.url || null; }
 }
 
-// ── Open history entry in new tab + inject resume position ───────────────────
+// Open history entry in new tab + inject resume position
 
 async function openHistoryEntry(entry) {
   const url  = entry.url;
@@ -92,7 +92,7 @@ async function openHistoryEntry(entry) {
   }
 }
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
+// Tabs
 
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -104,9 +104,9 @@ document.querySelectorAll('.tab').forEach(btn => {
   });
 });
 
-// ── Skip folder (master + children) ──────────────────────────────────────────
+// Skip folder (master + children)
 
-// ── Segment Filters (Skip Rules) ──────────────────────────────────────────────
+// Segment Filters (Skip Rules)
 
 let filtersOpen = false;
 const filtersHeader = document.getElementById('filtersHeader');
@@ -156,7 +156,7 @@ if (skipIntroEl) skipIntroEl.addEventListener('change', handleSkipToggleChange);
 if (skipRecapEl) skipRecapEl.addEventListener('change', handleSkipToggleChange);
 if (skipOutroEl) skipOutroEl.addEventListener('change', handleSkipToggleChange);
 
-// ── Add Segment folder ────────────────────────────────────────────────────────
+// Add Segment folder
 
 let asState    = 'idle';
 let asStartSec = null;
@@ -303,7 +303,7 @@ if (flowStartBtn) {
       const timeText = document.getElementById('flowTimeText');
       if (timeText) {
         timeText.textContent = (asStartSec != null && asEndSec != null)
-          ? `${fmtTime(asStartSec)} – ${fmtTime(asEndSec)}`
+          ? `${fmtTime(asStartSec)} | ${fmtTime(asEndSec)}`
           : 'Timestamps recorded';
       }
 
@@ -382,7 +382,7 @@ if (flowSubmitBtn) {
   });
 }
 
-// ── History ───────────────────────────────────────────────────────────────────
+// History
 
 let _localEntries  = {};   // mediaId → entry
 let _cloudEntries  = {};   // mediaId → entry
@@ -571,32 +571,33 @@ function renderHistoryList(entries) {
     item.className = 'h-item';
     item.style.cursor = 'pointer';
 
-    // Click handler: open in new tab with resume injection
     item.addEventListener('click', () => {
       openHistoryEntry({ ...entry, mediaId });
     });
 
-    // Top row
+    const content = document.createElement('div');
+    content.className = 'h-item-content';
+
     const top = document.createElement('div');
     top.className = 'h-item-top';
 
-    const thumb = document.createElement('div');
-    thumb.className = 'h-thumb';
-    const tSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-    tSvg.setAttribute('width','16'); tSvg.setAttribute('height','16');
-    tSvg.setAttribute('viewBox','0 0 16 16'); tSvg.setAttribute('fill','none');
-    tSvg.setAttribute('stroke','currentColor'); tSvg.setAttribute('stroke-width','1.5');
-    const tPoly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
-    tPoly.setAttribute('points','3,2 13,8 3,14');
-    tSvg.appendChild(tPoly);
-    thumb.appendChild(tSvg);
-
-    const info = document.createElement('div');
-    info.className = 'h-info';
+    const icon = document.createElement('div');
+    icon.className = 'h-icon';
+    const iconSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    iconSvg.setAttribute('width','16'); iconSvg.setAttribute('height','16');
+    iconSvg.setAttribute('viewBox','0 0 16 16'); iconSvg.setAttribute('fill','none');
+    iconSvg.setAttribute('stroke','currentColor'); iconSvg.setAttribute('stroke-linecap','round'); iconSvg.setAttribute('stroke-linejoin','round');
+    const iconPoly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    iconPoly.setAttribute('points','3,2 13,8 3,14');
+    iconSvg.appendChild(iconPoly);
+    icon.appendChild(iconSvg);
 
     const titleEl = document.createElement('div');
     titleEl.className = 'h-title';
     titleEl.textContent = displayTitle;
+
+    top.appendChild(icon);
+    top.appendChild(titleEl);
 
     const meta = document.createElement('div');
     meta.className = 'h-meta';
@@ -619,23 +620,23 @@ function renderHistoryList(entries) {
       meta.appendChild(dateEl);
     }
 
-    info.appendChild(titleEl);
-    info.appendChild(meta);
-    top.appendChild(thumb);
-    top.appendChild(info);
-
-    const bar  = document.createElement('div'); bar.className = 'h-bar';
-    const fill = document.createElement('div'); fill.className = 'h-fill';
-    fill.style.width = `${pct}%`;
-    bar.appendChild(fill);
+    const progressWrap = document.createElement('div');
+    progressWrap.className = 'h-progress-wrap';
+    const progressFill = document.createElement('div');
+    progressFill.className = 'h-progress-fill';
+    progressFill.style.width = `${pct}%`;
+    progressWrap.appendChild(progressFill);
 
     const timeEl = document.createElement('div');
     timeEl.className = 'h-time';
-    timeEl.textContent = `${fmtTime(entry.p)}${entry.d ? ` / ${fmtTime(entry.d)} · ${pct}%` : ''}`;
+    timeEl.textContent = `${fmtTime(entry.p)}${entry.d ? ` / ${fmtTime(entry.d)} | ${pct}%` : ''}`;
 
-    item.appendChild(top);
-    item.appendChild(bar);
-    item.appendChild(timeEl);
+    content.appendChild(top);
+    content.appendChild(meta);
+    content.appendChild(progressWrap);
+    content.appendChild(timeEl);
+
+    item.appendChild(content);
     list.appendChild(item);
   }
 }
@@ -665,11 +666,13 @@ if (historySearch) historySearch.addEventListener('input', applyHistoryFilters);
 const historyFilter = document.getElementById('historyFilter');
 if (historyFilter) historyFilter.addEventListener('change', applyHistoryFilters);
 
-// ── Status helpers ────────────────────────────────────────────────────────────
+// Status helpers
 
 function setStatus(dotClass, text) {
+  const indicator = document.getElementById('statusIndicator');
   const dot  = document.getElementById('statusDot');
   const span = document.getElementById('statusText');
+  if (indicator) indicator.className = `status-indicator ${dotClass}`;
   if (dot)  dot.className   = `status-dot ${dotClass}`;
   if (span) span.textContent = text;
 }
@@ -681,14 +684,14 @@ function setSyncStatus(dotClass, text) {
   if (span) span.textContent = text;
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// Init
 
 async function init() {
 
   // Set the extension version
   document.getElementById('versionBadge').textContent = 'v' + br.runtime.getManifest().version;
 
-  // ── Load prefs FIRST — must complete before any UI rendering ────
+  // Load prefs FIRST | must complete before any UI rendering
   const prefs = await loadPrefs();
 
   // Skip Rules Toggles
@@ -710,12 +713,12 @@ async function init() {
   const optionsBtn = document.getElementById('optionsBtn');
   if (optionsBtn) optionsBtn.addEventListener('click', () => br.runtime.openOptionsPage());
 
-  // ── Load local history immediately ────────────────────────────────────────
+  // Load local history immediately
   await loadLocalHistory();
   populateSiteFilter();
   applyHistoryFilters();
 
-  // ── Service health check ─────────────────────────────────────────────────
+  // Service health check
   let result;
   try {
     result = await br.runtime.sendMessage({ type: 'CHECK_CONFIG' });
@@ -733,7 +736,7 @@ async function init() {
 
   const activeSvcs = [idbOk && 'IntroDB', sbOk && 'Supabase', tmOk && 'TMDB'].filter(Boolean);
   if (activeSvcs.length) {
-    setStatus('ok', activeSvcs.join(' · ') + ' · Connected');
+    setStatus('ok', activeSvcs.join(' | ') + ' | Connected');
   } else {
     setStatus('warn', 'No services configured — open Settings');
   }
@@ -755,7 +758,7 @@ async function init() {
     }
   }
 
-  // ── Load cloud history in background ─────────────────────────────────────
+  // Load cloud history in background
   if (sbOk) {
     setSyncStatus('', 'Syncing cloud history…');
     try {
@@ -771,7 +774,7 @@ async function init() {
         applyHistoryFilters();
 
         const cloudCount = Object.keys(_cloudEntries).length;
-        setSyncStatus('ok', `Cloud: ${cloudCount} item${cloudCount !== 1 ? 's' : ''} synced`);
+        setSyncStatus('ok', `Cloud: ${cloudCount} item${cloudCount !== 1 ? 's' : ''} | synced`);
       } else {
         setSyncStatus('warn', 'Cloud: missing credentials');
       }
@@ -780,7 +783,7 @@ async function init() {
     }
   } else {
     const localCount = Object.keys(_localEntries).length;
-    setSyncStatus('', `Local: ${localCount} item${localCount !== 1 ? 's' : ''} · Supabase not connected`);
+    setSyncStatus('', `Local: ${localCount} item${localCount !== 1 ? 's' : ''} | Supabase not connected`);
   }
 }
 

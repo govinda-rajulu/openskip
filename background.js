@@ -1,4 +1,4 @@
-/* SkipStream — background */
+/* SkipStream | background */
 /* Compatible with Firefox MV2 and Chrome MV3 service workers */
 'use strict';
 
@@ -15,7 +15,7 @@ let cachedUserId = null;
 // Used by tabs.onRemoved to force a final sync flush
 const tabPlaybackState = new Map();
 
-// ── Config ────────────────────────────────────────────────────────────────────
+// Config
 
 async function getConfig() {
   try {
@@ -41,7 +41,7 @@ async function getConfig() {
   }
 }
 
-// ── Deterministic user ID ─────────────────────────────────────────────────────
+// Deterministic user ID
 
 async function getDerivedUserId(anonKey) {
   if (cachedUserId) return cachedUserId;
@@ -54,7 +54,7 @@ async function getDerivedUserId(anonKey) {
   } catch { return null; }
 }
 
-// ── Retry helper ──────────────────────────────────────────────────────────────
+// Retry helper
 
 async function fetchWithRetry(url, options = {}, retries = 3) {
   let lastErr;
@@ -70,7 +70,7 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
   throw lastErr;
 }
 
-// ── Supabase upsert (internal helper, used by both message handler and tab flush) ──
+// Supabase upsert (internal helper, used by both message handler and tab flush)
 
 async function supabaseUpsert(body) {
   // The 'supabase' client is initialized with hardcoded URL/Key from lib/supabase.ts.
@@ -89,7 +89,7 @@ async function supabaseUpsert(body) {
   }
 }
 
-// ── Tab-close flush ───────────────────────────────────────────────────────────
+// Tab-close flush
 // When a tab is removed, fire a final upsert for its last-known playback state.
 
 if (br.tabs && br.tabs.onRemoved) {
@@ -104,7 +104,7 @@ if (br.tabs && br.tabs.onRemoved) {
   });
 }
 
-// ── Segment providers ─────────────────────────────────────────────────────────
+// Segment providers
 
 async function providerIntroDB(imdbId, season, episode, { introdbApiKey }) {
   if (!introdbApiKey) return null;
@@ -181,7 +181,7 @@ async function fetchSegmentsMulti(imdbId, season, episode) {
   return Object.keys(merged).length ? merged : null;
 }
 
-// ── Service checks ────────────────────────────────────────────────────────────
+// Service checks
 
 async function checkSupabase(supabaseUrl, supabaseAnonKey) {
   if (!supabaseUrl || !supabaseAnonKey) return { ok: false, message: 'Not configured' };
@@ -222,7 +222,7 @@ async function checkIntroDB(introdbApiKey) {
   } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
 }
 
-// ── Message router ────────────────────────────────────────────────────────────
+// Message router
 
 br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const msg = message;
