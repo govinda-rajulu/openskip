@@ -450,7 +450,7 @@
   <div class="header">
     <div class="logo"><img src="icons/icon-48.png" alt=""></div>
     <span class="header-title">SkipStream</span>
-    <span class="ver-badge" id="versionBadge">v1.5.1</span>
+    <span class="ver-badge" id="versionBadge"></span>
     <button class="icon-btn" id="optionsBtn" title="Open Settings">
       <!-- gear -->
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -491,8 +491,8 @@
     <div class="section-label">Segments</div>
 
     <!-- Skip Segments folder -->
-    <div class="seg-folder" id="skipFolder">
-      <div class="seg-header" id="skipHeader">
+    <div class="seg-folder">
+      <div class="seg-header">
         <div class="seg-icon blue">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/>
@@ -500,39 +500,15 @@
         </div>
         <div class="seg-title-wrap">
           <div class="seg-title">Skip Segments</div>
-          <div class="seg-sub" id="skipSub">Disabled</div>
         </div>
-        <div class="seg-right">
-          <span class="seg-badge hidden" id="skipBadge">0/3</span>
-          <label class="toggle" onclick="event.stopPropagation()">
-            <input type="checkbox" id="skipMaster">
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
-      <!-- Child rows expand when master is ON -->
-      <div class="seg-body" id="skipBody">
-        <div class="child-row">
-          <div class="child-row-label">
-            <div>Intros</div>
-            <div class="child-row-sub">ON = auto-skip · OFF = show button</div>
-          </div>
-          <label class="toggle"><input type="checkbox" id="skipIntro"><span class="slider"></span></label>
-        </div>
-        <div class="child-row">
-          <div class="child-row-label">
-            <div>Recaps</div>
-            <div class="child-row-sub">ON = auto-skip · OFF = show button</div>
-          </div>
-          <label class="toggle"><input type="checkbox" id="skipRecap"><span class="slider"></span></label>
-        </div>
-        <div class="child-row">
-          <div class="child-row-label">
-            <div>Outros</div>
-            <div class="child-row-sub">ON = auto-skip · OFF = show button</div>
-          </div>
-          <label class="toggle"><input type="checkbox" id="skipOutro"><span class="slider"></span></label>
-        </div>
+        <select id="skipModeSelect" class="hist-select" style="min-width: 120px; flex-shrink: 0;">
+          <option value="off">Disabled</option>
+          <option value="prompt">Prompt Before Skip</option>
+          <option value="auto-intro">Auto-skip Intros</option>
+          <option value="auto-recap">Auto-skip Recaps</option>
+          <option value="auto-outro">Auto-skip Outros</option>
+          <option value="auto-all">Auto-skip All Types</option>
+        </select>
       </div>
     </div>
 

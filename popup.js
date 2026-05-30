@@ -5,9 +5,8 @@ const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chr
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const CHILD_KEYS  = ['skipIntro', 'skipRecap', 'skipOutro'];
-const ALL_TOGGLES = [...CHILD_KEYS, 'resumePlayback'];
-const DEFAULTS    = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipMaster: true };
+const ALL_PREF_KEYS = ['skipMaster', 'skipIntro', 'skipRecap', 'skipOutro', 'resumePlayback'];
+const DEFAULTS      = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipMaster: true };
 const CACHE_KEY   = 'skipstream_cache';
 const PENDING_KEY = 'skipstream_pending_resume';
 
@@ -15,13 +14,46 @@ const PENDING_KEY = 'skipstream_pending_resume';
 
 async function loadPrefs() {
   try {
-    const stored = await br.storage.local.get([...ALL_TOGGLES, 'skipMaster']);
+    const stored = await br.storage.local.get(ALL_PREF_KEYS);
     const prefs = { ...DEFAULTS };
-    for (const key of [...ALL_TOGGLES, 'skipMaster']) {
+    for (const key of ALL_PREF_KEYS) {
       if (key in stored) prefs[key] = stored[key];
     }
     return prefs;
   } catch { return { ...DEFAULTS }; }
+}
+
+// ── Skip Mode Helpers ─────────────────────────────────────────────────────────
+
+function getSkipModeFromPrefs(prefs) {
+  if (!prefs.skipMaster) return 'off';
+  if (!prefs.skipIntro && !prefs.skipRecap && !prefs.skipOutro) return 'prompt';
+  if (prefs.skipIntro && !prefs.skipRecap && !prefs.skipOutro) return 'auto-intro';
+  if (!prefs.skipIntro && prefs.skipRecap && !prefs.skipOutro) return 'auto-recap';
+  if (!prefs.skipIntro && !prefs.skipRecap && prefs.skipOutro) return 'auto-outro';
+  if (prefs.skipIntro && prefs.skipRecap && prefs.skipOutro) return 'auto-all';
+  // Fallback for unexpected combinations (e.g., intro and recap, but not outro)
+  return 'prompt';
+}
+
+function setSkipPrefsFromMode(skipMode) {
+  let skipMaster    = false;
+  let skipIntro     = false;
+  let skipRecap     = false;
+  let skipOutro     = false;
+
+  if (skipMode !== 'off') {
+    skipMaster = true;
+    if (skipMode === 'auto-intro')    skipIntro = true;
+    if (skipMode === 'auto-recap')    skipRecap = true;
+    if (skipMode === 'auto-outro')    skipOutro = true;
+    if (skipMode === 'auto-all') {
+      skipIntro = true;
+      skipRecap = true;
+      skipOutro = true;
+    }
+  }
+  br.storage.local.set({ skipMaster, skipIntro, skipRecap, skipOutro });
 }
 
 // ── Formatting ────────────────────────────────────────────────────────────────
@@ -103,47 +135,6 @@ document.querySelectorAll('.tab').forEach(btn => {
 });
 
 // ── Skip folder (master + children) ──────────────────────────────────────────
-
-// Accepts the prefs object so badge is always computed from live storage values,
-// eliminating the "0/3" race condition on init.
-function updateSkipBadge(prefs) {
-  const masterEl = document.getElementById('skipMaster');
-  const badge    = document.getElementById('skipBadge');
-  const sub      = document.getElementById('skipSub');
-  if (!masterEl || !badge || !sub) return;
-
-  const masterOn = prefs ? prefs.skipMaster : masterEl.checked;
-
-  if (!masterOn) {
-    badge.classList.add('hidden');
-    sub.textContent = 'Disabled — all skip detection off';
-    return;
-  }
-
-  // Count active children from prefs (or DOM if no prefs given)
-  const activeKeys = CHILD_KEYS.filter(k => {
-    if (prefs) return prefs[k];
-    return document.getElementById(k)?.checked;
-  });
-
-  badge.textContent = `${activeKeys.length}/${CHILD_KEYS.length}`;
-  badge.classList.remove('hidden');
-
-  const typeNames = [];
-  const pSrc = prefs || {};
-  if (pSrc.skipIntro ?? document.getElementById('skipIntro')?.checked) typeNames.push('Intro');
-  if (pSrc.skipRecap ?? document.getElementById('skipRecap')?.checked) typeNames.push('Recap');
-  if (pSrc.skipOutro ?? document.getElementById('skipOutro')?.checked) typeNames.push('Outro');
-
-  sub.textContent = typeNames.length
-    ? `Auto-skipping: ${typeNames.join(', ')}`
-    : 'Enabled — all types set to prompt mode';
-}
-
-function setSkipBodyOpen(open) {
-  const body = document.getElementById('skipBody');
-  if (body) body.classList.toggle('open', open);
-}
 
 // ── Add Segment folder ────────────────────────────────────────────────────────
 
@@ -628,49 +619,18 @@ function setSyncStatus(dotClass, text) {
 
 async function init() {
 
-  // ── Load prefs FIRST — must complete before any badge/toggle rendering ────
-  // This eliminates the "0/3" race condition: storage is fully resolved
-  // before we write any values into the DOM.
+  // Set the extension version
+  document.getElementById('versionBadge').textContent = 'v' + br.runtime.getManifest().version;
+
+  // ── Load prefs FIRST — must complete before any UI rendering ────
   const prefs = await loadPrefs();
 
-  // Master skip toggle
-  const masterEl = document.getElementById('skipMaster');
-  if (masterEl) {
-    masterEl.checked = prefs.skipMaster;
-    setSkipBodyOpen(prefs.skipMaster);
-
-    masterEl.addEventListener('change', () => {
-      const live = {
-        ...prefs,
-        skipMaster: masterEl.checked,
-        skipIntro:  document.getElementById('skipIntro')?.checked ?? prefs.skipIntro,
-        skipRecap:  document.getElementById('skipRecap')?.checked ?? prefs.skipRecap,
-        skipOutro:  document.getElementById('skipOutro')?.checked ?? prefs.skipOutro,
-      };
-      br.storage.local.set({ skipMaster: masterEl.checked });
-      setSkipBodyOpen(masterEl.checked);
-      updateSkipBadge(live);
-    });
+  // Skip Segments dropdown
+  const skipModeSelect = document.getElementById('skipModeSelect');
+  if (skipModeSelect) {
+    skipModeSelect.value = getSkipModeFromPrefs(prefs);
+    skipModeSelect.addEventListener('change', (e) => setSkipPrefsFromMode(e.target.value));
   }
-
-  // Child toggles — set from prefs before attaching listeners
-  for (const key of CHILD_KEYS) {
-    const el = document.getElementById(key);
-    if (!el) continue;
-    el.checked = prefs[key];
-    el.addEventListener('change', () => {
-      const live = {
-        ...prefs,
-        skipMaster: masterEl?.checked ?? prefs.skipMaster,
-        [key]: el.checked,
-      };
-      br.storage.local.set({ [key]: el.checked });
-      updateSkipBadge(live);
-    });
-  }
-
-  // Render badge from the fully-resolved prefs (not DOM state) — fixes race condition
-  updateSkipBadge(prefs);
 
   // Resume toggle
   const resumeEl = document.getElementById('resumePlayback');
