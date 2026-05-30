@@ -7,52 +7,48 @@
   <style>
     /* ── Tokens ──────────────────────────────────────────────────────────── */
     :root {
-      --bg: #f0f2f7;
-      --card: rgba(255,255,255,0.70);
-      --card-border: rgba(255,255,255,0.85);
-      --surface: rgba(0,0,0,0.038);
-      --surface2: rgba(0,0,0,0.055);
-      --divider: rgba(0,0,0,0.072);
-      --text: #0d0f14;
-      --text2: #515c70;
-      --text3: #8a95a8;
-      --accent: #2860f0;
-      --accent-dim: rgba(40,96,240,0.13);
-      --accent-hover: #1a4fd8;
-      --ok: #15a350;
-      --ok-dim: rgba(21,163,80,0.12);
-      --warn: #c0720a;
-      --warn-dim: rgba(192,114,10,0.10);
-      --danger: #d93025;
-      --danger-dim: rgba(217,48,37,0.09);
-      --toggle-off: rgba(0,0,0,0.16);
-      --shadow-card: 0 12px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
-      --shadow-sm: 0 1px 4px rgba(0,0,0,0.09);
-      --radius-card: 18px;
-      --radius-md: 10px;
-      --radius-sm: 7px;
-      --font: 'Inter', system-ui, -apple-system, sans-serif;
-      --transition: 0.18s cubic-bezier(0.4,0,0.2,1);
+      --bg: #F0F3F7;
+      --panel-bg: #FFFFFF;
+      --panel-border: #E0E4EB;
+      --divider: #E0E4EB;
+      --text-main: #2C3E50; /* Deep Slate/Navy */
+      --text-label: #7F93A9;
+      --text-subtle: #A7B8C9;
+      --text-dim: #C0CDD8;
+      --accent-main: #4CAF50; /* Vibrant Green */
+      --accent-dim: #E8F5E9;
+      --accent-hover: #43A047;
+      --danger-main: #EF5350;
+      --danger-dim: #FFEBEE;
+      --warn-main: #FFB300;
+      --warn-dim: #FFF8E1;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+      --radius-xl: 16px;
+      --radius-lg: 10px;
+      --radius-md: 8px;
+      --radius-sm: 6px;
+      --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+      --transition-fast: 0.15s cubic-bezier(0.4,0,0.2,1);
+      --transition-normal: 0.25s cubic-bezier(0.4,0,0.2,1);
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #0b0d12;
-        --card: rgba(20,22,30,0.80);
-        --card-border: rgba(255,255,255,0.09);
-        --surface: rgba(255,255,255,0.055);
-        --surface2: rgba(255,255,255,0.08);
-        --divider: rgba(255,255,255,0.075);
-        --text: #edf0f7;
-        --text2: #7e8da4;
-        --text3: #4e5a6e;
-        --ok: #34d474;
-        --ok-dim: rgba(52,212,116,0.12);
-        --warn: #f5a623;
-        --warn-dim: rgba(245,166,35,0.11);
-        --danger: #f25a4f;
-        --danger-dim: rgba(242,90,79,0.10);
-        --toggle-off: rgba(255,255,255,0.16);
-        --shadow-card: 0 12px 40px rgba(0,0,0,0.55);
+        --bg: #1A202C;
+        --panel-bg: #2D3748;
+        --panel-border: #4A5568;
+        --divider: #4A5568;
+        --text-main: #E2E8F0;
+        --text-label: #A0AEC0;
+        --text-subtle: #718096;
+        --text-dim: #4A5568;
+        --accent-main: #69F0AE; /* Brighter Green for dark mode */
+        --accent-dim: rgba(105,240,174,0.15);
+        --accent-hover: #00E676;
+        --danger-main: #EF5350;
+        --danger-dim: rgba(239,83,80,0.15);
+        --warn-main: #FFD54F;
+        --warn-dim: rgba(255,213,79,0.15);
       }
     }
 
@@ -61,98 +57,111 @@
     html { background: var(--bg); }
     body {
       width: 320px;
-      font-family: var(--font);
+      font-family: var(--font-body);
       font-size: 13px;
       line-height: 1.4;
       background: var(--bg);
-      color: var(--text);
+      color: var(--text-main);
       padding: 10px;
     }
 
-    /* ── Card shell ──────────────────────────────────────────────────────── */
-    .card {
-      background: var(--card);
-      backdrop-filter: blur(24px) saturate(180%);
-      -webkit-backdrop-filter: blur(24px) saturate(180%);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-card);
-      box-shadow: var(--shadow-card);
-      padding: 14px 14px 12px;
+    /* ── Main Container (was .card) ──────────────────────────────────────── */
+    .container {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-md);
+      padding: 12px;
     }
 
-    /* ── Header ──────────────────────────────────────────────────────────── */
-    .header {
+    /* ── Dashboard Header ────────────────────────────────────────────────── */
+    .dashboard {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-lg);
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow-sm);
+    }
+    .dash-header {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
-    .logo {
-      width: 26px; height: 26px;
-      border-radius: 8px;
+    .dash-logo {
+      width: 32px; height: 32px;
+      border-radius: var(--radius-md);
       overflow: hidden;
       flex-shrink: 0;
       box-shadow: var(--shadow-sm);
     }
-    .logo img { width: 100%; height: 100%; display: block; }
-    .header-title { font-size: 15px; font-weight: 800; letter-spacing: -0.03em; flex: 1; }
-    .ver-badge {
-      font-size: 9px; font-weight: 700;
-      background: var(--accent); color: #fff;
-      border-radius: 5px; padding: 2px 6px;
+    .dash-logo img { width: 100%; height: 100%; display: block; }
+    .dash-title {
+      font-size: 16px; font-weight: 700;
+      letter-spacing: -0.02em; flex: 1;
+      color: var(--text-main);
+    }
+    .dash-version {
+      font-size: 10px; font-weight: 600;
+      background: var(--text-dim); color: var(--panel-bg);
+      border-radius: var(--radius-sm); padding: 2px 7px;
       letter-spacing: 0.03em; flex-shrink: 0;
     }
-    .icon-btn {
-      width: 28px; height: 28px;
+    .dash-btn {
+      width: 30px; height: 30px;
       display: flex; align-items: center; justify-content: center;
-      background: var(--surface); border: 1px solid var(--divider);
-      border-radius: 8px; cursor: pointer; color: var(--text2);
-      transition: background var(--transition), color var(--transition), border-color var(--transition);
+      background: var(--panel-bg); border: 1px solid var(--panel-border);
+      border-radius: var(--radius-md); cursor: pointer; color: var(--text-label);
+      transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
       flex-shrink: 0;
     }
-    .icon-btn:hover { background: var(--surface2); color: var(--accent); border-color: var(--accent); }
-    .icon-btn svg { display: block; }
+    .dash-btn:hover { background: var(--accent-dim); color: var(--accent-main); border-color: var(--accent-main); }
+    .dash-btn svg { display: block; }
 
-    /* ── Status pill ─────────────────────────────────────────────────────── */
-    .status-row {
-      display: flex; align-items: center; gap: 6px;
-      padding: 7px 10px;
-      background: var(--surface);
-      border: 1px solid var(--divider);
+    /* ── Status Indicator ────────────────────────────────────────────────── */
+    .status-indicator {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px;
+      background: var(--accent-dim);
       border-radius: var(--radius-md);
-      margin-bottom: 10px;
-      min-height: 30px;
+      color: var(--accent-main);
+      font-size: 12px; font-weight: 600;
     }
+    .status-indicator.ok { background: var(--accent-dim); color: var(--accent-main); }
+    .status-indicator.warn { background: var(--warn-dim); color: var(--warn-main); }
+    .status-indicator.err { background: var(--danger-dim); color: var(--danger-main); }
     .status-dot {
-      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-      background: var(--text3);
+      width: 7px; height: 7px; border-radius: 50%;
+      background: currentColor; flex-shrink: 0;
+      box-shadow: 0 0 0 3px var(--accent-dim);
     }
-    .status-dot.ok  { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-dim); }
-    .status-dot.warn{ background: var(--warn); box-shadow: 0 0 0 3px var(--warn-dim); }
-    .status-dot.err { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-dim); }
-    #statusText { font-size: 11px; font-weight: 500; color: var(--text2); flex: 1; }
+    .status-indicator.warn .status-dot { box-shadow: 0 0 0 3px var(--warn-dim); }
+    .status-indicator.err .status-dot { box-shadow: 0 0 0 3px var(--danger-dim); }
+    #statusText { flex: 1; }
 
     /* ── Tabs ────────────────────────────────────────────────────────────── */
     .tabs {
       display: flex;
-      background: var(--surface);
-      border: 1px solid var(--divider);
-      border-radius: var(--radius-md);
+      background: var(--panel-border); /* Use divider for tab background */
+      border-radius: var(--radius-lg);
       padding: 3px;
       gap: 2px;
       margin-bottom: 12px;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
     }
     .tab {
-      flex: 1; padding: 5px 8px;
-      font-family: var(--font); font-size: 11px; font-weight: 600;
-      color: var(--text2); background: none; border: none;
-      border-radius: 7px; cursor: pointer;
-      transition: background var(--transition), color var(--transition);
+      flex: 1; padding: 6px 8px;
+      font-family: var(--font-body); font-size: 12px; font-weight: 600;
+      color: var(--text-label); background: none; border: none;
+      border-radius: var(--radius-md); cursor: pointer;
+      transition: background var(--transition-fast), color var(--transition-fast);
       white-space: nowrap;
-      display: flex; align-items: center; justify-content: center; gap: 4px;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
     }
-    .tab svg { flex-shrink: 0; }
-    .tab.active { background: var(--card); color: var(--text); box-shadow: var(--shadow-sm); }
+    .tab svg { flex-shrink: 0; stroke-width: 2.2; }
+    .tab.active { background: var(--panel-bg); color: var(--text-main); box-shadow: var(--shadow-sm); }
+    .tab:hover:not(.active) { background: rgba(0,0,0,0.03); }
 
     /* ── Panels ──────────────────────────────────────────────────────────── */
     .panel { display: none; }
@@ -164,323 +173,385 @@
       border-radius: var(--radius-sm);
       padding: 7px 10px; margin-bottom: 10px; display: none;
     }
-    .alert.warn { display: block; color: var(--warn); background: var(--warn-dim); border: 1px solid rgba(192,114,10,0.20); }
-    .alert.err  { display: block; color: var(--danger); background: var(--danger-dim); border: 1px solid rgba(217,48,37,0.20); }
+    .alert.warn { display: block; color: var(--warn-main); background: var(--warn-dim); border: 1px solid var(--warn-main); }
+    .alert.err  { display: block; color: var(--danger-main); background: var(--danger-dim); border: 1px solid var(--danger-main); }
 
     /* ── Section label ───────────────────────────────────────────────────── */
     .section-label {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--text3);
-      padding: 0 2px; margin: 10px 0 4px;
-      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--text-label);
+      padding: 0 2px; margin: 10px 0 6px;
+      display: flex; align-items: center; gap: 8px;
     }
     .section-label::after {
       content: ''; flex: 1; height: 1px; background: var(--divider);
     }
 
     /* ── Segment folder ──────────────────────────────────────────────────── */
-    /* ── Segment folder (shared chrome) ──────────────────────────────────── */
-    .seg-folder {
-      border: 1px solid var(--divider);
-      border-radius: var(--radius-md);
+    /* ── Segment Filters Panel ───────────────────────────────────────────── */
+    .filter-panel {
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-lg);
       overflow: hidden;
       margin-bottom: 8px;
+      box-shadow: var(--shadow-sm);
     }
-
-    /* Header row */
-    .seg-header {
-      display: flex; align-items: center; gap: 8px;
-      padding: 9px 12px;
-      background: var(--surface);
-      cursor: default;
+    .filter-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      background: var(--panel-bg);
+      cursor: pointer;
       user-select: none;
+      transition: background var(--transition-fast);
     }
-    .seg-header.clickable { cursor: pointer; }
-    .seg-header.clickable:hover { background: var(--surface2); }
+    .filter-header:hover { background: rgba(0,0,0,0.02); }
 
-    /* ── Segment filters ─────────────────────────────────────────────────── */
-    .seg-filters {
-      border: 1px solid var(--divider);
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      margin-bottom: 8px;
-    }
-    .seg-filters-header {
-      display: flex; align-items: center; gap: 8px;
-      padding: 9px 12px;
-      background: var(--surface);
-      cursor: default;
-      user-select: none;
-    }
-    .seg-filters-header.clickable { cursor: pointer; }
-    .seg-filters-header.clickable:hover { background: var(--surface2); }
-
-    .seg-icon {
-      width: 28px; height: 28px; border-radius: 8px;
+    .filter-icon {
+      width: 30px; height: 30px; border-radius: var(--radius-md);
       display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; font-size: 14px;
-    }
-    .seg-icon.blue   { background: var(--accent-dim); }
-    .seg-icon.green  { background: var(--ok-dim); }
-
-    .seg-title-wrap { flex: 1; min-width: 0; }
-    .seg-title { font-size: 13px; font-weight: 600; line-height: 1.2; }
-    .seg-sub   { font-size: 10px; color: var(--text3); margin-top: 1px; }
-
-    /* Skip-specific right side — toggle + badge */
-    .seg-right { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
-    .seg-badge {
-      font-size: 9px; font-weight: 700;
-      background: var(--accent-dim); color: var(--accent);
-      border-radius: 4px; padding: 2px 5px;
-      transition: opacity var(--transition);
-    }
-    .seg-badge.hidden { opacity: 0; pointer-events: none; }
-
-    /* Add-segment right side — chevron */
-    .seg-chevron {
-      color: var(--text3);
-      transition: transform var(--transition);
       flex-shrink: 0;
+      background: var(--accent-dim);
     }
-    .seg-chevron.open { transform: rotate(180deg); }
+    .filter-icon svg { stroke: var(--accent-main); stroke-width: 2; }
 
-    /* ── Toggle ──────────────────────────────────────────────────────────── */
-    .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+    .filter-title-wrap { flex: 1; min-width: 0; }
+    .filter-title { font-size: 14px; font-weight: 600; line-height: 1.2; color: var(--text-main); }
+    .filter-sub { font-size: 11px; color: var(--text-label); margin-top: 2px; }
+
+    .filter-chevron {
+      color: var(--text-subtle);
+      transition: transform var(--transition-normal);
+      flex-shrink: 0;
+      width: 14px; height: 14px;
+    }
+    .filter-chevron.open { transform: rotate(180deg); }
+
+    .filter-body {
+      overflow: hidden;
+      transition: max-height 0.28s cubic-bezier(0.4,0,0.2,1),
+                  opacity    0.22s cubic-bezier(0.4,0,0.2,1);
+      max-height: 0; opacity: 0;
+      border-top: 1px solid var(--divider);
+    }
+    .filter-body.open { max-height: 200px; opacity: 1; } /* Adjusted max-height for 3 toggles */
+
+    /* Individual Toggle Rows inside filter-body */
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 10px 14px;
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--divider); /* Subtle divider for each toggle */
+    }
+    .toggle-row:last-of-type { border-bottom: none; } /* No border for the last one */
+    .toggle-row-label {
+      flex: 1; font-size: 13px; color: var(--text-main);
+    }
+
+    /* AdGuard-like Toggle Switch */
+    .toggle {
+      position: relative; width: 40px; height: 22px; flex-shrink: 0;
+      cursor: pointer;
+    }
     .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
     .slider {
       position: absolute; inset: 0;
-      background: var(--toggle-off); border-radius: 20px;
-      transition: background var(--transition); cursor: pointer;
+      background-color: var(--text-dim); /* Off state color */
+      border-radius: 22px;
+      transition: background-color var(--transition-fast);
     }
     .slider::before {
       content: ''; position: absolute;
-      width: 14px; height: 14px; left: 3px; bottom: 3px;
-      background: #fff; border-radius: 50%;
-      transition: transform var(--transition);
-      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+      width: 18px; height: 18px; left: 2px; bottom: 2px;
+      background-color: #FFFFFF;
+      border-radius: 50%;
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
     }
-    input:checked + .slider { background: var(--accent); }
-    input:checked + .slider::before { transform: translateX(16px); }
+    input:checked + .slider {
+      background-color: var(--accent-main); /* On state color */
+    }
+    input:checked + .slider::before {
+      transform: translateX(18px);
+    }
+    /* Styles for the "Add Segment" folder, following the panel structure */
+    .seg-folder {
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-bottom: 8px;
+      box-shadow: var(--shadow-sm);
+    }
+    .seg-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      background: var(--panel-bg);
+      cursor: pointer;
+      user-select: none;
+      transition: background var(--transition-fast);
+    }
+    .seg-header:hover { background: rgba(0,0,0,0.02); }
 
-    /* ── Expandable body (shared: child rows + add-seg flow) ─────────────── */
+    .seg-icon {
+      width: 30px; height: 30px; border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .seg-icon.blue { background: var(--accent-dim); } /* Reusing for Add Segment */
+    .seg-icon.green { background: var(--accent-dim); } /* Green will now be accent-main related */
+    .seg-icon.blue svg { stroke: var(--accent-main); stroke-width: 2; }
+    .seg-icon.green svg { stroke: var(--accent-main); stroke-width: 2; }
+
+
+    .seg-title-wrap { flex: 1; min-width: 0; }
+    .seg-title { font-size: 14px; font-weight: 600; line-height: 1.2; color: var(--text-main); }
+    .seg-sub { font-size: 11px; color: var(--text-label); margin-top: 2px; }
+
+    .seg-chevron {
+      color: var(--text-subtle);
+      transition: transform var(--transition-normal);
+      flex-shrink: 0;
+      width: 14px; height: 14px;
+    }
+    .seg-chevron.open { transform: rotate(180deg); }
+
     .seg-body {
       overflow: hidden;
-      transition: max-height 0.26s cubic-bezier(0.4,0,0.2,1),
+      transition: max-height 0.28s cubic-bezier(0.4,0,0.2,1),
                   opacity    0.22s cubic-bezier(0.4,0,0.2,1);
       max-height: 0; opacity: 0;
+      border-top: 1px solid var(--divider);
     }
     .seg-body.open { max-height: 400px; opacity: 1; }
 
-    /* Child toggle rows */
+    /* Child toggle rows (no longer used for segments, but keeping the style as a fallback or for future use) */
     .child-row {
       display: flex; align-items: center; gap: 10px;
-      padding: 8px 12px 8px 20px;
+      padding: 10px 14px;
       border-top: 1px solid var(--divider);
     }
-    .child-row-label { flex: 1; font-size: 12px; color: var(--text2); }
-    .child-row-sub   { font-size: 10px; color: var(--text3); }
+    .child-row-label { flex: 1; font-size: 13px; color: var(--text-main); }
+    .child-row-sub { font-size: 10px; color: var(--text-subtle); }
 
     /* ── Add Segment flow ────────────────────────────────────────────────── */
     .add-seg-flow {
-      padding: 10px 12px 12px;
-      border-top: 1px solid var(--divider);
+      padding: 12px 14px 14px;
+      background: var(--panel-bg);
     }
     .flow-label {
-      font-size: 11px; color: var(--text2);
-      margin-bottom: 8px; line-height: 1.5;
+      font-size: 12px; color: var(--text-label);
+      margin-bottom: 10px; line-height: 1.6;
     }
-    .flow-label.ok   { color: var(--ok); }
-    .flow-label.warn { color: var(--warn); }
+    .flow-label.ok   { color: var(--accent-main); }
+    .flow-label.warn { color: var(--warn-main); }
 
     .flow-step { display: none; }
     .flow-step.active { display: block; }
 
     /* Step 1 – Record buttons */
-    .flow-btns { display: flex; gap: 6px; }
+    .flow-btns { display: flex; gap: 8px; }
     .flow-btn {
-      flex: 1; padding: 7px 10px;
-      font-family: var(--font); font-size: 11px; font-weight: 700;
+      flex: 1; padding: 8px 12px;
+      font-family: var(--font-body); font-size: 12px; font-weight: 700;
       border-radius: var(--radius-sm); border: none;
       cursor: pointer; text-align: center;
-      transition: opacity var(--transition), background var(--transition);
-      display: flex; align-items: center; justify-content: center; gap: 5px;
+      transition: opacity var(--transition-fast), background var(--transition-fast);
+      display: flex; align-items: center; justify-content: center; gap: 6px;
     }
-    .flow-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .flow-btn.primary { background: var(--accent); color: #fff; }
+    .flow-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .flow-btn.primary { background: var(--accent-main); color: #fff; }
     .flow-btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
-    .flow-btn.stop { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(217,48,37,0.25); }
-    .flow-btn.stop:hover:not(:disabled) { background: rgba(217,48,37,0.16); }
-    .flow-btn.ghost { background: var(--surface); color: var(--text2); border: 1px solid var(--divider); }
-    .flow-btn.ghost:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+    .flow-btn.stop { background: var(--danger-dim); color: var(--danger-main); border: 1px solid rgba(239,83,80,0.3); }
+    .flow-btn.stop:hover:not(:disabled) { background: rgba(239,83,80,0.2); }
+    .flow-btn.ghost { background: var(--panel-border); color: var(--text-label); border: 1px solid var(--panel-border); }
+    .flow-btn.ghost:hover:not(:disabled) { background: rgba(0,0,0,0.03); color: var(--text-main); }
 
     /* Step 2 – Type chips */
-    .type-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .type-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
     .type-chip {
-      flex: 1; padding: 6px 8px;
-      font-family: var(--font); font-size: 11px; font-weight: 600;
-      background: var(--surface); border: 1px solid var(--divider);
-      border-radius: var(--radius-sm); cursor: pointer; color: var(--text2);
+      flex: 1; padding: 8px 10px;
+      font-family: var(--font-body); font-size: 12px; font-weight: 600;
+      background: var(--panel-border); border: 1px solid var(--panel-border);
+      border-radius: var(--radius-sm); cursor: pointer; color: var(--text-label);
       text-align: center;
-      transition: background var(--transition), border-color var(--transition), color var(--transition);
+      transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
     }
-    .type-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .type-chip:hover { border-color: var(--accent-main); color: var(--accent-main); }
     .type-chip.selected {
-      background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
+      background: var(--accent-dim); border-color: var(--accent-main); color: var(--accent-main);
     }
 
     /* Time pill */
     .time-pill {
-      display: inline-flex; align-items: center; gap: 4px;
-      font-size: 10px; font-weight: 600; color: var(--ok);
-      background: var(--ok-dim); border-radius: 4px;
-      padding: 2px 6px; margin-bottom: 8px;
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 600; color: var(--accent-main);
+      background: var(--accent-dim); border-radius: var(--radius-sm);
+      padding: 3px 8px; margin-bottom: 10px;
     }
+    .time-pill svg { stroke-width: 2; }
 
-    /* ── Playback row ────────────────────────────────────────────────────── */
+    /* ── Playback Row Toggle ─────────────────────────────────────────────── */
     .play-row {
-      display: flex; align-items: center; gap: 10px;
-      padding: 9px 12px;
-      background: var(--surface);
-      border: 1px solid var(--divider);
-      border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 10px 14px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-lg);
       margin-bottom: 8px;
+      box-shadow: var(--shadow-sm);
     }
     .play-row-icon {
-      width: 28px; height: 28px; border-radius: 8px;
-      background: var(--ok-dim);
+      width: 30px; height: 30px; border-radius: var(--radius-md);
+      background: var(--accent-dim);
       display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; font-size: 14px;
+      flex-shrink: 0;
     }
-    .play-row-label { flex: 1; font-size: 13px; font-weight: 600; }
-    .play-row-sub   { font-size: 10px; color: var(--text3); }
+    .play-row-icon svg { stroke: var(--accent-main); stroke-width: 2; }
+    .play-row-label { flex: 1; font-size: 14px; font-weight: 600; color: var(--text-main); }
+    .play-row-sub { font-size: 11px; color: var(--text-label); margin-top: 2px; }
 
-    /* ── History panel ───────────────────────────────────────────────────── */
+    /* ── History Panel Elements ──────────────────────────────────────────── */
     .hist-controls {
-      display: flex; gap: 6px; margin-bottom: 8px;
+      display: flex; gap: 8px; margin-bottom: 10px;
     }
     .hist-input {
-      flex: 1; padding: 7px 10px;
-      background: var(--surface); border: 1px solid var(--divider);
-      border-radius: var(--radius-sm); font-family: var(--font);
-      font-size: 12px; color: var(--text);
-      outline: none; transition: border-color var(--transition);
+      flex: 1; padding: 8px 12px;
+      background: var(--panel-bg); border: 1px solid var(--panel-border);
+      border-radius: var(--radius-md); font-family: var(--font-body);
+      font-size: 12px; color: var(--text-main);
+      outline: none; transition: border-color var(--transition-fast);
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
     }
-    .hist-input:focus { border-color: var(--accent); }
+    .hist-input:focus { border-color: var(--accent-main); }
     .hist-select {
-      padding: 7px 8px; min-width: 90px;
-      background: var(--surface); border: 1px solid var(--divider);
-      border-radius: var(--radius-sm); font-family: var(--font);
-      font-size: 11px; color: var(--text2); cursor: pointer;
+      padding: 8px 10px; min-width: 100px;
+      background: var(--panel-bg); border: 1px solid var(--panel-border);
+      border-radius: var(--radius-md); font-family: var(--font-body);
+      font-size: 12px; color: var(--text-main); cursor: pointer;
       outline: none;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
     }
+    .hist-select:focus { border-color: var(--accent-main); }
+
     .hist-source-row {
-      display: flex; align-items: center; gap: 6px;
-      margin-bottom: 8px; font-size: 10px; color: var(--text3);
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 10px; font-size: 11px; color: var(--text-label);
     }
     .source-pill {
-      padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 10px;
+      padding: 4px 10px; border-radius: var(--radius-sm); font-weight: 600;
       cursor: pointer; border: 1px solid transparent;
-      transition: background var(--transition), border-color var(--transition), color var(--transition);
+      transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
     }
     .source-pill.active {
-      background: var(--accent-dim); color: var(--accent); border-color: var(--accent);
+      background: var(--accent-dim); color: var(--accent-main); border-color: var(--accent-main);
     }
     .source-pill:not(.active) {
-      background: var(--surface); color: var(--text2); border-color: var(--divider);
+      background: var(--panel-border); color: var(--text-label); border-color: var(--panel-border);
     }
+    .source-pill:not(.active):hover { background: rgba(0,0,0,0.03); }
+
     #historyList {
       max-height: 270px; overflow-y: auto;
-      display: flex; flex-direction: column; gap: 5px;
+      display: flex; flex-direction: column; gap: 6px;
       scrollbar-width: thin; scrollbar-color: var(--divider) transparent;
+      padding-right: 2px; /* For scrollbar spacing */
     }
     .h-item {
-      display: block; text-decoration: none; color: inherit;
-      background: var(--surface); border: 1px solid var(--divider);
-      border-radius: var(--radius-md); padding: 9px 11px;
-      transition: border-color var(--transition), background var(--transition);
+      display: flex; text-decoration: none; color: inherit;
+      background: var(--panel-bg); border: 1px solid var(--panel-border);
+      border-radius: var(--radius-lg); padding: 10px 12px;
+      transition: border-color var(--transition-fast), background var(--transition-fast);
       position: relative;
+      box-shadow: var(--shadow-sm);
     }
-    .h-item:hover { border-color: var(--accent); background: var(--surface2); }
+    .h-item:hover { border-color: var(--accent-main); background: rgba(0,0,0,0.02); }
+    .h-item-content { flex: 1; display: flex; flex-direction: column; gap: 4px; }
     .h-item-top {
-      display: flex; align-items: flex-start; gap: 8px; margin-bottom: 5px;
+      display: flex; align-items: center; gap: 8px;
     }
-    .h-thumb {
-      width: 38px; height: 28px; border-radius: 5px;
-      background: var(--surface2); flex-shrink: 0;
-      overflow: hidden; display: flex; align-items: center; justify-content: center;
+    .h-icon {
+      width: 24px; height: 24px; border-radius: var(--radius-sm);
+      background: var(--accent-dim); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
     }
-    .h-thumb svg { opacity: 0.3; }
-    .h-info { flex: 1; min-width: 0; }
+    .h-icon svg { stroke: var(--accent-main); stroke-width: 2; opacity: 0.8; }
     .h-title {
-      font-size: 12px; font-weight: 600;
+      flex: 1;
+      font-size: 13px; font-weight: 600;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      line-height: 1.3; margin-bottom: 2px;
+      line-height: 1.3; color: var(--text-main);
     }
     .h-meta {
-      display: flex; align-items: center; gap: 5px;
-      font-size: 10px; color: var(--text3); flex-wrap: wrap;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 10px; color: var(--text-subtle);
     }
     .h-site {
-      background: var(--surface2); border-radius: 3px;
-      padding: 1px 5px; font-weight: 600; color: var(--text2);
+      background: var(--panel-border); border-radius: var(--radius-sm);
+      padding: 1px 6px; font-weight: 600; color: var(--text-label);
     }
     .h-cloud {
-      color: var(--accent); font-size: 9px; font-weight: 700;
-      background: var(--accent-dim); border-radius: 3px; padding: 1px 4px;
+      color: var(--accent-main); font-size: 10px; font-weight: 700;
+      background: var(--accent-dim); border-radius: var(--radius-sm); padding: 1px 5px;
     }
-    .h-bar { width: 100%; height: 2px; background: var(--divider); border-radius: 1px; overflow: hidden; }
-    .h-fill { height: 100%; background: var(--accent); border-radius: 1px; transition: width 0.3s; }
-    .h-time { font-size: 10px; color: var(--text3); margin-top: 4px; text-align: right; }
+    .h-progress-wrap {
+      width: 100%; height: 4px; background: var(--divider); border-radius: 2px; overflow: hidden;
+      margin-top: 4px;
+    }
+    .h-progress-fill { height: 100%; background: var(--accent-main); border-radius: 2px; transition: width 0.3s; }
+    .h-time { font-size: 10px; color: var(--text-subtle); text-align: right; margin-top: 2px; }
+
     .h-empty {
-      text-align: center; padding: 28px 16px;
-      color: var(--text3); font-size: 12px; line-height: 1.6;
+      text-align: center; padding: 30px 16px;
+      color: var(--text-label); font-size: 13px; line-height: 1.6;
     }
-    .h-empty svg { display: block; margin: 0 auto 10px; opacity: 0.25; }
+    .h-empty svg { display: block; margin: 0 auto 12px; opacity: 0.3; stroke-width: 1.8; }
     .h-loading {
       text-align: center; padding: 20px 0;
-      color: var(--text3); font-size: 11px;
+      color: var(--text-label); font-size: 12px;
     }
     .sync-status {
-      display: flex; align-items: center; gap: 5px;
-      font-size: 10px; color: var(--text3); margin-bottom: 6px;
-      padding: 4px 8px; background: var(--surface); border-radius: var(--radius-sm);
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--text-label); margin-bottom: 8px;
+      padding: 6px 10px; background: var(--panel-bg); border-radius: var(--radius-md);
+      border: 1px solid var(--panel-border);
     }
-    .sync-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text3); }
-    .sync-dot.ok   { background: var(--ok); }
-    .sync-dot.warn { background: var(--warn); }
+    .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim); }
+    .sync-dot.ok   { background: var(--accent-main); }
+    .sync-dot.warn { background: var(--warn-main); }
+    .sync-dot.err  { background: var(--danger-main); }
 
     /* ── Footer ──────────────────────────────────────────────────────────── */
     footer {
-      text-align: center; font-size: 10px; color: var(--text3);
-      padding: 7px 0 2px; opacity: 0.7;
+      text-align: center; font-size: 11px; color: var(--text-subtle);
+      padding: 8px 0 2px;
     }
-    footer a { color: inherit; text-decoration: none; }
-    footer a:hover { color: var(--accent); }
+    footer a { color: inherit; text-decoration: none; opacity: 0.8; }
+    footer a:hover { color: var(--accent-main); opacity: 1; }
   </style>
 </head>
 <body>
 
-<div class="card">
+<div class="container">
 
-  <!-- Header -->
-  <div class="header">
-    <div class="logo"><img src="icons/icon-48.png" alt=""></div>
-    <span class="header-title">SkipStream</span>
-    <span class="ver-badge" id="versionBadge"></span>
-    <button class="icon-btn" id="optionsBtn" title="Open Settings">
-      <!-- gear -->
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="8" cy="8" r="2.4"/>
-        <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/>
-      </svg>
-    </button>
-  </div>
+  <!-- Status Dashboard Card -->
+  <div class="dashboard">
+    <div class="dash-header">
+      <div class="dash-logo"><img src="icons/icon-48.png" alt=""></div>
+      <span class="dash-title">SkipStream</span>
+      <span class="dash-version" id="versionBadge"></span>
+      <button class="dash-btn" id="optionsBtn" title="Open Settings">
+        <!-- gear -->
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="2.4"/>
+          <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/>
+        </svg>
+      </button>
+    </div>
 
-  <!-- Status -->
-  <div class="status-row">
-    <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">Checking services…</span>
+    <!-- Status Indicator -->
+    <div class="status-indicator" id="statusIndicator">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Checking services…</span>
+    </div>
   </div>
 
   <!-- Config warning -->
@@ -489,13 +560,13 @@
   <!-- Tabs -->
   <div class="tabs">
     <button class="tab active" data-tab="settings">
-      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round">
         <circle cx="8" cy="8" r="2.4"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/>
       </svg>
       Settings
     </button>
     <button class="tab" data-tab="history">
-      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/>
       </svg>
       History
@@ -507,23 +578,23 @@
 
     <div class="section-label">Segments</div>
 
-    <!-- Active Filters block -->
-    <div class="seg-filters" id="segmentFilters">
-      <div class="seg-filters-header clickable" id="filtersHeader">
-        <div class="seg-icon blue">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Active Filters block (now filter-panel) -->
+    <div class="filter-panel" id="segmentFilters">
+      <div class="filter-header" id="filtersHeader">
+        <div class="filter-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/>
           </svg>
         </div>
-        <div class="seg-title-wrap">
-          <div class="seg-title">Skip Rules</div>
-          <div class="seg-sub" id="filtersFraction">0/3 Active</div>
+        <div class="filter-title-wrap">
+          <div class="filter-title">Skip Rules</div>
+          <div class="filter-sub" id="filtersFraction">0/3 Active</div>
         </div>
-        <svg class="seg-chevron" id="filtersChevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="filter-chevron" id="filtersChevron" width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="2,4 6,8 10,4"/>
         </svg>
       </div>
-      <div class="seg-body" id="filtersBody">
+      <div class="filter-body" id="filtersBody">
         <div class="toggle-row">
           <span class="toggle-row-label">Intro Segments</span>
           <label class="toggle">
@@ -550,9 +621,9 @@
 
     <!-- Add Segment folder -->
     <div class="seg-folder" id="addFolder">
-      <div class="seg-header clickable" id="addHeader">
+      <div class="seg-header" id="addHeader">
         <div class="seg-icon green">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round">
             <circle cx="8" cy="8" r="6.5"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/>
           </svg>
         </div>
@@ -560,7 +631,7 @@
           <div class="seg-title">Add Segment</div>
           <div class="seg-sub" id="addSub">Record a missing intro, recap, or outro</div>
         </div>
-        <svg class="seg-chevron" id="addChevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="seg-chevron" id="addChevron" width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="2,4 6,8 10,4"/>
         </svg>
       </div>
@@ -580,7 +651,7 @@
           <!-- Step 2: Select type -->
           <div class="flow-step" id="flowStep2">
             <div class="time-pill" id="flowTimePill">
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="6" r="5"/><path d="M6 3v3l2 1"/></svg>
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="6" cy="6" r="5"/><path d="M6 3v3l2 1"/></svg>
               <span id="flowTimeText">0:00 – 0:00</span>
             </div>
             <div class="flow-label">Select the segment type:</div>
@@ -607,11 +678,11 @@
     <!-- Resume toggle -->
     <div class="play-row">
       <div class="play-row-icon">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="3,2 13,8 3,14"/>
         </svg>
       </div>
-      <div class="seg-title-wrap">
+      <div class="filter-title-wrap">
         <div class="play-row-label">Resume Playback</div>
         <div class="play-row-sub">Continue where you left off</div>
       </div>
@@ -642,9 +713,9 @@
       <span id="syncText">Loading history…</span>
     </div>
     <div id="historyList"><div class="h-loading">Loading…</div></div>
-    <div class="hist-controls" style="margin-top: 12px; margin-bottom: 0;">
-      <button class="flow-btn ghost" id="clearHistoryBtn" style="flex: 1; color: var(--danger); border-color: var(--danger-dim);">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <div class="hist-controls" style="margin-top: 15px; margin-bottom: 0;">
+      <button class="flow-btn ghost" id="clearHistoryBtn" style="flex: 1; color: var(--danger-main); border-color: var(--danger-dim);">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 3L13 13M3 13L13 3"/>
         </svg>
         Clear All History
@@ -652,7 +723,7 @@
     </div>
   </div>
 
-</div><!-- /card -->
+</div><!-- /container -->
 
 <footer><a href="https://github.com/govinda-rajulu/openskip" target="_blank">SkipStream</a></footer>
 
