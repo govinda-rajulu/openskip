@@ -34,3 +34,8 @@ node_modules/
 # Logs
 *.log
 npm-debug.log*
+# Aider AI coding assistant cache
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.v4/
+audit-report.txt
