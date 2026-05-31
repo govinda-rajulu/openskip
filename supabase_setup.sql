@@ -13,7 +13,7 @@ create table if not exists public.playback_states (
   site_name     text,
   video_title   text,
   updated_at    timestamptz  not null default now(),
-  constraint playback_states_user_media_uq unique (user_id, media_id)
+  constraint playback_states_user_id_media_id_key unique (user_id, media_id)
 );
 
 -- ── 2. Add new columns to existing tables (idempotent via DO block) ───────────
