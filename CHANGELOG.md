@@ -32,6 +32,20 @@
 
 ---
 
+## [1.5.4] - 2026-05-31
+
+### Fixed
+- Removed `console.log`/`console.error` calls (CI enforcement)
+- Dropped ES module import syntax incompatible with MV2/MV3 service workers
+- `popup.js` console error cleanup
+
+
+## [1.5.3] - 2026-05-30
+
+### Fixed
+- AMO submission pipeline verification and stability improvements
+- Documentation layout and structure link fixes
+
 ## [1.5.2] - 2026-05-30
 
 ### Fixed
