@@ -10,15 +10,23 @@ desktop.ini
 *.swo
 *~
 
-# Build artifacts & zips (use GitHub Releases for distributable zips)
+# Build artifacts and zips (use GitHub Releases for distributable zips)
 *.zip
 *.xpi
 *.crx
 
-# Dependency directories (not needed — this is plain JS, no build step)
+# WXT framework scaffolding (removed in v1.0.0 - should not be re-committed)
+.output/
+.wxt/
+openskip/
+lib/
+src/
+dev/
+
+# Dependency directories (plain JS, no build step)
 node_modules/
 
-# Environment / secrets
+# Environment and secrets
 .env
 .env.*
 !.env.example
