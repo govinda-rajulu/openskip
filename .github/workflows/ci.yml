@@ -1,4 +1,3 @@
-# .github/workflows/ci.yml
 name: Lint & Validate
 
 on:
@@ -29,6 +28,14 @@ jobs:
         run: npm ci
 
       - name: Check Code Formatting & Lint
-        # Assumes you have a lint script in package.json (e.g., "lint": "eslint .")
-        # Change this to your project's validation command (npm run build, npm test, etc.)
         run: npm run lint || echo "No lint script defined yet"
+
+      - name: Pack Extension Files into Zip
+        run: |
+          zip -r openskip-extension.zip manifest.json background.js popup.html popup.js content-scripts/ icons/ ui/ README.md TESTING.md LICENSE || echo "Packing what is available"
+
+      - name: Upload Extension Artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: openskip-raw-build
+          path: openskip-extension.zip
