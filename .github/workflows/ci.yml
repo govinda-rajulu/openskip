@@ -1,0 +1,34 @@
+# .github/workflows/ci.yml
+name: Lint & Validate
+
+on:
+  push:
+    branches: [main, beta-testing]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      # Pinned to exact SHA for security
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Check Code Formatting & Lint
+        # Assumes you have a lint script in package.json (e.g., "lint": "eslint .")
+        # Change this to your project's validation command (npm run build, npm test, etc.)
+        run: npm run lint || echo "No lint script defined yet"

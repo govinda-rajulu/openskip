@@ -1,0 +1,23 @@
+# .github/workflows/stale.yml
+name: Close Stale Issues and PRs
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs once every day
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Mark Stale Items
+        uses: actions/stale@28ad10e27da3a10090ec73e9221ca4c3292ed351 # v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-message: 'This issue has been automatically marked as stale because it has not had recent activity. It will be closed if no further activity occurs.'
+          stale-pr-message: 'This PR has been automatically marked as stale because it has not had recent activity. It will be closed if no further activity occurs.'
+          days-before-stale: 30
+          days-before-close: 7
