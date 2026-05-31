@@ -12,7 +12,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Validate code
         run: |
@@ -52,13 +52,13 @@ jobs:
           echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
 
       - name: Upload ZIP to GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: "skipstream-${{ steps.version.outputs.version }}-firefox.zip"
           fail_on_unmatched_files: true
 
       - name: Upload ZIP as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: skipstream-firefox-zip
           path: "skipstream-${{ steps.version.outputs.version }}-firefox.zip"

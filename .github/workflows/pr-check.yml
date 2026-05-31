@@ -10,7 +10,7 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: JS syntax check
         run: |
@@ -48,7 +48,7 @@ jobs:
           "
 
       - name: Post summary comment
-        uses: actions/github-script@v9
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         if: always()
         with:
           script: |
