@@ -293,9 +293,9 @@ async function main() {
     homepage:    { 'en-US': 'https://github.com/govinda-rajulu/openskip' },
     support_url: { 'en-US': 'https://github.com/govinda-rajulu/openskip/issues' },
     categories:  { firefox: ['photos-music-videos'] },
-    tags:        ['streaming', 'video', 'skip', 'intros', 'outros', 'resume', 'sync'],
+    tags:        ['privacy', 'productivity'],
     is_experimental: false,
-    requires_payment: true,
+    requires_payment: false,
     default_locale: 'en-US',
   };
 
