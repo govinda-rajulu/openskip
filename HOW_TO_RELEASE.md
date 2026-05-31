@@ -14,9 +14,11 @@ CI runs automatically and checks everything
 
 ## Step 2 — Bump the version
 
-Edit `manifest.json` — change `"version": "1.5.0"` to your new version  
-Edit `CHANGELOG.md` — add a new section at the top describing what changed  
-Commit both files
+Edit `manifest.json` — change `"version"` to your new version  
+Edit `manifest-chrome.json` — **must match `manifest.json` exactly** (CI fails if mismatched)  
+Edit `CHANGELOG.md` — add a new `## [X.Y.Z]` section at the top  
+Edit `popup.js` — update the version header comment on line 1  
+Commit all four files
 
 ---
 
@@ -112,3 +114,4 @@ Merge → done
 | `ai-issue-triage.yml` | New issue | Gemini analyzes and comments |
 | `ai-fix-pr.yml` | `ai-fix` label added | Gemini writes fix, opens PR |
 | Dependabot | Weekly Monday | Keeps action versions current |
+
