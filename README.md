@@ -4,7 +4,7 @@
 
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-Active-blue?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.3-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.5.3)
+[![Version](https://img.shields.io/badge/version-1.5.6-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.5.6)
 
 A cross-browser extension (Firefox MV2 & Chrome MV3 architecture) that detects skip segments on any streaming site and syncs your playback position to the cloud via your own Supabase project.
 
@@ -86,6 +86,10 @@ Get a free developer key at **[themoviedb.org/settings/api](https://www.themovie
 | HBO Max / Max | ⚠ | ⚠ | ⚠ | ⚠ | Player detection works; IDs vary |
 | Disney+ | ⚠ | ❌ | ❌ | ⚠ | Heavy DRM layer; no IMDb IDs exposed |
 | Apple TV+ | ❌ | ❌ | ❌ | ❌ | Proprietary player; no accessible metadata |
+| Peacock | ⚠ | ⚠ | ⚠ | ⚠ | Player detection works; segment data limited |
+| Paramount+ | ⚠ | ⚠ | ⚠ | ⚠ | Player detection works; segment data limited |
+| Tubi | ✅ | ⚠ | ⚠ | ✅ | Resume works well; skip segments limited |
+| Vimeo | ✅ | ✅ | ⚠ | ✅ | Video ID from URL; IntroDB coverage limited |
 
 **Legend:** ✅ Works · ⚠ Partial / inconsistent · ❌ Not supported
 
