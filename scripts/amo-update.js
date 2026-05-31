@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * SkipStream — AMO automation script
+ * SkipStream - AMO automation script
  *
  * What it does:
  *   1. Generates a signed JWT for AMO API auth
@@ -10,14 +10,14 @@
  *   5. PATCHes the listing metadata: summary, description, categories, homepage, tags
  *
  * Required env vars (set as GitHub Actions secrets):
- *   AMO_API_KEY     — from https://addons.mozilla.org/en-US/developers/addon/api/key/
- *   AMO_API_SECRET  — from the same page
+ *   AMO_API_KEY     - from https://addons.mozilla.org/en-US/developers/addon/api/key/
+ *   AMO_API_SECRET  - from the same page
  *
  * Optional env vars:
- *   AMO_ADDON_SLUG  — defaults to "skipstream"
- *   ZIP_PATH        — path to the built ZIP; defaults to first skipstream-*.zip found
- *   RELEASE_NOTES   — version release notes (plain text or basic Markdown)
- *   DRY_RUN         — set to "1" to skip mutating API calls (still validates JWT + upload)
+ *   AMO_ADDON_SLUG  - defaults to "skipstream"
+ *   ZIP_PATH        - path to the built ZIP; defaults to first skipstream-*.zip found
+ *   RELEASE_NOTES   - version release notes (plain text or basic Markdown)
+ *   DRY_RUN         - set to "1" to skip mutating API calls (still validates JWT + upload)
  */
 'use strict';
 
@@ -55,10 +55,10 @@ const VERSION  = manifest.version;
 // Release notes
 const RELEASE_NOTES = process.env.RELEASE_NOTES || extractChangelogNotes(VERSION);
 
-console.log(`\n🚀  SkipStream AMO Update — v${VERSION}`);
+console.log(`\n🚀  SkipStream AMO Update - v${VERSION}`);
 console.log(`    ZIP:  ${ZIP_PATH}`);
 console.log(`    Slug: ${ADDON_SLUG}`);
-if (DRY_RUN) console.log('    DRY_RUN=1 — mutating calls will be skipped\n');
+if (DRY_RUN) console.log('    DRY_RUN=1 - mutating calls will be skipped\n');
 
 // ── JWT ───────────────────────────────────────────────────────────────────────
 
@@ -133,7 +133,7 @@ function apiRequest(method, urlPath, { json, formData, retries = 3 } = {}) {
           let data;
           try { data = JSON.parse(raw); } catch { data = raw; }
           if (res.statusCode >= 500 && n < retries) {
-            console.warn(`    ⚠  HTTP ${res.statusCode} — retrying (${n}/${retries})…`);
+            console.warn(`    ⚠  HTTP ${res.statusCode} - retrying (${n}/${retries})…`);
             setTimeout(() => attempt(n + 1), 2000 * n);
             return;
           }
@@ -189,7 +189,7 @@ function extractChangelogNotes(version) {
 async function main() {
 
   // ── Step 1: Upload ZIP ────────────────────────────────────────────────────
-  console.log('\n📤  Step 1/4 — Uploading ZIP…');
+  console.log('\n📤  Step 1/4 - Uploading ZIP…');
 
   let uploadUuid;
   if (DRY_RUN) {
@@ -203,9 +203,9 @@ async function main() {
       },
     });
 
-    // 409 = this exact ZIP/version already uploaded — treat as success
+    // 409 = this exact ZIP/version already uploaded - treat as success
     if (uploadRes.status === 409) {
-      console.warn('    ⚠  HTTP 409 — ZIP already uploaded for this version. Skipping upload gracefully.');
+      console.warn('    ⚠  HTTP 409 - ZIP already uploaded for this version. Skipping upload gracefully.');
       // Extract uuid from conflict response if available
       uploadUuid = uploadRes.data?.uuid || null;
       if (!uploadUuid) {
@@ -224,7 +224,7 @@ async function main() {
     }
 
     // ── Step 2: Poll validation ─────────────────────────────────────────────
-    console.log('\n🔍  Step 2/4 — Waiting for validation…');
+    console.log('\n🔍  Step 2/4 - Waiting for validation…');
     const validUpload = await poll(async () => {
       const r = await apiRequest('GET', `/api/v5/addons/upload/${uploadUuid}/`);
       if (r.status !== 200) return null;
@@ -242,7 +242,7 @@ async function main() {
   }
 
   // ── Step 3: Create new version ────────────────────────────────────────────
-  console.log('\n🔖  Step 3/4 — Creating version on AMO listing…');
+  console.log('\n🔖  Step 3/4 - Creating version on AMO listing…');
   const versionBody = {
     upload: uploadUuid,
     ...(RELEASE_NOTES ? { release_notes: { 'en-US': RELEASE_NOTES } } : {}),
@@ -261,10 +261,10 @@ async function main() {
     if (versionRes.status === 201) {
       console.log(`    ✅  Version ${VERSION} created (id: ${versionRes.data.id})`);
     } else if (versionRes.status === 409) {
-      // Version already exists on AMO — not a failure, just a duplicate run
-      console.warn(`    ⚠  HTTP 409 — Version ${VERSION} already exists on AMO. Skipping version create gracefully.`);
+      // Version already exists on AMO - not a failure, just a duplicate run
+      console.warn(`    ⚠  HTTP 409 - Version ${VERSION} already exists on AMO. Skipping version create gracefully.`);
     } else if (versionRes.status === 404) {
-      // Add-on not yet listed — create it
+      // Add-on not yet listed - create it
       console.log('    Add-on not yet listed. Creating new add-on…');
       const createBody = {
         version: { upload: uploadUuid },
@@ -284,15 +284,16 @@ async function main() {
   }
 
   // ── Step 4: PATCH listing metadata ───────────────────────────────────────
-  console.log('\n📝  Step 4/4 — Updating listing metadata…');
+  console.log('\n📝  Step 4/4 - Updating listing metadata…');
 
   const listingBody = {
     name:        { 'en-US': 'SkipStream' },
-    summary:     { 'en-US': 'Automatically skip intros, recaps, and outros — and resume playback across all your devices.' },
+    summary:     { 'en-US': 'Automatically skip intros, recaps, and outros - and resume playback across all your devices.' },
     description: { 'en-US': buildDescription() },
     homepage:    { 'en-US': 'https://github.com/govinda-rajulu/openskip' },
     support_url: { 'en-US': 'https://github.com/govinda-rajulu/openskip/issues' },
     categories:  { firefox: ['photos-music-videos'] },
+    tags:        ['streaming', 'video', 'skip', 'intros', 'outros', 'resume', 'sync'],
     is_experimental: false,
     requires_payment: true,
     default_locale: 'en-US',
@@ -302,57 +303,51 @@ async function main() {
     console.log('    [dry-run] PATCH body:');
     console.log(JSON.stringify(listingBody, null, 2));
   } else {
-    try {
-      const patchRes = await apiRequest(
-        'PATCH',
-        `/api/v5/addons/addon/${ADDON_SLUG}/`,
-        { json: listingBody }
-      );
-      if (patchRes.status === 200) {
-        console.log('    ✅  Listing metadata updated');
-      } else if (patchRes.status === 409) {
-        console.warn(`    ⚠  HTTP 409 on PATCH — metadata may already be current. Continuing.`);
-      } else {
-        // Log the error clearly for troubleshooting, but do NOT crash the pipeline
-        console.warn(`⚠️  PATCH failed with status ${patchRes.status}:`, JSON.stringify(patchRes.data, null, 2));
-        console.warn('⚠️  Ignoring metadata failure because the extension version was already successfully uploaded!');
-      }
-    } catch (error) {
-      console.warn('⚠️  Metadata update encountered a network/unexpected error:', error);
-      console.warn('⚠️  Bypassing crash to keep GitHub Action green.');
+    const patchRes = await apiRequest(
+      'PATCH',
+      `/api/v5/addons/addon/${ADDON_SLUG}/`,
+      { json: listingBody }
+    );
+    if (patchRes.status === 200) {
+      console.log('    ✅  Listing metadata updated');
+    } else if (patchRes.status === 409) {
+      console.warn(`    ⚠  HTTP 409 on PATCH - metadata may already be current. Continuing.`);
+    } else {
+      console.error(`❌  PATCH failed (HTTP ${patchRes.status}):`, JSON.stringify(patchRes.data, null, 2));
+      process.exit(1);
     }
   }
 
-  console.log(`\n✅  Done — SkipStream v${VERSION} processed on AMO.`);
+  console.log(`\n✅  Done - SkipStream v${VERSION} processed on AMO.`);
   console.log(`    View: https://addons.mozilla.org/en-US/firefox/addon/${ADDON_SLUG}/\n`);
 }
 
 // ── Listing description ───────────────────────────────────────────────────────
 
 function buildDescription() {
-  return `SkipStream detects and skips intro sequences, recap segments, and outros on any streaming site — and remembers exactly where you left off across all your devices.
+  return `SkipStream detects and skips intro sequences, recap segments, and outros on any streaming site - and remembers exactly where you left off across all your devices.
 
 Features
 
-• Skip intros, recaps & outros — powered by IntroDB and AnimeSkip; works on any site with an HTML5 video player
-• Master skip toggle — one switch with per-type child toggles (Intro / Recap / Outro); toggle ON = auto-skip silently, toggle OFF = show a skip button prompt
-• Add Segment — record a missing segment start/stop while watching and submit it to IntroDB and AnimeSkip in one click
-• Resume playback — picks up exactly where you left off, even across different browsers and devices
-• Cloud history — History panel shows local cache and Supabase cloud entries merged, with a source switcher (Local / Cloud / Merged)
-• Works everywhere — any website with an HTML5 video player, not just specific platforms
-• SPA-aware — handles single-page apps like Netflix and Hulu correctly
-• Embedded player support — works when a video player is embedded inside an iframe
-• Light & dark mode — adapts to your system theme automatically
-• Private by design — credentials stored locally; sync goes only to your own Supabase project; no ads, no telemetry
+• Skip intros, recaps & outros - powered by IntroDB and AnimeSkip; works on any site with an HTML5 video player
+• Master skip toggle - one switch with per-type child toggles (Intro / Recap / Outro); toggle ON = auto-skip silently, toggle OFF = show a skip button prompt
+• Add Segment - record a missing segment start/stop while watching and submit it to IntroDB and AnimeSkip in one click
+• Resume playback - picks up exactly where you left off, even across different browsers and devices
+• Cloud history - History panel shows local cache and Supabase cloud entries merged, with a source switcher (Local / Cloud / Merged)
+• Works everywhere - any website with an HTML5 video player, not just specific platforms
+• SPA-aware - handles single-page apps like Netflix and Hulu correctly
+• Embedded player support - works when a video player is embedded inside an iframe
+• Light & dark mode - adapts to your system theme automatically
+• Private by design - credentials stored locally; sync goes only to your own Supabase project; no ads, no telemetry
 
 Setup
 
 Open the popup and click the gear icon in the top-right corner.
 
-Required: IntroDB API key (free at introdb.app) — enables skip segments
-Optional: Supabase URL + anon key (free at supabase.com) — enables cross-device sync and cloud history
-Optional: TMDB API key (free at themoviedb.org) — improves show detection on Plex and similar
-Optional: AnimeSkip Client ID (free at anime-skip.com/account/api-clients) — enables anime intro/outro detection
+Required: IntroDB API key (free at introdb.app) - enables skip segments
+Optional: Supabase URL + anon key (free at supabase.com) - enables cross-device sync and cloud history
+Optional: TMDB API key (free at themoviedb.org) - improves show detection on Plex and similar
+Optional: AnimeSkip Client ID (free at anime-skip.com/account/api-clients) - enables anime intro/outro detection
 
 Privacy
 

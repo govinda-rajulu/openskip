@@ -1,4 +1,4 @@
-/* SkipStream — content script */
+/* SkipStream - content script */
 (function () {
   'use strict';
 
@@ -84,7 +84,7 @@
     const og = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
     const raw = og || document.title || '';
     // Strip common " - SiteName" suffixes
-    return raw.replace(/\s*[-|–]\s*\S.*$/, '').trim().slice(0, 120) || raw.slice(0, 120);
+    return raw.replace(/\s*[-| - ]\s*\S.*$/, '').trim().slice(0, 120) || raw.slice(0, 120);
   }
 
   // ── Deterministic user ID (derived in background) ──────────────────────────
@@ -113,7 +113,7 @@
       const stored = await br.storage.local.get(PENDING_KEY);
       const pending = stored[PENDING_KEY];
       if (!pending || pending.mediaId !== mediaId) return null;
-      // Expire after 30s — enough time for a new tab to fully load
+      // Expire after 30s - enough time for a new tab to fully load
       if (Date.now() - pending.ts > 30000) {
         await br.storage.local.remove(PENDING_KEY);
         return null;
@@ -190,7 +190,7 @@
     }, 3000);
   }
 
-  // Immediate synchronous-as-possible flush (beforeunload — no async guarantee)
+  // Immediate synchronous-as-possible flush (beforeunload - no async guarantee)
   function flushPlaybackSync(video) {
     if (!video.isConnected || !video.duration || video.currentTime < 5) return;
     const mediaId = getMediaId();
@@ -304,7 +304,7 @@
         if (video.currentTime > 3 || (video.played && video.played.length > 0)) return;
         try {
           video.currentTime = pendingPos;
-          video.play().catch(() => { /* autoplay policy — user will press play */ });
+          video.play().catch(() => { /* autoplay policy - user will press play */ });
         } catch { /* ok */ }
       };
       if (video.readyState >= 1) doSeek();
@@ -517,7 +517,7 @@
     try {
       const res = await br.runtime.sendMessage({ type: 'FETCH_SEGMENTS', imdbId, season, episode });
       if (res.err === 'not_configured') {
-        console.warn('[SkipStream] IntroDB API key not set — skipping disabled. Add your key in Settings.');
+        console.warn('[SkipStream] IntroDB API key not set - skipping disabled. Add your key in Settings.');
         segmentCache.set(key, null);
         return null;
       }
@@ -671,7 +671,7 @@
 
     const saveTimer = { id: null };
 
-    // Throttled timeupdate — fires at most once every 2.5s while playing
+    // Throttled timeupdate - fires at most once every 2.5s while playing
     const throttledSave = throttle(() => savePlayback(video, saveTimer), 2500);
     video.addEventListener('timeupdate', () => {
       if (!video.paused && video.currentTime > 5) throttledSave();
@@ -695,7 +695,7 @@
       if (resolved) return;
       const info = await resolveShowInfo();
       if (!info.imdbId || !info.season || !info.episode) {
-        console.warn('[SkipStream] Could not identify episode — skip segments unavailable.');
+        console.warn('[SkipStream] Could not identify episode - skip segments unavailable.');
         return;
       }
       resolved = true;

@@ -1,4 +1,4 @@
-/* SkipStream — background */
+/* SkipStream - background */
 /* Compatible with Firefox MV2 and Chrome MV3 service workers */
 'use strict';
 
@@ -194,7 +194,7 @@ async function checkSupabase(supabaseUrl, supabaseAnonKey) {
     if (res.ok || res.status === 406) return { ok: true, message: 'Connected' };
     if (res.status === 404 || res.status === 400) return {
       ok: false, needsManualSetup: true,
-      message: 'Table missing — run supabase_setup.sql once.',
+      message: 'Table missing - run supabase_setup.sql once.',
     };
     if (res.status === 401 || res.status === 403) return { ok: false, message: 'Invalid credentials.' };
     return { ok: false, message: `Status ${res.status}` };
@@ -366,7 +366,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // SUPABASE_GET_ALL — used by popup to fetch all history rows for the user
+  // SUPABASE_GET_ALL - used by popup to fetch all history rows for the user
   if (msg.type === 'SUPABASE_GET_ALL') {
     getConfig().then(({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }

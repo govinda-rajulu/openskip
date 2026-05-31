@@ -1,4 +1,4 @@
--- SkipStream — Supabase Setup
+-- SkipStream - Supabase Setup
 -- Run this once in your Supabase project → SQL Editor.
 -- Every statement is fully idempotent: safe to re-run without data loss.
 

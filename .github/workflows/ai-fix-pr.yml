@@ -6,7 +6,9 @@ on:
 
 jobs:
   create-fix-pr:
-    if: github.event.label.name == 'ai-fix'
+    if: |
+      github.event.label.name == 'ai-fix' &&
+      github.event.sender.login == github.repository_owner
     runs-on: ubuntu-latest
     permissions:
       contents: write

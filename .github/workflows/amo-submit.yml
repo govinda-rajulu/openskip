@@ -13,6 +13,10 @@ on:
         type: choice
         options: ['false', 'true']
 
+concurrency:
+  group: amo-submit
+  cancel-in-progress: false
+
 jobs:
   submit:
     name: Submit & update AMO listing
