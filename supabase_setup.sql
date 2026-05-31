@@ -93,3 +93,6 @@ do $$ begin
       for each row execute function public.ss_set_updated_at();
   end if;
 end $$;
+
+-- ── 6. Drop legacy upsert rule (conflicts with REST API ON CONFLICT syntax) ──
+DROP RULE IF EXISTS playback_states_upsert ON public.playback_states;
