@@ -70,7 +70,7 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
 
 // ── Supabase upsert (internal helper, used by both message handler and tab flush) ──
 
-async function supabaseUpsert(body) {
+async function supabaseUpsert(body, { keepalive = false } = {}) {
   const { supabaseUrl, supabaseAnonKey } = await getConfig();
   if (!supabaseUrl || !supabaseAnonKey) return { ok: false, err: 'not_configured' };
   try {
@@ -78,6 +78,7 @@ async function supabaseUpsert(body) {
       `${supabaseUrl}/rest/v1/playback_states?on_conflict=user_id,media_id`,
       {
         method: 'POST',
+        keepalive,   // true on unload path - survives page/tab death on mobile
         headers: {
           apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
           'Content-Type': 'application/json',
@@ -100,7 +101,7 @@ if (br.tabs && br.tabs.onRemoved) {
     tabPlaybackState.delete(tabId);
     if (!state.userId || !state.body) return;
     try {
-      await supabaseUpsert(state.body);
+      await supabaseUpsert(state.body, { keepalive: true });
     } catch { /* best-effort */ }
   });
 }
@@ -345,7 +346,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
     }
 
-    supabaseUpsert(msg.body)
+    supabaseUpsert(msg.body, { keepalive: !!msg.keepalive })
       .then(result => sendResponse(result))
       .catch(err => sendResponse({ ok: false, err: String(err) }));
     return true;

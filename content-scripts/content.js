@@ -41,12 +41,6 @@
     if (ytMatch) return `yt/${ytMatch[1]}`;
     const vmMatch = url.match(/vimeo\.com\/(\d+)/);
     if (vmMatch) return `vm/${vmMatch[1]}`;
-    // movie embed pattern: /movie/12345 (videasy, vidsrc, embedder sites)
-    const movieMatch = location.pathname.match(/\/movie\/(\d+)/);
-    if (movieMatch) return `movie/${movieMatch[1]}`;
-    // tv/episode embed pattern: /tv/12345 or /episode/12345
-    const tvMatch = location.pathname.match(/\/(?:tv|episode)\/(\d+)/);
-    if (tvMatch) return `tv/${tvMatch[1]}`;
     const paramKeys = ['season', 's', 'episode', 'ep', 'e', 'id', 'tmdb', 'imdb', 'series', 'show'];
     const sp = new URLSearchParams(location.search);
     const parts = [];
@@ -57,8 +51,24 @@
 
   // ── Human-readable site name ───────────────────────────────────────────────
 
+  // When running inside an embedded player iframe, resolve site identity
+  // from document.referrer (the parent page) not from the player hostname.
+  function _siteHost() {
+    if (window !== window.top && document.referrer) {
+      try { return new URL(document.referrer).hostname.replace(/^www\./, ''); } catch { /* fall through */ }
+    }
+    return location.hostname.replace(/^www\./, '');
+  }
+
+  function getSiteHostname() {
+    if (window !== window.top && document.referrer) {
+      try { return new URL(document.referrer).hostname; } catch { /* fall through */ }
+    }
+    return location.hostname;
+  }
+
   function getSiteName() {
-    const h = location.hostname.replace(/^www\./, '');
+    const h = _siteHost();
     const KNOWN = {
       'youtube.com': 'YouTube', 'youtu.be': 'YouTube',
       'vimeo.com': 'Vimeo',
@@ -75,11 +85,14 @@
       'paramountplus.com': 'Paramount+',
       'appletv.apple.com': 'Apple TV+',
       'tubi.tv': 'Tubi',
+      '1shows.org': '1Shows',
+      'fmovies.to': 'FMovies',
+      'soap2day.ac': 'Soap2Day',
+      'goojara.to': 'Goojara',
     };
     for (const [key, name] of Object.entries(KNOWN)) {
       if (h === key || h.endsWith('.' + key)) return name;
     }
-    // Capitalise first segment of hostname as fallback
     return h.split('.')[0].replace(/^\w/, c => c.toUpperCase());
   }
 
@@ -143,7 +156,7 @@
         t:    Date.now(),
         url:  location.href,
         title:     getVideoTitle(),
-        site:      location.hostname,
+        site:      getSiteHostname(),
         site_name: getSiteName(),
       };
       const keys = Object.keys(cache);
@@ -183,7 +196,7 @@
             media_id:    mediaId,
             playback_time: Math.floor(pos),
             duration:    dur,
-            site:        location.hostname,
+            site:        getSiteHostname(),
             site_name:   getSiteName(),
             video_title: getVideoTitle(),
             updated_at:  new Date().toISOString(),
@@ -209,12 +222,13 @@
       if (!userId) return;
       br.runtime.sendMessage({
         type: 'SUPABASE_UPSERT',
+        keepalive: true,   // survives page death on mobile
         body: {
           user_id:     userId,
           media_id:    mediaId,
           playback_time: Math.floor(pos),
           duration:    dur,
-          site:        location.hostname,
+          site:        getSiteHostname(),
           site_name:   getSiteName(),
           video_title: getVideoTitle(),
           updated_at:  new Date().toISOString(),
@@ -701,10 +715,7 @@
       if (resolved) return;
       const info = await resolveShowInfo();
       if (!info.imdbId || !info.season || !info.episode) {
-        // suppress warn on movie embed URLs - no season/episode is expected
-        if (!/\/movie\/\d+/.test(location.pathname)) {
-          console.warn('[SkipStream] Could not identify episode - skip segments unavailable.');
-        }
+        console.warn('[SkipStream] Could not identify episode - skip segments unavailable.');
         return;
       }
       resolved = true;
@@ -801,7 +812,7 @@
     }
     if (msg.type === 'GET_SHOW_INFO') {
       resolveShowInfo().then(info => {
-        sendResponse({ imdbId: info.imdbId, season: info.season, episode: info.episode, site: location.hostname });
+        sendResponse({ imdbId: info.imdbId, season: info.season, episode: info.episode, site: getSiteHostname() });
       });
       return true;
     }
