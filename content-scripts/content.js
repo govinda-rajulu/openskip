@@ -33,6 +33,14 @@
     } catch { /* use defaults */ }
   }
 
+  // Keep prefs live: re-apply any change made in popup/options without needing page reload
+  br.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    for (const key of Object.keys(PREF_DEFAULTS)) {
+      if (key in changes) prefs[key] = changes[key].newValue;
+    }
+  });
+
   // ── Media ID ───────────────────────────────────────────────────────────────
 
   function getMediaId() {
@@ -338,7 +346,11 @@
     if (userId) {
       try {
         const res = await br.runtime.sendMessage({ type: 'SUPABASE_GET', userId, mediaId });
-        if (res.data) saved = { p: res.data.playback_time, d: res.data.duration };
+        if (res.data) {
+          saved = { p: res.data.playback_time, d: res.data.duration };
+          // Write cloud data back to local cache so other devices / next load don't need a cloud round-trip
+          await cacheWrite(mediaId, saved.p, saved.d);
+        }
       } catch { /* fall through */ }
     }
     if (!saved) saved = await cacheRead(mediaId);
@@ -745,12 +757,12 @@
         if (active.key !== activeSegmentKey) {
           activeSegmentKey = active.key;
           if (prefs[prefKey]) {
-            // Toggle ON = auto-skip silently, no UI shown
+            // pref ON = auto-skip silently
             video.currentTime = active.segment.end_sec;
             activeSegmentKey = '';
             hideSkipBtn();
           } else {
-            // Toggle OFF = show interactive skip button prompt
+            // pref OFF = show manual skip button so user can choose
             showSkipBtn(SEGMENT_LABELS[active.key], () => {
               video.currentTime = active.segment.end_sec;
               activeSegmentKey = '';
