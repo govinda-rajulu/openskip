@@ -1,4 +1,4 @@
-# SkipStream — Privacy Policy
+# SkipStream - Privacy Policy
 
 **Last updated: May 2026**
 
@@ -11,8 +11,8 @@ SkipStream does not collect, sell, or share your personal data. All credentials 
 ## What data SkipStream handles
 
 ### Data stored locally on your device
-- Your API keys (Supabase URL, Supabase anon key, IntroDB key, TMDB key) — stored in `browser.storage.local`, never transmitted to the extension developer
-- Your playback positions — cached in `browser.storage.local` for offline resume
+- Your API keys (Supabase URL, Supabase anon key, IntroDB key, TMDB key) - stored in `browser.storage.local`, never transmitted to the extension developer
+- Your playback positions - cached in `browser.storage.local` for offline resume
 
 ### Data transmitted outside the browser (optional features only)
 
@@ -40,10 +40,10 @@ All transmission is optional. If you do not configure the relevant service, no d
 
 SkipStream integrates with third-party services that you configure. Each has its own privacy policy:
 
-- **IntroDB** — [introdb.app](https://introdb.app) — receives show identifiers (IMDb ID, season, episode) to return skip timestamps
-- **Supabase** — [supabase.com/privacy](https://supabase.com/privacy) — your own project; SkipStream only accesses the table you create
-- **TMDB** — [themoviedb.org/privacy-policy](https://www.themoviedb.org/privacy-policy) — receives TMDB IDs to return IMDb IDs
-- **OMDB** — [omdbapi.com](https://www.omdbapi.com) — receives show titles to return IMDb IDs (fallback only)
+- **IntroDB** - [introdb.app](https://introdb.app) - receives show identifiers (IMDb ID, season, episode) to return skip timestamps
+- **Supabase** - [supabase.com/privacy](https://supabase.com/privacy) - your own project; SkipStream only accesses the table you create
+- **TMDB** - [themoviedb.org/privacy-policy](https://www.themoviedb.org/privacy-policy) - receives TMDB IDs to return IMDb IDs
+- **OMDB** - [omdbapi.com](https://www.omdbapi.com) - receives show titles to return IMDb IDs (fallback only)
 
 ---
 
