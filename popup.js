@@ -422,6 +422,33 @@ async function loadCloudHistory(userId, supabaseUrl, supabaseAnonKey) {
       };
     }
   } catch { /* network or parse error */ }
+
+  // Write cloud rows back into local cache so content script can resume from cloud
+  // positions on next page load without waiting for a cloud round-trip
+  if (Object.keys(_cloudEntries).length > 0) {
+    br.storage.local.get(CACHE_KEY).then(stored => {
+      const cache = stored[CACHE_KEY] || {};
+      let changed = false;
+      for (const [mediaId, cloud] of Object.entries(_cloudEntries)) {
+        const local = cache[mediaId];
+        const cloudTs = cloud.t || 0;
+        const localTs = local ? (local.t || 0) : 0;
+        if (!local || cloudTs > localTs || cloud.p > (local.p || 0)) {
+          cache[mediaId] = {
+            p:         cloud.p,
+            d:         cloud.d || (local && local.d) || null,
+            t:         cloudTs || localTs,
+            url:       (local && local.url)       || '',
+            title:     cloud.title     || (local && local.title)     || '',
+            site:      cloud.site      || (local && local.site)      || '',
+            site_name: cloud.site_name || (local && local.site_name) || '',
+          };
+          changed = true;
+        }
+      }
+      if (changed) br.storage.local.set({ [CACHE_KEY]: cache });
+    }).catch(() => { /* storage unavailable */ });
+  }
 }
 
 function mergeHistoryEntries() {
