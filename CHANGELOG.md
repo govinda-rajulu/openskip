@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.9] - 2026-06-03
+
+### Fixed
+- **Version bump**: advance past tags v1.5.7 and v1.5.8; all version files aligned to 1.5.9
+- **Movie embed mediaId**: `getMediaId()` now handles `/movie/{id}` and `/tv/{id}` paths correctly
+- **Movie embed warn**: suppressed false-positive "Could not identify episode" on movie embed URLs
+- **Manifest**: removed `data_collection_permissions` from `manifest.json` and all related assertions
+- **CI**: removed SHA-pinned action refs across all workflows; pinning to named versions
+
 ## [1.5.6] - 2026-05-31
 
 ### Fixed
