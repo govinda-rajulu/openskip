@@ -1,8 +1,8 @@
-# SkipStream — Testing Notes for Mozilla Reviewers
+# SkipStream - Testing Notes for Mozilla Reviewers
 
 ## Overview
 
-SkipStream is a plain JavaScript Firefox extension with no build step. The source files in this repository are the exact files packaged in the submitted ZIP — no transpilation, minification, or code generation is involved.
+SkipStream is a plain JavaScript Firefox extension with no build step. The source files in this repository are the exact files packaged in the submitted ZIP - no transpilation, minification, or code generation is involved.
 
 ## Source code
 
@@ -37,16 +37,16 @@ SkipStream integrates with three optional third-party services. The extension is
 
 ## Testing without API keys
 
-1. Load the extension — popup opens, toggles are visible and functional
+1. Load the extension - popup opens, toggles are visible and functional
 2. All toggles (Skip Intros, Skip Recaps, Skip Outros, Resume Playback) save correctly
 3. Without IntroDB key: extension loads, no skip buttons appear, console shows: `[SkipStream] IntroDB API key not set`
 4. Without Supabase: local playback positions still cache and restore across page reloads
 
 ## Why `<all_urls>` permission is needed
 
-SkipStream is a universal skip tool — it needs to work on any streaming site (Netflix, Hulu, Crunchyroll, Plex, Jellyfin, self-hosted players, etc.). A restricted host list would make it non-functional on the vast majority of sites. The content script only activates meaningful logic when it finds a `<video>` element that passes a size threshold (≥25% viewport width, ≥20% viewport height) — it ignores thumbnails, ads, and tiny preview tiles.
+SkipStream is a universal skip tool - it needs to work on any streaming site (Netflix, Hulu, Crunchyroll, Plex, Jellyfin, self-hosted players, etc.). A restricted host list would make it non-functional on the vast majority of sites. The content script only activates meaningful logic when it finds a `<video>` element that passes a size threshold (≥25% viewport width, ≥20% viewport height) - it ignores thumbnails, ads, and tiny preview tiles.
 
-## Data transmission — `technicalAndInteraction` declared as optional
+## Data transmission - `technicalAndInteraction` declared as optional
 
 The extension declares `technicalAndInteraction` as an optional data collection permission. This covers:
 
