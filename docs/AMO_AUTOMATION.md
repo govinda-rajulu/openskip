@@ -9,7 +9,7 @@ SkipStream uses a GitHub Actions workflow (`amo-submit.yml`) to automatically su
 1. Log in to [addons.mozilla.org](https://addons.mozilla.org) as the add-on author
 2. Go to **[API Credentials](https://addons.mozilla.org/en-US/developers/addon/api/key/)**
 3. Click **Generate new credentials**
-4. Copy the **JWT issuer (key)** and **JWT secret** — you will not see the secret again
+4. Copy the **JWT issuer (key)** and **JWT secret** - you will not see the secret again
 
 ### 2. Add secrets to the GitHub repository
 
@@ -30,8 +30,8 @@ The workflow uses `skipstream` as the slug. If your AMO URL differs, update `AMO
 
 ```
 push tag v1.x.x
-    └─► validate.yml       — lint + manifest check
-    └─► release.yml        — build ZIP → GitHub Release + artifact
+    └─► validate.yml - lint + manifest check
+    └─► release.yml - build ZIP → GitHub Release + artifact
             └─► amo-submit.yml  (triggers on release.yml success)
                     ├─ download ZIP artifact
                     ├─ POST /api/v5/addons/upload/            upload + validate
@@ -63,8 +63,8 @@ Actions tab → **Submit to AMO** → **Run workflow**. A **Dry run** option pri
 
 ## What is NOT automated
 
-- Add-on icon and screenshots — upload manually in Developer Hub
-- Privacy policy / EULA — update manually if needed
+- Add-on icon and screenshots - upload manually in Developer Hub
+- Privacy policy / EULA - update manually if needed
 
 ---
 
