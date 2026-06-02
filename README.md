@@ -4,7 +4,7 @@
 
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-Active-blue?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.6-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.5.6)
+[![Version](https://img.shields.io/badge/version-1.5.9-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.5.9)
 
 A cross-browser extension (Firefox MV2 & Chrome MV3 architecture) that detects skip segments on any streaming site and syncs your playback position to the cloud via your own Supabase project.
 
