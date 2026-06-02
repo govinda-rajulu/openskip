@@ -16,7 +16,7 @@ jobs:
       issues: write
 
     steps:
-      - uses: actions/checkout@v4 # v4
+      - uses: actions/checkout@v6 # v4
 
       - name: Build repo context for AI
         run: |
