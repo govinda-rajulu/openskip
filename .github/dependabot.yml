@@ -1,14 +1,7 @@
-# .github/dependabot.yml
 version: 2
 updates:
-  - package-ecosystem: "npm" # Monitors your package.json
-    directory: "/"
-    schedule:
-      interval: "weekly" # Checks every week
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: "github-actions" # Monitors your workflow files
+  - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
