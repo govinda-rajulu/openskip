@@ -4,7 +4,7 @@ No laptop needed. Do everything from GitHub in your browser.
 
 ---
 
-## Step 1 — Make your changes
+## Step 1 - Make your changes
 
 Go to your repo → press `.` to open the browser editor (github.dev)  
 Edit files → commit directly from the editor  
@@ -12,17 +12,17 @@ CI runs automatically and checks everything
 
 ---
 
-## Step 2 — Bump the version
+## Step 2 - Bump the version
 
-Edit `manifest.json` — change `"version"` to your new version  
-Edit `manifest-chrome.json` — **must match `manifest.json` exactly** (CI fails if mismatched)  
-Edit `CHANGELOG.md` — add a new `## [X.Y.Z]` section at the top  
-Edit `popup.js` — update the version header comment on line 1  
+Edit `manifest.json` - change `"version"` to your new version  
+Edit `manifest-chrome.json` - **must match `manifest.json` exactly** (CI fails if mismatched)  
+Edit `CHANGELOG.md` - add a new `## [X.Y.Z]` section at the top  
+Edit `popup.js` - update the version header comment on line 1  
 Commit all four files
 
 ---
 
-## Step 3 — Create a tag (this triggers the release)
+## Step 3 - Create a tag (this triggers the release)
 
 Go to your repo on GitHub  
 Click **Releases** (right sidebar) → **Draft a new release**  
@@ -39,7 +39,7 @@ You'll get the ZIP on the release page within ~2 minutes.
 
 ---
 
-## Step 4 — Submit to AMO
+## Step 4 - Submit to AMO
 
 Download the ZIP from the release page  
 Go to addons.mozilla.org/developers → your extension → **Upload New Version**  
@@ -61,7 +61,7 @@ Upload the ZIP → fill in release notes → submit
 
 ## Filing issues for AI help (future Copilot agent)
 
-Write detailed issues — the more specific, the better the AI can handle it:
+Write detailed issues - the more specific, the better the AI can handle it:
 
 **Good issue:**
 > **Title:** Skip button doesn't appear on Crunchyroll  
@@ -75,17 +75,17 @@ Write detailed issues — the more specific, the better the AI can handle it:
 
 ## Using the AI agent (after Gemini key is added)
 
-### Step 1 — Get a free Gemini API key
+### Step 1 - Get a free Gemini API key
 1. Go to **aistudio.google.com** → sign in with Google
 2. Click **Get API key** → **Create API key**
 3. Copy the key
 
-### Step 2 — Add it to your repo
+### Step 2 - Add it to your repo
 1. Go to your repo → **Settings** → **Secrets and variables** → **Actions**
 2. Click **New repository secret**
 3. Name: `GEMINI_API_KEY` → paste your key → Save
 
-### Step 3 — The full AI workflow
+### Step 3 - The full AI workflow
 ```
 You open an issue (from phone, describe bug or feature)
          ↓
@@ -97,7 +97,7 @@ AI reads full codebase, writes fix, opens PR automatically
          ↓
 CI runs on the PR (syntax, security, manifest checks)
          ↓
-You review the PR — read the diff, check CI is green
+You review the PR - read the diff, check CI is green
          ↓
 Merge → done
 ```
