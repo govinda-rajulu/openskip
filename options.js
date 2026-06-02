@@ -1,4 +1,4 @@
-/* SkipStream — options */
+/* SkipStream - options */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
