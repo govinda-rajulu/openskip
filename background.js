@@ -358,7 +358,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const url = `${supabaseUrl}/rest/v1/playback_states` +
         `?user_id=eq.${encodeURIComponent(msg.userId)}` +
         `&media_id=eq.${encodeURIComponent(msg.mediaId)}` +
-        `&select=playback_time,duration&limit=1`;
+        `&select=playback_time,duration,site,site_name,video_title&limit=1`;
       fetchWithRetry(url, { headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` } })
         .then(r => r.json())
         .then(data => sendResponse({ data: data[0] || null }))
