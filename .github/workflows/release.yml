@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -12,15 +16,30 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@v4
 
-      - name: Validate code
+      - name: Validate JS syntax
         run: |
           node --check background.js
           node --check options.js
           node --check popup.js
           node --check content-scripts/content.js
           echo "✅ All JS files valid"
+
+      - name: Security checks
+        run: |
+          FAIL=0
+          if grep -rn 'innerHTML' background.js options.js popup.js content-scripts/ | grep -v '^\s*//' | grep -v '//.*innerHTML'; then
+            echo "❌ innerHTML found"; FAIL=1
+          fi
+          if grep -rn 'console\.log' background.js options.js popup.js content-scripts/ | grep -v '^\s*//'; then
+            echo "❌ console.log found"; FAIL=1
+          fi
+          if grep -n 'localStorage' content-scripts/content.js | grep -v '^\s*[0-9]*:\s*//' | grep -v '//.*localStorage'; then
+            echo "❌ localStorage in content script"; FAIL=1
+          fi
+          [ $FAIL -eq 1 ] && exit 1
+          echo "✅ Security checks passed"
 
       - name: Get version from manifest
         id: version
@@ -40,6 +59,25 @@ jobs:
           fi
           echo "✅ Tag $TAG matches manifest version $MANIFEST_VER"
 
+      - name: Check manifest-chrome.json version matches
+        run: |
+          CHROME_VER=$(python3 -c "import json; print(json.load(open('manifest-chrome.json'))['version'])")
+          MANIFEST_VER="${{ steps.version.outputs.version }}"
+          if [ "$CHROME_VER" != "$MANIFEST_VER" ]; then
+            echo "❌ manifest-chrome.json version $CHROME_VER != manifest.json $MANIFEST_VER"
+            exit 1
+          fi
+          echo "✅ manifest-chrome.json version matches"
+
+      - name: Check CHANGELOG has entry for this version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if ! grep -q "\[${VERSION}\]" CHANGELOG.md; then
+            echo "❌ CHANGELOG.md missing entry for v${VERSION}"
+            exit 1
+          fi
+          echo "✅ CHANGELOG.md has entry for v${VERSION}"
+
       - name: Build ZIP
         run: |
           ZIP_NAME="skipstream-${{ steps.version.outputs.version }}-firefox.zip"
@@ -52,13 +90,14 @@ jobs:
           echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
 
       - name: Upload ZIP to GitHub Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@v2
         with:
           files: "skipstream-${{ steps.version.outputs.version }}-firefox.zip"
           fail_on_unmatched_files: true
+          generate_release_notes: false
 
       - name: Upload ZIP as workflow artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v4
         with:
           name: skipstream-firefox-zip
           path: "skipstream-${{ steps.version.outputs.version }}-firefox.zip"
