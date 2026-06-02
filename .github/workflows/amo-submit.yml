@@ -39,7 +39,7 @@ jobs:
 
       - name: Download release ZIP (from triggering workflow)
         if: github.event_name == 'workflow_run'
-        uses: actions/download-artifact@v4 # v4
+        uses: actions/download-artifact@v8 # v4
         with:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
