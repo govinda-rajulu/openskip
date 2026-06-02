@@ -293,7 +293,7 @@ async function main() {
     homepage:    { 'en-US': 'https://github.com/govinda-rajulu/openskip' },
     support_url: { 'en-US': 'https://github.com/govinda-rajulu/openskip/issues' },
     categories:  { firefox: ['photos-music-videos'] },
-    tags:        ['privacy', 'productivity'],
+    tags:        ['privacy'],
     is_experimental: false,
     requires_payment: false,
     default_locale: 'en-US',
@@ -311,10 +311,10 @@ async function main() {
     if (patchRes.status === 200) {
       console.log('    ✅  Listing metadata updated');
     } else if (patchRes.status === 409) {
-      console.warn(`    ⚠  HTTP 409 on PATCH - metadata may already be current. Continuing.`);
+      console.warn('    ⚠  HTTP 409 on PATCH - metadata already current. Continuing.');
     } else {
-      console.error(`❌  PATCH failed (HTTP ${patchRes.status}):`, JSON.stringify(patchRes.data, null, 2));
-      process.exit(1);
+      // Metadata update is non-critical - version already uploaded. Warn but don't fail.
+      console.warn(`    ⚠  PATCH returned HTTP ${patchRes.status} - metadata update skipped:`, JSON.stringify(patchRes.data, null, 2));
     }
   }
 
