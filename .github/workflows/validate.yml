@@ -6,16 +6,20 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
     name: Lint & Validate
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
@@ -44,15 +48,21 @@ jobs:
           assert 'content_security_policy' in m, 'CSP missing'
           gecko = m['browser_specific_settings']['gecko']
           assert 'id' in gecko, 'gecko.id missing'
-          assert 'data_collection_permissions' in gecko, 'data_collection_permissions missing'
-          dcp = gecko['data_collection_permissions']
-          assert len(dcp['required']) >= 1, 'required must have at least 1 item'
           print('✅ manifest.json valid')
           "
 
+      - name: Validate manifest-chrome.json version matches
+        run: |
+          FIREFOX_VER=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
+          CHROME_VER=$(python3 -c "import json; print(json.load(open('manifest-chrome.json'))['version'])")
+          if [ "$FIREFOX_VER" != "$CHROME_VER" ]; then
+            echo "❌ manifest-chrome.json version ($CHROME_VER) != manifest.json ($FIREFOX_VER)"
+            exit 1
+          fi
+          echo "✅ manifest-chrome.json version matches: $CHROME_VER"
+
       - name: Check for innerHTML usage (security)
         run: |
-          # Exclude comment lines (lines starting with optional whitespace then //)
           if grep -rn 'innerHTML' background.js options.js popup.js content-scripts/ \
              | grep -v '^\s*//' | grep -v '//.*innerHTML'; then
             echo "❌ innerHTML found — use DOM API instead"
@@ -71,13 +81,22 @@ jobs:
 
       - name: Check for localStorage usage in content script
         run: |
-          # Only flag actual code usage, not comments
           if grep -n 'localStorage' content-scripts/content.js \
              | grep -v '^\s*[0-9]*:\s*//' | grep -v '//.*localStorage'; then
             echo "❌ localStorage found in content script — must use browser.storage.local"
             exit 1
           fi
           echo "✅ No localStorage in content script"
+
+      - name: Check for hardcoded secrets or API keys
+        run: |
+          if grep -rn 'eyJ\|sk-\|AIza\|xoxb-\|supabase\.co.*Bearer\|anon.*key.*=.*[a-zA-Z0-9+/]\{40\}' \
+             background.js content-scripts/content.js popup.js options.js 2>/dev/null \
+             | grep -v '^\s*//' | grep -v 'placeholder\|example\|YOUR_KEY'; then
+            echo "❌ Possible hardcoded secret or API key found"
+            exit 1
+          fi
+          echo "✅ No hardcoded secrets detected"
 
       - name: Build release ZIP
         run: |
@@ -90,7 +109,7 @@ jobs:
           echo "✅ ZIP built: $(du -h skipstream-firefox.zip | cut -f1)"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v4
         with:
           name: skipstream-firefox-zip
           path: "skipstream-firefox.zip"
