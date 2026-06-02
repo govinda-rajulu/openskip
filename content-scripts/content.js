@@ -49,6 +49,10 @@
     if (ytMatch) return `yt/${ytMatch[1]}`;
     const vmMatch = url.match(/vimeo\.com\/(\d+)/);
     if (vmMatch) return `vm/${vmMatch[1]}`;
+    const movieMatch = location.pathname.match(/\/movie\/(\d+)/);
+    if (movieMatch) return `movie/${movieMatch[1]}`;
+    const tvMatch = location.pathname.match(/\/(?:tv|episode)\/(\d+)/);
+    if (tvMatch) return `tv/${tvMatch[1]}`;
     const paramKeys = ['season', 's', 'episode', 'ep', 'e', 'id', 'tmdb', 'imdb', 'series', 'show'];
     const sp = new URLSearchParams(location.search);
     const parts = [];
@@ -727,7 +731,9 @@
       if (resolved) return;
       const info = await resolveShowInfo();
       if (!info.imdbId || !info.season || !info.episode) {
-        console.warn('[SkipStream] Could not identify episode - skip segments unavailable.');
+        if (!/\/movie\/\d+/.test(location.pathname)) {
+          console.warn('[SkipStream] Could not identify episode - skip segments unavailable.');
+        }
         return;
       }
       resolved = true;
