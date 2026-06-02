@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "SkipStream",
   "description": "Automatically skip intros, recaps, and outros - and resume playback across all your devices.",
-  "version": "1.5.6",
+  "version": "1.5.9",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
@@ -49,15 +49,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "skipstream@extension",
-      "strict_min_version": "140.0",
-      "data_collection_permissions": {
-        "required": [
-          "none"
-        ],
-        "optional": [
-          "technicalAndInteraction"
-        ]
-      }
+      "strict_min_version": "140.0"
     },
     "gecko_android": {
       "strict_min_version": "142.0"
