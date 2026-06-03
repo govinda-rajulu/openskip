@@ -448,7 +448,10 @@
       --text:     #1c1c1e; --text2:    #3a3a3c; --text3:    #8e8e93;
       --divider:  rgba(0,0,0,0.1); --accent-dim: rgba(59,130,246,.12);
     }
-    html[data-theme="light"] #themeIcon circle { display: none; }
+    /* Sun/moon icon swap via CSS - no JS DOM manipulation needed */
+    #themeIcon .moon-part { display: none; }
+    #themeIcon[data-mode="light"] .sun-parts { display: none; }
+    #themeIcon[data-mode="light"] .moon-part { display: block; }
 
     /* ── Speed buttons ───────────────────────────────────────────────────── */
     .speed-btn {
@@ -482,7 +485,8 @@
     <span class="ver-badge" id="versionBadge"></span>
     <button class="icon-btn" id="themeToggle" title="Toggle light/dark theme" aria-label="Toggle theme">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" id="themeIcon">
-        <circle cx="8" cy="8" r="3.5"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/>
+        <g class="sun-parts"><circle cx="8" cy="8" r="3.5"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="3.1" y1="3.1" x2="4.5" y2="4.5"/><line x1="11.5" y1="11.5" x2="12.9" y2="12.9"/><line x1="3.1" y1="12.9" x2="4.5" y2="11.5"/><line x1="11.5" y1="4.5" x2="12.9" y2="3.1"/></g>
+        <path class="moon-part" d="M12.5 9.5a5 5 0 01-6-6 5.5 5.5 0 106 6z" fill="currentColor" stroke="none"/>
       </svg>
     </button>
     <button class="icon-btn" id="optionsBtn" title="Open Settings">
