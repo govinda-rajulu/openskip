@@ -41,6 +41,40 @@
     }
   });
 
+  // ── Per-site prefs override ──────────────────────────────────────────────────
+  // Reads skipstream_site_rules from storage and merges into prefs for current host.
+  const _sitePrefsCache = { host: null, rules: null, ts: 0 };
+
+  function getSitePrefs(basePrefs) {
+    const host = location.hostname.replace(/^www\./, '');
+    const now  = Date.now();
+    // Refresh cache every 5s so option changes apply quickly
+    if (_sitePrefsCache.host !== host || now - _sitePrefsCache.ts > 5000) {
+      _sitePrefsCache.host = host;
+      _sitePrefsCache.ts   = now;
+      br.storage.local.get('skipstream_site_rules').then(s => {
+        _sitePrefsCache.rules = s.skipstream_site_rules || {};
+      }).catch(() => {});
+    }
+    const rules = _sitePrefsCache.rules;
+    if (!rules) return basePrefs;
+    // Match host or any parent domain
+    let mode = null;
+    for (const [domain, m] of Object.entries(rules)) {
+      if (host === domain || host.endsWith('.' + domain)) { mode = m; break; }
+    }
+    if (!mode) return basePrefs;
+    // Map mode string to pref flags
+    const override = { skipMaster: true, skipIntro: false, skipRecap: false, skipOutro: false };
+    if (mode === 'off')        return { ...basePrefs, skipMaster: false };
+    if (mode === 'auto-intro') return { ...basePrefs, ...override, skipIntro: true };
+    if (mode === 'auto-recap') return { ...basePrefs, ...override, skipRecap: true };
+    if (mode === 'auto-outro') return { ...basePrefs, ...override, skipOutro: true };
+    if (mode === 'auto-all')   return { ...basePrefs, ...override, skipIntro: true, skipRecap: true, skipOutro: true };
+    if (mode === 'prompt')     return { ...basePrefs, ...override }; // master on, all auto off
+    return basePrefs;
+  }
+
   // ── Media ID ───────────────────────────────────────────────────────────────
 
   function getMediaId() {
@@ -211,6 +245,7 @@
             site:        getSiteHostname(),
             site_name:   getSiteName(),
             video_title: getVideoTitle(),
+            device_name: navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Edg/') ? 'Edge' : 'Chrome',
             updated_at:  new Date().toISOString(),
           },
         });
@@ -243,6 +278,7 @@
           site:        getSiteHostname(),
           site_name:   getSiteName(),
           video_title: getVideoTitle(),
+          device_name: navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Edg/') ? 'Edge' : 'Chrome',
           updated_at:  new Date().toISOString(),
         },
       }).catch(() => { /* page is unloading */ });
@@ -576,6 +612,14 @@
   const PREF_FOR_SEGMENT = { intro: 'skipIntro', recap: 'skipRecap', outro: 'skipOutro' };
   const SEGMENT_LABELS   = { intro: '⏭ Skip Intro', recap: '⏭ Skip Recap', outro: '⏭ Skip Outro' };
 
+  function segmentLabel(key, segment) {
+    const base  = SEGMENT_LABELS[key] || `⏭ Skip ${key}`;
+    const count = segment && (segment.report_count ?? segment.votes ?? segment.confidence ?? null);
+    if (!count || count < 2) return base;
+    const badge = count >= 10 ? ' ★' : count >= 5 ? ' ◆' : '';
+    return base + badge;
+  }
+
   // ── Skip countdown toast ──────────────────────────────────────────────────
 
   const COUNTDOWN_ID = 'skipstream-countdown';
@@ -588,6 +632,7 @@
     if (existing) existing.remove();
 
     const label = { intro: 'Intro', recap: 'Recap', outro: 'Outro' }[segKey] || segKey;
+    const fullLabel = segmentLabel(segKey, segment);
     let secs = 3;
 
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
@@ -642,7 +687,7 @@
     };
 
     const update = () => {
-      msgEl.textContent = `Skipping ${label} in ${secs}s`;
+      msgEl.textContent = `${fullLabel} in ${secs}s`;
     };
     update();
     toast.appendChild(msgEl);
@@ -1007,8 +1052,10 @@
       const active = findActiveSegment(segments, video.currentTime);
 
       if (active) {
+        // Per-site override: check if this domain has a custom skip mode
+        const effectivePrefs = getSitePrefs(prefs);
         const prefKey = PREF_FOR_SEGMENT[active.key];
-        if (!prefs.skipMaster) {
+        if (!effectivePrefs.skipMaster) {
           if (activeSegmentKey) { activeSegmentKey = ''; hideSkipBtn(); }
           return;
         }
@@ -1022,7 +1069,7 @@
             });
           } else {
             // pref OFF = show manual skip button so user can choose
-            showSkipBtn(SEGMENT_LABELS[active.key], () => {
+            showSkipBtn(segmentLabel(active.key, active.segment), () => {
               video.currentTime = active.segment.end_sec;
               activeSegmentKey = '';
               hideSkipBtn();
