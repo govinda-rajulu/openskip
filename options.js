@@ -165,6 +165,53 @@ async function clearAll() {
 document.getElementById('saveBtn').addEventListener('click', save);
 document.getElementById('clearBtn').addEventListener('click', clearAll);
 
+// ── Import / Export ───────────────────────────────────────────────────────────
+
+const EXPORT_KEYS = [...CRED_KEYS, 'skipIntro', 'skipRecap', 'skipOutro', 'skipMaster', 'resumePlayback', 'playbackSpeed'];
+
+async function exportSettings() {
+  const stored = await br.storage.local.get(EXPORT_KEYS);
+  const blob = new Blob([JSON.stringify(stored, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'skipstream-settings.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function importSettings(file) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    // Validate: only write known keys
+    const safe = {};
+    for (const key of EXPORT_KEYS) {
+      if (key in data) safe[key] = data[key];
+    }
+    await br.storage.local.set(safe);
+    showGlobal('ok', `Imported ${Object.keys(safe).length} settings. Verifying…`);
+    await load();
+    await runCheck();
+  } catch (e) {
+    showGlobal('err', `Import failed: ${e.message}`);
+  }
+}
+
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const importFile = document.getElementById('importFile');
+
+if (exportBtn) exportBtn.addEventListener('click', exportSettings);
+if (importBtn && importFile) {
+  importBtn.addEventListener('click', () => importFile.click());
+  importFile.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) importSettings(file);
+    importFile.value = '';
+  });
+}
+
 async function init() {
   await load();
   await runCheck();
