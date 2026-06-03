@@ -1,4 +1,4 @@
-/* SkipStream - popup v1.6.0 */
+/* SkipStream - popup v1.6.1 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
@@ -6,8 +6,8 @@ const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chr
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const CHILD_KEYS  = ['skipIntro', 'skipRecap', 'skipOutro'];
-const ALL_TOGGLES = [...CHILD_KEYS, 'resumePlayback'];
-const DEFAULTS    = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipMaster: true };
+const ALL_TOGGLES = [...CHILD_KEYS, 'resumePlayback', 'autoNextEpisode'];
+const DEFAULTS    = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipMaster: true, autoNextEpisode: false };
 const CACHE_KEY   = 'skipstream_cache';
 const PENDING_KEY = 'skipstream_pending_resume';
 
@@ -701,6 +701,15 @@ async function init() {
     resumeEl.checked = prefs.resumePlayback;
     resumeEl.addEventListener('change', () =>
       br.storage.local.set({ resumePlayback: resumeEl.checked })
+    );
+  }
+
+  // Auto next episode toggle
+  const nextEpEl = document.getElementById('autoNextEpisode');
+  if (nextEpEl) {
+    nextEpEl.checked = prefs.autoNextEpisode ?? false;
+    nextEpEl.addEventListener('change', () =>
+      br.storage.local.set({ autoNextEpisode: nextEpEl.checked })
     );
   }
 
