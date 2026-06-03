@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.2] - 2026-06-04
+
+### Added
+- **Per-site skip rules**: override global skip mode per domain in Settings (e.g. always prompt on Crunchyroll, auto-all on Netflix); stored locally, applied in real-time without page reload
+- **Dark/light theme toggle**: sun/moon icon in popup header; respects system preference on first load, persists manual override
+- **Segment confidence badge**: skip button and countdown show a star/diamond badge when segment has 5+ or 10+ reports from IntroDB
+- **device_name in sync payload**: upsert now includes browser name (Firefox/Edge/Chrome) so history shows which device saved each position
+
 ## [1.6.1] - 2026-06-04
 
 ### Added
