@@ -191,7 +191,22 @@
       vertical-align: middle; margin-right: 6px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
+  
+    /* ── Per-site rules ─────────────────────────────────────────── */
+    .site-rule-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 10px; border-radius: var(--radius);
+      background: var(--surface-2); margin-bottom: 6px;
+      font-size: 12px;
+    }
+    .site-rule-domain { flex: 1; font-weight: 600; color: var(--text); }
+    .site-rule-mode   { color: var(--text-muted); font-size: 11px; }
+    .site-rule-del    {
+      all: unset; cursor: pointer; color: var(--text-muted);
+      font-size: 14px; line-height: 1; padding: 0 4px;
+    }
+    .site-rule-del:hover { color: #ef4444; }
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -304,6 +319,25 @@
   <div class="alert" id="globalAlert"></div>
 
 </div>
+
+<div class="card" id="siteRulesCard">
+  <h2>Per-Site Skip Rules</h2>
+  <p class="hint">Override global skip mode for a specific domain. Domain only, e.g. <code>crunchyroll.com</code></p>
+  <div id="siteRulesList"></div>
+  <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+    <input id="siteRuleDomain" type="text" placeholder="e.g. crunchyroll.com" style="flex:1">
+    <select id="siteRuleMode">
+      <option value="off">Off</option>
+      <option value="prompt">Prompt</option>
+      <option value="auto-intro">Auto Intro</option>
+      <option value="auto-recap">Auto Recap</option>
+      <option value="auto-outro">Auto Outro</option>
+      <option value="auto-all" selected>Auto All</option>
+    </select>
+    <button id="siteRuleAddBtn">Add Rule</button>
+  </div>
+</div>
+
 <script src="options.js"></script>
 </body>
 </html>
