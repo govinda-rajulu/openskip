@@ -576,6 +576,133 @@
   const PREF_FOR_SEGMENT = { intro: 'skipIntro', recap: 'skipRecap', outro: 'skipOutro' };
   const SEGMENT_LABELS   = { intro: '⏭ Skip Intro', recap: '⏭ Skip Recap', outro: '⏭ Skip Outro' };
 
+  // ── Skip countdown toast ──────────────────────────────────────────────────
+
+  const COUNTDOWN_ID = 'skipstream-countdown';
+  let _countdownTimer = null;
+
+  function showSkipCountdown(segKey, segment, video, onDone) {
+    // Clear any existing countdown
+    clearInterval(_countdownTimer);
+    const existing = document.getElementById(COUNTDOWN_ID);
+    if (existing) existing.remove();
+
+    const label = { intro: 'Intro', recap: 'Recap', outro: 'Outro' }[segKey] || segKey;
+    let secs = 3;
+
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    const container = fsEl || document.body || document.documentElement;
+
+    const toast = document.createElement('div');
+    toast.id = COUNTDOWN_ID;
+    Object.assign(toast.style, {
+      all: 'unset', position: fsEl ? 'absolute' : 'fixed',
+      bottom: '10%', right: '3%', zIndex: '2147483647',
+      display: 'flex', alignItems: 'center', gap: '10px',
+      padding: '10px 16px',
+      background: 'rgba(10,10,18,0.88)',
+      color: '#fff', border: '1.5px solid rgba(255,255,255,0.18)',
+      borderRadius: '10px', boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
+      backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+      fontFamily: 'system-ui,-apple-system,sans-serif',
+      fontSize: '13px', fontWeight: '600',
+      pointerEvents: 'auto',
+    });
+
+    const msgEl = document.createElement('span');
+    const undoBtn = document.createElement('button');
+    Object.assign(undoBtn.style, {
+      all: 'unset', cursor: 'pointer', padding: '4px 10px',
+      background: 'rgba(255,255,255,0.12)', borderRadius: '6px',
+      fontSize: '11px', fontWeight: '700', color: '#fff',
+      border: '1px solid rgba(255,255,255,0.2)',
+    });
+    undoBtn.textContent = 'Undo';
+
+    const doSkip = () => {
+      clearInterval(_countdownTimer);
+      if (toast.isConnected) toast.remove();
+      const prevTime = video.currentTime;
+      video.currentTime = segment.end_sec;
+      // Track skip stat
+      br.storage.local.get('skipstream_stats').then(s => {
+        const st = s.skipstream_stats || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0 };
+        st.skipsTotal++;
+        st.timeSavedSec += Math.max(0, Math.round(segment.end_sec - prevTime));
+        br.storage.local.set({ skipstream_stats: st });
+      }).catch(() => {});
+      onDone();
+    };
+
+    undoBtn.onclick = e => {
+      e.preventDefault(); e.stopPropagation();
+      clearInterval(_countdownTimer);
+      toast.remove();
+      onDone();
+    };
+
+    const update = () => {
+      msgEl.textContent = `Skipping ${label} in ${secs}s`;
+    };
+    update();
+    toast.appendChild(msgEl);
+    toast.appendChild(undoBtn);
+    container.appendChild(toast);
+
+    _countdownTimer = setInterval(() => {
+      secs--;
+      if (secs <= 0) {
+        clearInterval(_countdownTimer);
+        doSkip();
+      } else {
+        update();
+      }
+    }, 1000);
+
+    // If video pauses during countdown - cancel skip
+    const onPause = () => {
+      clearInterval(_countdownTimer);
+      if (toast.isConnected) toast.remove();
+      onDone();
+    };
+    video.addEventListener('pause', onPause, { once: true });
+  }
+
+  // ── "Still watching?" auto-dismiss ──────────────────────────────────────────
+  // Clicks platform "Continue Watching" / "Are you still watching?" overlays.
+  // Uses generic text matching - works on any site without platform-specific code.
+
+  const STILL_WATCHING_RE = /continue watching|still watching|are you there|are you still/i;
+  const STILL_WATCHING_BTN_RE = /continue|yes|i.?m here|keep watching|play|resume/i;
+
+  function tryDismissStillWatching() {
+    // Look for an overlay/dialog containing the phrase
+    const allEls = document.querySelectorAll(
+      '[role="dialog"], [role="alertdialog"], .overlay, [class*="overlay"], [class*="modal"], [class*="dialog"], [class*="inactivity"], [class*="inactive"], [class*="idle"]'
+    );
+    for (const el of allEls) {
+      if (!STILL_WATCHING_RE.test(el.textContent)) continue;
+      // Found the overlay - click the continue button
+      const btns = el.querySelectorAll('button, [role="button"], a');
+      for (const btn of btns) {
+        if (STILL_WATCHING_BTN_RE.test(btn.textContent)) {
+          btn.click();
+          return true;
+        }
+      }
+      // Fallback: click first button in the overlay
+      const firstBtn = el.querySelector('button, [role="button"]');
+      if (firstBtn) { firstBtn.click(); return true; }
+    }
+    return false;
+  }
+
+  // Poll every 3s - only when a video is playing
+  setInterval(() => {
+    const vid = document.querySelector('video');
+    if (vid && !vid.paused) tryDismissStillWatching();
+  }, 3000);
+
   // ── Skip button ────────────────────────────────────────────────────────────
 
   const SKIP_BTN_ID     = 'skipstream-skip-btn';
@@ -705,6 +832,12 @@
     attachedVideos.add(video);
     await restorePlayback(video);
 
+    // Restore saved playback speed
+    br.storage.local.get('playbackSpeed').then(s => {
+      const r = s.playbackSpeed;
+      if (r && r !== 1 && video.isConnected) video.playbackRate = parseFloat(r);
+    }).catch(() => {});
+
     const saveTimer = { id: null };
 
     // Throttled timeupdate - fires at most once every 2.5s while playing
@@ -721,6 +854,13 @@
     const flushHandler = () => flushPlaybackSync(video);
     window.addEventListener('pagehide',     flushHandler);
     window.addEventListener('beforeunload', flushHandler);
+
+    // Track session count for stats
+    br.storage.local.get('skipstream_stats').then(s => {
+      const st = s.skipstream_stats || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0 };
+      st.sessionsTotal++;
+      br.storage.local.set({ skipstream_stats: st });
+    }).catch(() => {});
 
     // ── Segment resolution ──
     let segments = null;
@@ -763,10 +903,11 @@
         if (active.key !== activeSegmentKey) {
           activeSegmentKey = active.key;
           if (prefs[prefKey]) {
-            // pref ON = auto-skip silently
-            video.currentTime = active.segment.end_sec;
-            activeSegmentKey = '';
-            hideSkipBtn();
+            // pref ON = auto-skip with 3s countdown + undo
+            showSkipCountdown(active.key, active.segment, video, () => {
+              activeSegmentKey = '';
+              hideSkipBtn();
+            });
           } else {
             // pref OFF = show manual skip button so user can choose
             showSkipBtn(SEGMENT_LABELS[active.key], () => {
@@ -820,6 +961,13 @@
   // ── Popup message handlers ─────────────────────────────────────────────────
 
   br.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg.type === 'SET_PLAYBACK_RATE') {
+      document.querySelectorAll('video').forEach(v => {
+        if (!v.paused || v.currentTime > 0) v.playbackRate = msg.rate;
+      });
+      sendResponse({ ok: true });
+      return true;
+    }
     if (msg.type === 'GET_VIDEO_TIME') {
       let time = null;
       for (const v of document.querySelectorAll('video')) {
