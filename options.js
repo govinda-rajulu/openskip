@@ -212,9 +212,84 @@ if (importBtn && importFile) {
   });
 }
 
+// ── Per-site skip rules ───────────────────────────────────────────────────────
+const SITE_RULES_KEY = 'skipstream_site_rules';
+
+const MODE_LABELS = {
+  off: 'Off', prompt: 'Prompt',
+  'auto-intro': 'Auto Intro', 'auto-recap': 'Auto Recap',
+  'auto-outro': 'Auto Outro', 'auto-all': 'Auto All',
+};
+
+async function loadSiteRules() {
+  const stored = await br.storage.local.get(SITE_RULES_KEY);
+  return stored[SITE_RULES_KEY] || {};
+}
+
+async function saveSiteRules(rules) {
+  await br.storage.local.set({ [SITE_RULES_KEY]: rules });
+}
+
+function renderSiteRules(rules) {
+  const list = document.getElementById('siteRulesList');
+  if (!list) return;
+  list.replaceChildren();
+  const entries = Object.entries(rules);
+  if (entries.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'font-size:12px;color:var(--text-muted);padding:6px 0';
+    empty.textContent = 'No rules yet. Global settings apply everywhere.';
+    list.appendChild(empty);
+    return;
+  }
+  for (const [domain, mode] of entries) {
+    const row = document.createElement('div');
+    row.className = 'site-rule-row';
+    const dom = document.createElement('span'); dom.className = 'site-rule-domain'; dom.textContent = domain;
+    const mod = document.createElement('span'); mod.className = 'site-rule-mode'; mod.textContent = MODE_LABELS[mode] || mode;
+    const del = document.createElement('button'); del.className = 'site-rule-del'; del.textContent = '×';
+    del.title = 'Remove rule';
+    del.addEventListener('click', async () => {
+      const r = await loadSiteRules();
+      delete r[domain];
+      await saveSiteRules(r);
+      renderSiteRules(r);
+    });
+    row.append(dom, mod, del);
+    list.appendChild(row);
+  }
+}
+
+async function initSiteRules() {
+  const rules = await loadSiteRules();
+  renderSiteRules(rules);
+
+  const addBtn    = document.getElementById('siteRuleAddBtn');
+  const domainEl  = document.getElementById('siteRuleDomain');
+  const modeEl    = document.getElementById('siteRuleMode');
+
+  if (!addBtn || !domainEl || !modeEl) return;
+
+  addBtn.addEventListener('click', async () => {
+    let domain = domainEl.value.trim().toLowerCase()
+      .replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+    if (!domain) return;
+    const rules = await loadSiteRules();
+    rules[domain] = modeEl.value;
+    await saveSiteRules(rules);
+    renderSiteRules(rules);
+    domainEl.value = '';
+  });
+
+  domainEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') addBtn.click();
+  });
+}
+
 async function init() {
   await load();
   await runCheck();
+  await initSiteRules();
 }
 
 init();
