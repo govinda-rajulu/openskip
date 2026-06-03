@@ -873,12 +873,10 @@ if (vBadge) vBadge.textContent = `v${br.runtime.getManifest().version}`;
   const btn  = document.getElementById('themeToggle');
   const icon = document.getElementById('themeIcon');
 
-  const MOON_PATH = '<path d="M12.5 9.5a5 5 0 01-6-6 5.5 5.5 0 106 6z" fill="currentColor" stroke="none"/>';
-  const SUN_LINES = '<circle cx="8" cy="8" r="3.5"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/>';
-
+  // Use data-theme on the SVG itself to swap sun/moon via CSS - no innerHTML needed
   function applyTheme(theme) {
     html.setAttribute('data-theme', theme);
-    if (icon) icon.innerHTML = theme === 'dark' ? SUN_LINES : MOON_PATH;
+    if (icon) icon.setAttribute('data-mode', theme);
     if (btn)  btn.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
   }
 
