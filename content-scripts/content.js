@@ -21,7 +21,7 @@
 
   // ── User prefs ─────────────────────────────────────────────────────────────
 
-  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipMaster: true };
+  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipMaster: true, autoNextEpisode: false };
   let prefs = { ...PREF_DEFAULTS };
 
   async function loadPrefs() {
@@ -703,6 +703,115 @@
     if (vid && !vid.paused) tryDismissStillWatching();
   }, 3000);
 
+  // ── Native platform button clicking ─────────────────────────────────────────
+  // Clicks the platform's own "Skip Intro", "Skip Recap", "Next Episode" buttons.
+  // Selector list based on public documentation and widely-used open-source extensions.
+  // Works independently of IntroDB - no API key required.
+
+  const SKIP_SELECTORS = [
+    // Netflix
+    'button[data-uia="player-skip-intro"]',
+    'button[data-uia="player-skip-recap"]',
+    'button[data-uia="player-skip-credits"]',
+    '.skip-intro button',
+    // Prime Video
+    '.skipeIntro',
+    '.atvwebplayersdk-skip-intro-button',
+    '[class*="SkipButton"] button',
+    // Disney+
+    '[class*="SkipButton"]',
+    // Hulu
+    '.SkipButton',
+    // Max / HBO Max
+    '[class*="skip-intro"]',
+    '[data-testid*="skip-intro"]',
+    // Crunchyroll
+    '.skip-button:not([disabled])',
+    '[data-testid="skipButton"]',
+    // Peacock
+    '.progress-bar__skip-button',
+    // Paramount+
+    '[class*="skip-intro-button"]',
+    // Apple TV+
+    '[class*="skip-button"]',
+    // Tubi
+    'button.skip-intro-button',
+    // Generic fallback - buttons labelled "Skip Intro" or "Skip Recap"
+  ];
+
+  const NEXT_EP_SELECTORS = [
+    // Netflix
+    'button[data-uia="next-episode-seamless-button"]',
+    '.watch-video--next-episode-button',
+    // Prime Video
+    '.nextButton',
+    '.atvwebplayersdk-nextupcard-accept',
+    '[class*="nextEpisode"] button',
+    // Disney+
+    '[class*="NextEpisode"]',
+    // Max
+    '[data-testid="next-episode-button"]',
+    // Hulu
+    '.PlayerNextButton',
+    // Crunchyroll
+    '[class*="nextEpisode"]',
+    '.player-bar__next-episode',
+    // Peacock
+    '[data-testid="next-episode"]',
+    // Paramount+
+    '.PlaybackControls--next',
+    // Generic
+    '[aria-label*="Next Episode" i]',
+    '[title*="Next Episode" i]',
+  ];
+
+  let _nativeBtnInterval = null;
+  let _nextEpTriggered   = false;
+
+  function clickFirst(selectors) {
+    for (const sel of selectors) {
+      try {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null && !el.disabled) {
+          el.click();
+          return true;
+        }
+      } catch { /* invalid selector - skip */ }
+    }
+    return false;
+  }
+
+  function startNativeBtnPoller(video) {
+    if (_nativeBtnInterval) return;
+    _nativeBtnInterval = setInterval(() => {
+      if (!video.isConnected) {
+        clearInterval(_nativeBtnInterval);
+        _nativeBtnInterval = null;
+        return;
+      }
+      if (video.paused) return;
+
+      // Only click native skip buttons if skipMaster is on
+      if (prefs.skipMaster) {
+        clickFirst(SKIP_SELECTORS);
+      }
+
+      // Next episode: fire when within 10s of end and skipMaster is on
+      if (prefs.skipMaster && prefs.autoNextEpisode &&
+          video.duration > 60 &&
+          video.currentTime > 0 &&
+          video.duration - video.currentTime < 10 &&
+          !_nextEpTriggered) {
+        if (clickFirst(NEXT_EP_SELECTORS)) {
+          _nextEpTriggered = true;
+          setTimeout(() => { _nextEpTriggered = false; }, 30000);
+        }
+      }
+    }, 800);
+  }
+
+
+
   // ── Skip button ────────────────────────────────────────────────────────────
 
   const SKIP_BTN_ID     = 'skipstream-skip-btn';
@@ -887,6 +996,9 @@
     if (video.readyState >= 1) resolveSegments();
     [2000, 5000, 10000, 20000].forEach(ms => setTimeout(() => { if (!resolved) resolveSegments(); }, ms));
 
+    // Start native platform button poller (skip intro buttons, next episode)
+    startNativeBtnPoller(video);
+
     // ── Skip polling ──
     const pollInterval = setInterval(() => {
       if (!video.isConnected) { clearInterval(pollInterval); return; }
@@ -940,8 +1052,10 @@
     if (location.href === lastHref) return;
     lastHref = location.href;
     hideSkipBtn();
-    _userIdFetched = false;
-    _userIdCache   = null;
+    _userIdFetched    = false;
+    _userIdCache      = null;
+    _nextEpTriggered  = false;
+    if (_nativeBtnInterval) { clearInterval(_nativeBtnInterval); _nativeBtnInterval = null; }
     segmentCache.clear();
     loadPrefs();
     setTimeout(scanVideos, 1500);
