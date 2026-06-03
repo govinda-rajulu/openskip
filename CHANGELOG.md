@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.0] - 2026-06-03
+
+### Added
+- **Skip countdown toast**: auto-skip now shows a 3-second countdown with Undo button instead of jumping instantly; cancels if video pauses
+- **Playback speed control**: 1x / 1.25x / 1.5x / 2x selector in Settings panel; persists across pages and syncs to active video immediately
+- **Watch stats panel**: new Stats tab showing in-progress titles, total watch time tracked, total segments skipped, time saved, and session count
+- **"Still watching" auto-dismiss**: generic text-match observer clicks platform continue/resume overlays automatically on any site
+- **Import / Export settings**: backup and restore all credentials and preferences as a JSON file from the Settings page
+- **Offline upsert queue**: failed cloud saves are queued in local storage and replayed automatically when network reconnects
+- **Skip mode dropdown wired**: `skipModeSelect` in popup now correctly writes to storage and content script respects it immediately
+
+### Fixed
+- **Skip mode selector was non-functional**: popup.html had been redesigned to a single dropdown but popup.js was still wiring non-existent individual toggle elements
+
 ## [1.5.9] - 2026-06-03
 
 ### Fixed
