@@ -1,4 +1,4 @@
-/* SkipStream - popup v1.5.9 */
+/* SkipStream - popup v1.6.0 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
@@ -22,6 +22,26 @@ async function loadPrefs() {
     }
     return prefs;
   } catch { return { ...DEFAULTS }; }
+}
+
+function prefsToMode(prefs) {
+  if (!prefs.skipMaster) return 'off';
+  if (prefs.skipIntro && prefs.skipRecap && prefs.skipOutro) return 'auto-all';
+  if (prefs.skipIntro  && !prefs.skipRecap && !prefs.skipOutro) return 'auto-intro';
+  if (!prefs.skipIntro && prefs.skipRecap  && !prefs.skipOutro) return 'auto-recap';
+  if (!prefs.skipIntro && !prefs.skipRecap && prefs.skipOutro)  return 'auto-outro';
+  if (!prefs.skipIntro && !prefs.skipRecap && !prefs.skipOutro) return 'prompt';
+  return 'prompt'; // mixed state - default to prompt
+}
+
+function modeToPrefs(mode) {
+  const base = { skipMaster: true, skipIntro: false, skipRecap: false, skipOutro: false };
+  if (mode === 'off')        return { ...base, skipMaster: false };
+  if (mode === 'auto-intro') return { ...base, skipIntro: true };
+  if (mode === 'auto-recap') return { ...base, skipRecap: true };
+  if (mode === 'auto-outro') return { ...base, skipOutro: true };
+  if (mode === 'auto-all')   return { ...base, skipIntro: true, skipRecap: true, skipOutro: true };
+  return base; // prompt - master on, all auto off = show button
 }
 
 // ── Formatting ────────────────────────────────────────────────────────────────
@@ -99,6 +119,7 @@ document.querySelectorAll('.tab').forEach(btn => {
     btn.classList.add('active');
     const panel = document.getElementById(btn.dataset.tab);
     if (panel) panel.classList.add('active');
+    if (btn.dataset.tab === 'stats') renderStats();
   });
 });
 
@@ -660,43 +681,18 @@ async function init() {
   // before we write any values into the DOM.
   const prefs = await loadPrefs();
 
-  // Master skip toggle
-  const masterEl = document.getElementById('skipMaster');
-  if (masterEl) {
-    masterEl.checked = prefs.skipMaster;
-    setSkipBodyOpen(prefs.skipMaster);
-
-    masterEl.addEventListener('change', () => {
-      const live = {
-        ...prefs,
-        skipMaster: masterEl.checked,
-        skipIntro:  document.getElementById('skipIntro')?.checked ?? prefs.skipIntro,
-        skipRecap:  document.getElementById('skipRecap')?.checked ?? prefs.skipRecap,
-        skipOutro:  document.getElementById('skipOutro')?.checked ?? prefs.skipOutro,
-      };
-      br.storage.local.set({ skipMaster: masterEl.checked });
-      setSkipBodyOpen(masterEl.checked);
-      updateSkipBadge(live);
+  // ── Skip mode selector (single dropdown replaces legacy individual toggles) ──
+  const modeEl = document.getElementById('skipModeSelect');
+  if (modeEl) {
+    modeEl.value = prefsToMode(prefs);
+    modeEl.addEventListener('change', () => {
+      const newPrefs = modeToPrefs(modeEl.value);
+      br.storage.local.set(newPrefs);
+      updateSkipBadge({ ...prefs, ...newPrefs });
     });
   }
 
-  // Child toggles - set from prefs before attaching listeners
-  for (const key of CHILD_KEYS) {
-    const el = document.getElementById(key);
-    if (!el) continue;
-    el.checked = prefs[key];
-    el.addEventListener('change', () => {
-      const live = {
-        ...prefs,
-        skipMaster: masterEl?.checked ?? prefs.skipMaster,
-        [key]: el.checked,
-      };
-      br.storage.local.set({ [key]: el.checked });
-      updateSkipBadge(live);
-    });
-  }
-
-  // Render badge from the fully-resolved prefs (not DOM state) - fixes race condition
+  // Render badge from fully-resolved prefs
   updateSkipBadge(prefs);
 
   // Resume toggle
@@ -785,5 +781,82 @@ async function init() {
     setSyncStatus('', `Local: ${localCount} item${localCount !== 1 ? 's' : ''} · Supabase not connected`);
   }
 }
+
+// ── Playback speed ─────────────────────────────────────────────────────────────
+
+const SPEED_LABEL = { '1': '1x - Normal', '1.25': '1.25x - Faster', '1.5': '1.5x - Fast', '2': '2x - Double' };
+
+async function initSpeedControl() {
+  const stored = await br.storage.local.get('playbackSpeed');
+  const rate = stored.playbackSpeed || 1;
+  setSpeedUI(rate);
+
+  document.querySelectorAll('.speed-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = parseFloat(btn.dataset.rate);
+      br.storage.local.set({ playbackSpeed: r });
+      setSpeedUI(r);
+      // Apply to any active video on current tab
+      br.tabs.query({ active: true, currentWindow: true }, tabs => {
+        if (!tabs[0]) return;
+        br.tabs.sendMessage(tabs[0].id, { type: 'SET_PLAYBACK_RATE', rate: r }).catch(() => {});
+      });
+    });
+  });
+}
+
+function setSpeedUI(rate) {
+  const key = String(rate);
+  document.querySelectorAll('.speed-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.rate === key);
+  });
+  const lbl = document.getElementById('speedLabel');
+  if (lbl) lbl.textContent = SPEED_LABEL[key] || `${rate}x`;
+}
+
+// ── Watch Stats ────────────────────────────────────────────────────────────────
+
+function renderStats() {
+  const grid    = document.getElementById('statsGrid');
+  const allGrid = document.getElementById('statsAllGrid');
+  if (!grid || !allGrid) return;
+
+  br.storage.local.get(['skipstream_cache', 'skipstream_stats']).then(stored => {
+    const cache = stored.skipstream_cache || {};
+    const stats = stored.skipstream_stats || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0 };
+
+    // Compute from cache: total items, total watch time
+    const entries  = Object.values(cache);
+    const inProgress = entries.filter(e => e.p > 10 && e.d && (e.p / e.d) < 0.95);
+    const watchSec = entries.reduce((s, e) => s + (e.p || 0), 0);
+
+    const mkCard = (val, lbl) => {
+      const c = document.createElement('div'); c.className = 'stat-card';
+      const v = document.createElement('div'); v.className = 'stat-val'; v.textContent = val;
+      const l = document.createElement('div'); l.className = 'stat-lbl'; l.textContent = lbl;
+      c.appendChild(v); c.appendChild(l); return c;
+    };
+
+    const fmtHr = s => s >= 3600 ? `${(s/3600).toFixed(1)}h` : `${Math.round(s/60)}m`;
+
+    grid.replaceChildren(
+      mkCard(inProgress.length,    'In Progress'),
+      mkCard(fmtHr(watchSec),      'Watch Time Tracked'),
+    );
+    allGrid.replaceChildren(
+      mkCard(entries.length,       'Total Titles'),
+      mkCard(stats.skipsTotal,     'Segments Skipped'),
+      mkCard(fmtHr(stats.timeSavedSec), 'Time Saved'),
+      mkCard(stats.sessionsTotal,  'Sessions'),
+    );
+  }).catch(() => {});
+}
+
+// ── Version badge ──────────────────────────────────────────────────────────────
+
+const vBadge = document.getElementById('versionBadge');
+if (vBadge) vBadge.textContent = `v${br.runtime.getManifest().version}`;
+
+initSpeedControl();
 
 init();
