@@ -88,8 +88,40 @@ async function supabaseUpsert(body, { keepalive = false } = {}) {
       }
     );
     return res.ok ? { ok: true } : { ok: false, err: `HTTP ${res.status}` };
-  } catch (e) { return { ok: false, err: String(e) }; }
+  } catch (e) {
+    // Network failure - queue for retry when back online
+    const QUEUE_KEY = 'skipstream_offline_queue';
+    try {
+      const stored = await br.storage.local.get(QUEUE_KEY);
+      const queue = stored[QUEUE_KEY] || [];
+      // Deduplicate: replace existing entry for same user+media
+      const idx = queue.findIndex(q => q.user_id === body.user_id && q.media_id === body.media_id);
+      if (idx >= 0) queue[idx] = body; else queue.push(body);
+      if (queue.length > 50) queue.splice(0, queue.length - 50); // cap at 50
+      await br.storage.local.set({ [QUEUE_KEY]: queue });
+    } catch { /* storage unavailable */ }
+    return { ok: false, err: String(e) };
+  }
 }
+
+// ── Offline queue flush on reconnect ──────────────────────────────────────────
+
+async function flushOfflineQueue() {
+  const QUEUE_KEY = 'skipstream_offline_queue';
+  try {
+    const stored = await br.storage.local.get(QUEUE_KEY);
+    const queue = stored[QUEUE_KEY];
+    if (!queue || queue.length === 0) return;
+    const remaining = [];
+    for (const body of queue) {
+      const result = await supabaseUpsert(body);
+      if (!result.ok && result.err !== 'not_configured') remaining.push(body);
+    }
+    await br.storage.local.set({ [QUEUE_KEY]: remaining });
+  } catch { /* best-effort */ }
+}
+
+self.addEventListener('online', flushOfflineQueue);
 
 // ── Tab-close flush ───────────────────────────────────────────────────────────
 // When a tab is removed, fire a final upsert for its last-known playback state.
