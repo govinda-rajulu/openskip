@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.6.1] - 2026-06-04
+
+### Added
+- **Native platform skip buttons**: clicks the platform's own "Skip Intro/Recap/Credits" button when present (Netflix, Prime, Disney+, Hulu, Max, Crunchyroll, Peacock, Paramount+, Apple TV+, Tubi) - works without IntroDB API key
+- **Auto Next Episode**: optional toggle to automatically advance to the next episode when within 10s of end; off by default
+
+### Fixed
+- `autoNextEpisode` pref added to `PREF_DEFAULTS`, `ALL_TOGGLES`, and popup init wiring
+- `startNativeBtnPoller` now correctly called inside `attachVideo`
+- `onNavigation` now resets `_nextEpTriggered` and clears native button poller on SPA navigation
+
 ## [1.6.0] - 2026-06-03
 
 ### Added
