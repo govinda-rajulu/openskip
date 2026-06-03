@@ -1,4 +1,4 @@
-/* SkipStream - popup v1.6.1 */
+/* SkipStream - popup v1.6.2 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
@@ -865,6 +865,38 @@ function renderStats() {
 
 const vBadge = document.getElementById('versionBadge');
 if (vBadge) vBadge.textContent = `v${br.runtime.getManifest().version}`;
+
+// ── Theme toggle ──────────────────────────────────────────────────────────────
+(function initTheme() {
+  const THEME_KEY = 'skipstream_theme';
+  const html = document.documentElement;
+  const btn  = document.getElementById('themeToggle');
+  const icon = document.getElementById('themeIcon');
+
+  const MOON_PATH = '<path d="M12.5 9.5a5 5 0 01-6-6 5.5 5.5 0 106 6z" fill="currentColor" stroke="none"/>';
+  const SUN_LINES = '<circle cx="8" cy="8" r="3.5"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/>';
+
+  function applyTheme(theme) {
+    html.setAttribute('data-theme', theme);
+    if (icon) icon.innerHTML = theme === 'dark' ? SUN_LINES : MOON_PATH;
+    if (btn)  btn.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  }
+
+  br.storage.local.get(THEME_KEY).then(s => {
+    const saved = s[THEME_KEY];
+    const sys   = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    applyTheme(saved || sys);
+  }).catch(() => applyTheme('dark'));
+
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const current = html.getAttribute('data-theme');
+      const next    = current === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      br.storage.local.set({ [THEME_KEY]: next });
+    });
+  }
+})();
 
 initSpeedControl();
 
