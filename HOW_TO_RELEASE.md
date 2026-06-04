@@ -18,7 +18,8 @@ Edit `manifest.json` - change `"version"` to your new version
 Edit `manifest-chrome.json` - **must match `manifest.json` exactly** (CI fails if mismatched)  
 Edit `CHANGELOG.md` - add a new `## [X.Y.Z]` section at the top  
 Edit `popup.js` - update the version header comment on line 1  
-Commit all four files
+Edit `README.md` - update the version badge near the top  
+Commit all five files
 
 ---
 
