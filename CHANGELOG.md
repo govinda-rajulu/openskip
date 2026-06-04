@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.4] - 2026-06-04
+
+### Added
+- **Force sync button**: Sync button in history panel pushes all local positions to cloud then refreshes; shows item count and timestamp
+- **Last sync time**: status bar shows when data was last synced to cloud
+
+### Fixed
+- **Skip button missing on mid-segment seek**: `findActiveSegment` now has +1s end grace; `seeked` event resets `activeSegmentKey` so seeking into an active segment always shows the button
+- **Cloud save confirmation**: successful saves now write `skipstream_last_sync` timestamp to local storage
+
+### Changed
+- **README**: rewritten to be concise - what it does, setup, file structure only
+- **Options page description**: shortened to one clear sentence
+
 ## [1.6.3] - 2026-06-04
 
 ### Fixed
