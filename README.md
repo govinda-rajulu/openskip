@@ -1,152 +1,90 @@
 # SkipStream
 
-**Automatically skip intros, recaps, and outros - and resume playback across all your devices.**
+**Skip intros, recaps, and outros. Resume where you left off on any device.**
 
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-Active-blue?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.6.3-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.6.3)
-
-A cross-browser extension (Firefox MV2 & Chrome MV3 architecture) that detects skip segments on any streaming site and syncs your playback position to the cloud via your own Supabase project.
+[![Version](https://img.shields.io/badge/version-1.6.4-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.6.4)
 
 ---
 
 ## Install
 
-**From Firefox Add-ons:**
-👉 [addons.mozilla.org/en-US/firefox/addon/skipstream](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
+**Firefox:** [addons.mozilla.org/en-US/firefox/addon/skipstream](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 
-**Manual install (available now):**
-1. [Download the latest release ZIP](../../releases/latest)
-2. Open your browser extension management terminal:
-   - **Firefox:** Navigate to `about:debugging` → **This Firefox** → **Load Temporary Add-on** and select `manifest.json`.
-   - **Chrome/Edge:** Navigate to `chrome://extensions` → enable **Developer mode** → click **Load unpacked** and select the extension folder.
+**Chrome/Edge (manual):**
+1. [Download the latest ZIP](../../releases/latest)
+2. Go to `chrome://extensions` - enable Developer mode - Load unpacked
 
 ---
 
-## Features
+## What it does
 
-- **Skip intros, recaps & outros** - powered by [IntroDB](https://introdb.app) and [AnimeSkip](https://anime-skip.com)
-- **Master skip toggle** - one switch with per-type child toggles (Intro / Recap / Outro); toggle ON = auto-skip silently, toggle OFF = show an interactive skip button prompt overlay
-- **Add Segment** - record a missing segment start/stop while watching and submit it to IntroDB and AnimeSkip in one click
-- **Resume playback** - picks up where you left off, securely synced across all your devices with robust tab-close persistence
-- **Cloud history** - History panel shows both local cache and Supabase cloud entries merged seamlessly, with a built-in source filter switcher (Local / Cloud / Both)
-- **Rich Metadata tracking** - captures human-readable Site Names and Video Titles in your logs for intuitive history reference
-- **Works everywhere** - any site running a standard HTML5 `<video>` element
-- **SPA-aware** - handles Netflix/Hulu-style single-page navigation dynamically without performance-draining polling loops
-- **Private by design** - credentials never leave your device; your sync identity is a deterministic, secure SHA-256 hash of your own Supabase credentials
-- **Reliable** - exponential backoff retry on all external API requests
-- **Lightweight** - no bloated frameworks, zero external build steps, running pure, high-performance vanilla JavaScript
+- **Skips** intros, recaps, and outros automatically (powered by [IntroDB](https://introdb.app))
+- **Resumes** playback where you left off, on any device
+- **Syncs** watch history to your own Supabase project - you own the data
+- **Native button clicking** - also clicks the platform's own Skip Intro button on Netflix, Prime, Disney+, and others
+- **Auto next episode** - advances to the next episode when near the end (optional)
+- **Speed control** - 1x / 1.25x / 1.5x / 2x, persists across pages
+- **Per-site rules** - override skip mode for specific domains
+- **Works on any site** with a standard HTML5 video element
 
 ---
 
 ## Setup
 
-Open the popup and click the **gear icon (⚙)** in the top-right corner to open Settings.
+Click the **gear icon** in the popup to open Settings.
 
-### Required - IntroDB (skip segments)
+### Skip segments (IntroDB)
+Get a free key at [introdb.app](https://introdb.app). Without it, the extension works as a resume-only tool.
 
-Get a free API key at **[introdb.app](https://introdb.app)**. Without this configuration, the extension operates purely as a cross-device resume-playback tool.
-
-### Optional - Supabase (cloud sync & history)
-
-1. Create a free database project at **[supabase.com](https://supabase.com)**
-2. Copy your **Project URL** and **anon/public key** from:
-   `Project Settings → API → Project URL & Project API Keys`
-3. Paste both tokens into SkipStream Settings → **Save & Verify**
-4. Run the database migration script **`supabase_setup.sql`** once inside your dashboard:
-   - Supabase project → **SQL Editor** → paste the setup script → **Run**
-   - Click **Save & Verify** inside the extension again - the configuration warning will clear instantly
-
-Once configured, your watch log history syncs instantly to the cloud and is fully accessible via the **History** tab using the view filters.
-
-### Optional - TMDB (improves show detection)
-
-Get a free developer key at **[themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)**. Used to convert localized TMDB IDs (frequently found in Plex metadata parameters) into universal IMDb IDs for precise segment lookup.
-
-### Optional - AnimeSkip (anime intros & outros)
-
-1. Create an API client profile at **[anime-skip.com/account/api-clients](https://anime-skip.com/account/api-clients)**
-2. Enable the **AnimeSkip** engine inside Settings and paste your personal **Client ID**
-3. Optionally add an **Auth Token** if you want the native Add Segment tool to submit your discovered timestamps directly to the AnimeSkip public ecosystem
+### Cloud sync (Supabase)
+Create a free project at [supabase.com](https://supabase.com), run the SQL from `supabase_setup.sql` in your project's SQL editor, then paste your Project URL and anon key into Settings.
 
 ---
 
-## Site Compatibility
+## Privacy
 
-| Site | Video | Show ID | Skip Segments | Resume | Notes |
-|------|:-----:|:-------:|:-------------:|:------:|-------|
-| Plex (app.plex.tv) | ✅ | ✅ | ✅ | ✅ | TMDB IDs in URL |
-| Jellyfin | ✅ | ✅ | ✅ | ✅ | IMDb IDs in metadata |
-| Emby | ✅ | ✅ | ✅ | ✅ | Same as Jellyfin |
-| Crunchyroll | ✅ | ✅ | ✅ | ✅ | Anime via AnimeSkip |
-| YouTube | ✅ | ✅ | ⚠ | ✅ | IntroDB coverage limited; `?t=` deep-link |
-| Netflix | ⚠ | ⚠ | ⚠ | ⚠ | DRM player; detection inconsistent |
-| Amazon Prime | ⚠ | ⚠ | ⚠ | ⚠ | Obfuscated player structure |
-| Hulu | ⚠ | ⚠ | ⚠ | ⚠ | SPA navigation works; segment data limited |
-| HBO Max / Max | ⚠ | ⚠ | ⚠ | ⚠ | Player detection works; IDs vary |
-| Disney+ | ⚠ | ❌ | ❌ | ⚠ | Heavy DRM layer; no IMDb IDs exposed |
-| Apple TV+ | ❌ | ❌ | ❌ | ❌ | Proprietary player; no accessible metadata |
-| Peacock | ⚠ | ⚠ | ⚠ | ⚠ | Player detection works; segment data limited |
-| Paramount+ | ⚠ | ⚠ | ⚠ | ⚠ | Player detection works; segment data limited |
-| Tubi | ✅ | ⚠ | ⚠ | ✅ | Resume works well; skip segments limited |
-| Vimeo | ✅ | ✅ | ⚠ | ✅ | Video ID from URL; IntroDB coverage limited |
-
-**Legend:** ✅ Works · ⚠ Partial / inconsistent · ❌ Not supported
-
-> Best results on self-hosted platforms (Plex, Jellyfin, Emby) and Crunchyroll. DRM-heavy commercial platforms have limited support due to obfuscated players. Contributions welcome - see [CONTRIBUTING.md](CONTRIBUTING.md).
-
----
-
-## How it works
-
-1. **Video detection** - Content script scans every page context for standard HTML5 `<video>` elements; only attaches hooks to primary active media players (validated via viewport dimensions and standard aspect ratios).
-2. **Show identification** - Parses true IMDb/TMDB identification parameters directly from page navigation patterns, JSON-LD structure metadata configurations, or local document state. For embedded video layers, the frame logic interrogates `document.referrer` combined with parent frame window location parameters to capture true parent identification details.
-3. **Segment fetch** - Background service worker queries IntroDB and AnimeSkip endpoints in parallel channels, resolving structural conflicts cleanly in favor of the primary IntroDB layer.
-4. **Skip logic** - Tracks state hooks on targeted video intervals. If a specific segment toggle state evaluates to **ON**, the media player skips past the bounds instantly and silently. If evaluated to **OFF**, the extension injects a clean interactive button overlay prompt allowing manual skips.
-5. **Playback synchronization** - Current player timestamps are throttled and synced locally. Upon active tab close or page navigation, `beforeunload` and `pagehide` events trigger an immediate unthrottled flush directly into both local storage and the Supabase cloud.
-6. **Cloud history assembly** - Popup components retrieve active log tables straight from your Supabase endpoint and merge rows with local configuration sets, applying an isolated cloud badge (☁) to elements originating from remote sync channels.
-7. **User identity derivation** - Generates a deterministic, anonymized hash of your database keys using a custom SHA-256 protocol. Your identities remain strictly private and device-independent without cross-site tracker fingerprints.
-8. **SPA navigation management** - Overrides and monitors `pushState`/`replaceState` routines along with standard browser navigation cycles to instantly swap configuration caches upon seamless single-page application tab transitions.
+- All credentials are stored locally in your browser
+- Your sync identity is a SHA-256 hash of your own Supabase key - no account required
+- No telemetry, no ads, no third-party tracking
 
 ---
 
 ## File Structure
 
 ```
-manifest.json              # Firefox MV2 manifest (authoritative version source)
-manifest-chrome.json       # Chrome MV3 manifest (must match manifest.json version)
-background.js              # Service worker - handles all external API calls, retry logic, user ID derivation
+manifest.json              - Firefox MV2 manifest (authoritative version source)
+manifest-chrome.json       - Chrome MV3 manifest (must match manifest.json version)
+background.js              - Service worker: API calls, retry logic, user ID derivation
 content-scripts/
-  content.js               # Injected into all frames - video detection, skip polling, resume prompt, playback sync
-popup.html / popup.js      # Extension toolbar popup - history, skip toggles, segment reporting
-options.html / options.js  # Settings page - credential input, connection verification
+  content.js               - Injected into all frames: video detection, skip polling, resume, sync
+popup.html / popup.js      - Extension popup: history, skip settings, segment reporting
+options.html / options.js  - Settings page: credentials, per-site rules, import/export
 scripts/
-  amo-update.js            # CI script - uploads signed ZIP to AMO via REST API
-icons/                     # icon-16.png, icon-32.png, icon-48.png, icon-128.png
-supabase_setup.sql         # One-time DB schema setup - run once in your Supabase SQL editor
-CHANGELOG.md               # Version history
-CONTRIBUTING.md            # Development guide
-TESTING.md                 # Manual and automated testing notes
-PRIVACY.md                 # Privacy policy
-AGENTS.md                  # AI agent reference - repo structure, constraints, message API
-HOW_TO_RELEASE.md          # Release checklist
-docs/                      # Additional documentation
-.github/workflows/         # CI/CD - validation, AMO publishing, CodeQL, stale issues
+  amo-update.js            - CI: uploads signed ZIP to AMO
+icons/                     - icon-16/32/48/128.png
+supabase_setup.sql         - One-time DB schema (run once in Supabase SQL editor)
+CHANGELOG.md               - Version history
+AGENTS.md                  - AI agent reference
+docs/                      - Additional documentation
+.github/workflows/         - CI/CD pipelines
 ```
 
+---
+
+## How it works
+
+1. Content script detects any `<video>` element on the page
+2. Identifies the show/episode from the URL, page metadata, or JSON-LD
+3. Fetches skip segment timestamps from IntroDB
+4. Polls every 500ms during playback - shows a countdown toast before auto-skipping
+5. Also clicks the platform's native Skip Intro button when present
+6. Saves playback position locally and syncs to your Supabase project every few seconds
+7. On next load, restores your position from local cache or cloud
 
 ---
 
-## Browser Support
+## Contributing
 
-| Browser | Status |
-|---------|--------|
-| Firefox Desktop 140+ | ✅ Fully supported |
-| Firefox Android 142+ | ✅ Supported |
-| Chrome / Edge | ⚠ Manifest provided; compatible with Chromium MV3 environments |
-
----
-
-## Privacy
-
-All active configuration profiles and security credentials are stored locally inside `browser.storage.local` directly on your physical hardware. Absolute zero data payloads are passed back to the extension developer. Your structural database synchronization coordinates run directly into your private Supabase architecture. Review [PRIVACY.md](PRIVACY.md) for thorough technical reviews.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [HOW_TO_RELEASE.md](HOW_TO_RELEASE.md).
