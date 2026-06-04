@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.3] - 2026-06-04
+
+### Fixed
+- **updateSkipBadge crash**: was calling `getElementById('skipMaster')` which no longer exists in popup.html (removed when redesigned to `skipModeSelect` dropdown); badge now reads from passed `prefs` object directly
+- **Per-site rules ignored in skip poll**: poll was checking `prefs[prefKey]` for auto-skip decision instead of `effectivePrefs[prefKey]`; per-site overrides now fully applied to both the master gate and the per-segment auto-skip decision
+- **Native platform poller ignored per-site rules**: `startNativeBtnPoller` read `prefs.skipMaster` directly; now calls `getSitePrefs(prefs)` so domain overrides disable native button clicking correctly
+- **autoNextEpisode missing from import/export**: `EXPORT_KEYS` in `options.js` was missing `autoNextEpisode`; the pref was lost on settings export/import
+- **device_name missing from history fetch**: `SUPABASE_GET_ALL` select did not include `device_name`; popup history now shows which device saved each position
+
 ## [1.6.2] - 2026-06-04
 
 ### Added
