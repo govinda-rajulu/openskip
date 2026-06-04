@@ -249,7 +249,9 @@
             updated_at:  new Date().toISOString(),
           },
         });
-        if (!res.ok && res.err !== 'not_configured') {
+        if (res.ok) {
+          br.storage.local.set({ skipstream_last_sync: Date.now() }).catch(() => {});
+        } else if (res.err !== 'not_configured') {
           console.warn('[SkipStream] Cloud save failed:', res.err);
         }
       } catch { /* background not ready */ }
@@ -602,7 +604,8 @@
   function findActiveSegment(segments, currentTime) {
     for (const key of ['intro', 'recap', 'outro']) {
       const seg = segments[key];
-      if (seg && currentTime >= seg.start_sec - 2 && currentTime < seg.end_sec) {
+      // -2s grace before start; +1s grace after end to catch near-end seeks
+      if (seg && currentTime >= seg.start_sec - 2 && currentTime < seg.end_sec + 1) {
         return { key, segment: seg };
       }
     }
@@ -1003,7 +1006,17 @@
 
     // Event-based saves for pause / seek / unload
     video.addEventListener('pause',  () => { savePlayback(video, saveTimer); });
-    video.addEventListener('seeked', () => { savePlayback(video, saveTimer); });
+    video.addEventListener('seeked', () => {
+      savePlayback(video, saveTimer);
+      // Reset so a seek INTO an active segment re-shows the skip button/countdown
+      if (segments) {
+        const nowActive = findActiveSegment(segments, video.currentTime);
+        if (!nowActive || nowActive.key !== activeSegmentKey) {
+          activeSegmentKey = '';
+          if (!nowActive) hideSkipBtn();
+        }
+      }
+    });
 
     // beforeunload: synchronous best-effort flush
     const flushHandler = () => flushPlaybackSync(video);
