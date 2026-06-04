@@ -167,7 +167,7 @@ document.getElementById('clearBtn').addEventListener('click', clearAll);
 
 // ── Import / Export ───────────────────────────────────────────────────────────
 
-const EXPORT_KEYS = [...CRED_KEYS, 'skipIntro', 'skipRecap', 'skipOutro', 'skipMaster', 'resumePlayback', 'playbackSpeed'];
+const EXPORT_KEYS = [...CRED_KEYS, 'skipIntro', 'skipRecap', 'skipOutro', 'skipMaster', 'resumePlayback', 'autoNextEpisode', 'playbackSpeed'];
 
 async function exportSettings() {
   const stored = await br.storage.local.get(EXPORT_KEYS);
