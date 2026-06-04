@@ -405,7 +405,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
       const url = `${supabaseUrl}/rest/v1/playback_states` +
         `?user_id=eq.${encodeURIComponent(msg.userId)}` +
-        `&select=media_id,playback_time,duration,site,site_name,video_title,updated_at` +
+        `&select=media_id,playback_time,duration,site,site_name,video_title,device_name,updated_at` +
         `&order=updated_at.desc&limit=200`;
       fetchWithRetry(url, { headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` } })
         .then(r => r.json())
