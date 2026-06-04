@@ -836,13 +836,14 @@
       }
       if (video.paused) return;
 
-      // Only click native skip buttons if skipMaster is on
-      if (prefs.skipMaster) {
+      // Respect per-site overrides for native skip buttons
+      const ep = getSitePrefs(prefs);
+      if (ep.skipMaster) {
         clickFirst(SKIP_SELECTORS);
       }
 
-      // Next episode: fire when within 10s of end and skipMaster is on
-      if (prefs.skipMaster && prefs.autoNextEpisode &&
+      // Next episode: fire when within 10s of end
+      if (ep.skipMaster && prefs.autoNextEpisode &&
           video.duration > 60 &&
           video.currentTime > 0 &&
           video.duration - video.currentTime < 10 &&
@@ -1061,7 +1062,7 @@
         }
         if (active.key !== activeSegmentKey) {
           activeSegmentKey = active.key;
-          if (prefs[prefKey]) {
+          if (effectivePrefs[prefKey]) {
             // pref ON = auto-skip with 3s countdown + undo
             showSkipCountdown(active.key, active.segment, video, () => {
               activeSegmentKey = '';
