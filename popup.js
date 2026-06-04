@@ -1,4 +1,4 @@
-/* SkipStream - popup v1.6.2 */
+/* SkipStream - popup v1.6.3 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
@@ -128,12 +128,11 @@ document.querySelectorAll('.tab').forEach(btn => {
 // Accepts the prefs object so badge is always computed from live storage values,
 // eliminating the "0/3" race condition on init.
 function updateSkipBadge(prefs) {
-  const masterEl = document.getElementById('skipMaster');
-  const badge    = document.getElementById('skipBadge');
-  const sub      = document.getElementById('skipSub');
-  if (!masterEl || !badge || !sub) return;
+  const badge = document.getElementById('skipBadge');
+  const sub   = document.getElementById('skipSub');
+  if (!badge || !sub) return;
 
-  const masterOn = prefs ? prefs.skipMaster : masterEl.checked;
+  const masterOn = prefs ? prefs.skipMaster : false;
 
   if (!masterOn) {
     badge.classList.add('hidden');
