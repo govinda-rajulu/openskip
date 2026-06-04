@@ -1,4 +1,4 @@
-/* SkipStream - popup v1.6.3 */
+/* SkipStream - popup v1.6.4 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
@@ -671,6 +671,71 @@ function setSyncStatus(dotClass, text) {
   if (span) span.textContent = text;
 }
 
+// ── Force sync ────────────────────────────────────────────────────────────────
+
+let _syncInProgress = false;
+
+async function forceSyncNow() {
+  if (_syncInProgress) return;
+  _syncInProgress = true;
+  const btn  = document.getElementById('syncNowBtn');
+  const icon = document.getElementById('syncIcon');
+  if (btn)  btn.style.opacity = '0.5';
+  if (icon) icon.style.animation = 'spin 0.8s linear infinite';
+
+  setSyncStatus('syncing', 'Syncing…');
+  try {
+    // Step 1: push every local cache entry to cloud
+    const stored = await br.storage.local.get(['skipstream_cache']);
+    const cache  = stored.skipstream_cache || {};
+    const userId = await new Promise(res => {
+      br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null));
+    });
+
+    if (userId) {
+      const entries = Object.entries(cache);
+      let pushed = 0;
+      for (const [mediaId, entry] of entries) {
+        if (!entry.p || entry.p < 5) continue;
+        const result = await new Promise(res => {
+          br.runtime.sendMessage({
+            type: 'SUPABASE_UPSERT',
+            body: {
+              user_id:       userId,
+              media_id:      mediaId,
+              playback_time: Math.floor(entry.p),
+              duration:      entry.d || null,
+              site:          entry.site || '',
+              site_name:     entry.site_name || '',
+              video_title:   entry.title || '',
+              device_name:   navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Edg/') ? 'Edge' : 'Chrome',
+              updated_at:    new Date(entry.t || Date.now()).toISOString(),
+            },
+          }, r => res(r));
+        });
+        if (result?.ok) pushed++;
+      }
+
+      // Step 2: refresh history from cloud
+      await loadCloudHistory();
+      mergeHistoryEntries();
+      renderHistory();
+
+      const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setSyncStatus('ok', `Synced ${pushed} item${pushed !== 1 ? 's' : ''} - ${ts}`);
+      await br.storage.local.set({ skipstream_last_sync: Date.now() });
+    } else {
+      setSyncStatus('warn', 'Supabase not configured');
+    }
+  } catch (e) {
+    setSyncStatus('err', 'Sync failed - check connection');
+  }
+
+  if (btn)  btn.style.opacity = '';
+  if (icon) icon.style.animation = '';
+  _syncInProgress = false;
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 async function init() {
@@ -702,6 +767,10 @@ async function init() {
       br.storage.local.set({ resumePlayback: resumeEl.checked })
     );
   }
+
+  // Sync button
+  const syncBtn = document.getElementById('syncNowBtn');
+  if (syncBtn) syncBtn.addEventListener('click', forceSyncNow);
 
   // Auto next episode toggle
   const nextEpEl = document.getElementById('autoNextEpisode');
@@ -777,7 +846,15 @@ async function init() {
         applyHistoryFilters();
 
         const cloudCount = Object.keys(_cloudEntries).length;
-        setSyncStatus('ok', `Cloud: ${cloudCount} item${cloudCount !== 1 ? 's' : ''} synced`);
+        // Show last sync time if available
+        br.storage.local.get('skipstream_last_sync').then(s => {
+          const ts = s.skipstream_last_sync
+            ? new Date(s.skipstream_last_sync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : null;
+          setSyncStatus('ok', `Cloud: ${cloudCount} item${cloudCount !== 1 ? 's' : ''}${ts ? ' · last sync ' + ts : ''}`);
+        }).catch(() => {
+          setSyncStatus('ok', `Cloud: ${cloudCount} item${cloudCount !== 1 ? 's' : ''}`);
+        });
       } else {
         setSyncStatus('warn', 'Cloud: missing credentials');
       }
