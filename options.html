@@ -312,10 +312,11 @@
     <button id="clearBtn">Clear All</button>
   </div>
   <div class="actions" style="margin-top:8px">
-    <button id="exportBtn" style="background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border-strong);flex:1">Export Settings</button>
-    <button id="importBtn" style="background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border-strong);flex:1">Import Settings</button>
+    <button id="exportBtn" style="background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border-strong);flex:1" title="Export credentials, preferences, watch history, stats, and site rules to a JSON file">Export All</button>
+    <button id="importBtn" style="background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border-strong);flex:1" title="Restore from a previous export - history is merged, stats are combined">Import &amp; Merge</button>
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
+  <p class="hint" style="margin-top:6px">Export includes: credentials, preferences, watch history, stats, site rules, theme. Import merges history (keeps newer) and combines session counts.</p>
   <div class="alert" id="globalAlert"></div>
 
 </div>
