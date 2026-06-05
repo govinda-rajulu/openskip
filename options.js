@@ -147,6 +147,7 @@ async function save() {
   btn.disabled    = false;
   btn.textContent = 'Save & Verify';
   showGlobal('ok', '✓ Credentials saved.');
+  pushSettingsToCloud();
 }
 
 // ── Clear ─────────────────────────────────────────────────────────────────────
@@ -319,10 +320,81 @@ async function initSiteRules() {
   });
 }
 
+// ── Cloud settings sync ───────────────────────────────────────────────────────
+
+async function getUserId() {
+  try {
+    const res = await br.runtime.sendMessage({ type: 'GET_USER_ID' });
+    return res?.userId || null;
+  } catch { return null; }
+}
+
+async function pushSettingsToCloud() {
+  const userId = await getUserId();
+  if (!userId) return;
+  try {
+    const stored = await br.storage.local.get([
+      ...PREF_KEYS, ...DATA_KEYS.filter(k => k !== 'skipstream_cache' && k !== 'skipstream_last_sync')
+    ]);
+    await br.runtime.sendMessage({
+      type: 'SUPABASE_SETTINGS_UPSERT',
+      body: {
+        user_id:    userId,
+        stats:      stored.skipstream_stats      || {},
+        prefs: Object.fromEntries(PREF_KEYS.map(k => [k, stored[k] ?? null])),
+        site_rules: stored.skipstream_site_rules || {},
+        theme:      stored.skipstream_theme      || null,
+      },
+    });
+  } catch { /* best-effort */ }
+}
+
+async function checkCloudSettingsRestore() {
+  const userId = await getUserId();
+  if (!userId) return;
+  try {
+    const res = await br.runtime.sendMessage({ type: 'SUPABASE_SETTINGS_GET', userId });
+    if (!res?.data) return;
+    const cloud = res.data;
+    const cloudTs = cloud.updated_at ? new Date(cloud.updated_at).getTime() : 0;
+
+    // Check if local settings are empty (fresh install) or cloud is newer
+    const localStored = await br.storage.local.get([...PREF_KEYS, 'skipstream_stats', 'skipstream_site_rules']);
+    const hasLocalPrefs = PREF_KEYS.some(k => k in localStored);
+    const localSyncTs = (await br.storage.local.get('skipstream_last_sync')).skipstream_last_sync || 0;
+    const cloudIsNewer = cloudTs > localSyncTs + 60000; // 1 min buffer
+
+    if (!hasLocalPrefs || cloudIsNewer) {
+      const reason = !hasLocalPrefs ? 'No local settings found.' : 'Cloud has newer settings.';
+      const msg = `${reason} Restore from cloud? (stats, preferences, site rules, theme)`;
+      if (!confirm(msg)) return;
+
+      // Apply cloud settings locally
+      const toSet = {};
+      if (cloud.prefs) {
+        for (const [k, v] of Object.entries(cloud.prefs)) {
+          if (v !== null && PREF_KEYS.includes(k)) toSet[k] = v;
+        }
+      }
+      if (cloud.stats && Object.keys(cloud.stats).length)        toSet.skipstream_stats      = cloud.stats;
+      if (cloud.site_rules && Object.keys(cloud.site_rules).length) toSet.skipstream_site_rules = cloud.site_rules;
+      if (cloud.theme)                                            toSet.skipstream_theme      = cloud.theme;
+      toSet.skipstream_last_sync = cloudTs;
+
+      await br.storage.local.set(toSet);
+      showGlobal('ok', 'Settings restored from cloud.');
+      await load();
+      await initSiteRules();
+    }
+  } catch { /* Supabase not configured or network error - skip silently */ }
+}
+
 async function init() {
   await load();
   await runCheck();
   await initSiteRules();
+  // Check for cloud restore (fresh install or cloud is newer)
+  await checkCloudSettingsRestore();
 }
 
 init();
