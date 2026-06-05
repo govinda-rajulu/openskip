@@ -325,35 +325,32 @@ async function main() {
 // ── Listing description ───────────────────────────────────────────────────────
 
 function buildDescription() {
-  return `SkipStream detects and skips intro sequences, recap segments, and outros on any streaming site - and remembers exactly where you left off across all your devices.
+  return `Skip intros, recaps, and outros on any streaming site. Resume exactly where you left off on any device.
 
-Features
+What it does
 
-• Skip intros, recaps & outros - powered by IntroDB and AnimeSkip; works on any site with an HTML5 video player
-• Master skip toggle - one switch with per-type child toggles (Intro / Recap / Outro); toggle ON = auto-skip silently, toggle OFF = show a skip button prompt
-• Add Segment - record a missing segment start/stop while watching and submit it to IntroDB and AnimeSkip in one click
-• Resume playback - picks up exactly where you left off, even across different browsers and devices
-• Cloud history - History panel shows local cache and Supabase cloud entries merged, with a source switcher (Local / Cloud / Merged)
-• Works everywhere - any website with an HTML5 video player, not just specific platforms
-• SPA-aware - handles single-page apps like Netflix and Hulu correctly
-• Embedded player support - works when a video player is embedded inside an iframe
-• Light & dark mode - adapts to your system theme automatically
-• Private by design - credentials stored locally; sync goes only to your own Supabase project; no ads, no telemetry
+• Skips intros, recaps, and outros - powered by IntroDB and AnimeSkip
+• Clicks the platform's own Skip Intro button (Netflix, Prime, Disney+, Hulu, and others)
+• Resumes playback from where you stopped - locally and synced to your own cloud
+• Auto next episode - advances when near the end (optional, off by default)
+• Speed control - 1x / 1.25x / 1.5x / 2x, persists across pages
+• Per-site rules - different skip mode per domain
+• Works on any site with an HTML5 video element
 
 Setup
 
-Open the popup and click the gear icon in the top-right corner.
+Click the gear icon in the popup.
 
-Required: IntroDB API key (free at introdb.app) - enables skip segments
-Optional: Supabase URL + anon key (free at supabase.com) - enables cross-device sync and cloud history
-Optional: TMDB API key (free at themoviedb.org) - improves show detection on Plex and similar
-Optional: AnimeSkip Client ID (free at anime-skip.com/account/api-clients) - enables anime intro/outro detection
+• IntroDB key (free at introdb.app) - required for skip segments
+• Supabase URL + anon key (free at supabase.com) - optional, enables cross-device sync
+• TMDB key (free at themoviedb.org) - optional, improves show detection on Plex and similar
+• AnimeSkip Client ID (free at anime-skip.com) - optional, anime support
 
 Privacy
 
-All credentials are stored locally in browser.storage.local on your device. Nothing is sent to the extension developer. Playback sync goes directly to your own Supabase project. No ads, no tracking, no telemetry.
+Credentials are stored locally on your device. Sync goes directly to your own Supabase project. No telemetry, no ads, no tracking.
 
-Source code: github.com/govinda-rajulu/openskip`;
+Source: github.com/govinda-rajulu/openskip`;
 }
 
 main().catch(err => { console.error('❌  Fatal:', err); process.exit(1); });
