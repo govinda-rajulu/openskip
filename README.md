@@ -4,7 +4,7 @@
 
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-Active-blue?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.6.5-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.6.5)
+[![Version](https://img.shields.io/badge/version-1.6.6-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.6.6)
 
 ---
 
