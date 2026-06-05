@@ -79,28 +79,37 @@ jobs:
           echo "✅ CHANGELOG.md has entry for v${VERSION}"
 
       - name: Update updates.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          python3 -c "
-import json, sys
+          # Write new updates.json
+          python3 - << PYEOF
+import json
 with open('updates.json') as f:
     u = json.load(f)
 addon_id = list(u['addons'].keys())[0]
 u['addons'][addon_id]['updates'] = [{
-    'version': '$VERSION',
-    'update_link': f'https://github.com/govinda-rajulu/openskip/releases/download/v$VERSION/skipstream-${VERSION}-firefox.zip',
-    'update_info_url': f'https://github.com/govinda-rajulu/openskip/releases/tag/v$VERSION'
+    'version': '${VERSION}',
+    'update_link': f'https://github.com/govinda-rajulu/openskip/releases/download/v${VERSION}/skipstream-${VERSION}-firefox.zip',
+    'update_info_url': f'https://github.com/govinda-rajulu/openskip/releases/tag/v${VERSION}'
 }]
 with open('updates.json', 'w') as f:
     json.dump(u, f, indent=2)
     f.write('\n')
-print('updates.json updated to', '$VERSION')
-"
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git config user.name 'github-actions[bot]'
-          git add updates.json
-          git diff --cached --quiet || git commit -m "chore: update updates.json to v${VERSION} [skip ci]"
-          git push
+print('updates.json updated to ${VERSION}')
+PYEOF
+          # Commit via GitHub API (works on detached HEAD / tag checkout)
+          CONTENT=$(base64 -w0 updates.json)
+          CURRENT_SHA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/contents/updates.json" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['sha'])")
+          curl -s -X PUT \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/contents/updates.json" \
+            -d "{"message":"chore: update updates.json to v${VERSION} [skip ci]","content":"$CONTENT","sha":"$CURRENT_SHA"}" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print('committed:', d.get('commit',{}).get('sha','ERR: '+str(d.get('message','')))[:20])"
 
       - name: Build ZIP
         run: |
