@@ -96,3 +96,64 @@ end $$;
 
 -- ── 6. Drop legacy upsert rule (conflicts with REST API ON CONFLICT syntax) ──
 DROP RULE IF EXISTS playback_states_upsert ON public.playback_states;
+
+-- ── 7. User settings table ────────────────────────────────────────────────────
+-- Stores stats, preferences, site rules, and theme per user.
+-- Synced automatically; used to restore settings on new installs.
+create table if not exists public.user_settings (
+  user_id     text         primary key,
+  stats       jsonb        not null default '{}',
+  prefs       jsonb        not null default '{}',
+  site_rules  jsonb        not null default '{}',
+  theme       text,
+  updated_at  timestamptz  not null default now()
+);
+
+-- Row-level security for user_settings
+alter table public.user_settings enable row level security;
+
+do $$ begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'user_settings' and policyname = 'ss_settings_select'
+  ) then
+    execute 'create policy ss_settings_select on public.user_settings for select using (true)';
+  end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'user_settings' and policyname = 'ss_settings_insert'
+  ) then
+    execute 'create policy ss_settings_insert on public.user_settings for insert with check (true)';
+  end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'user_settings' and policyname = 'ss_settings_update'
+  ) then
+    execute 'create policy ss_settings_update on public.user_settings for update using (true) with check (true)';
+  end if;
+end $$;
+
+-- Auto-update trigger for user_settings
+do $$ begin
+  if not exists (
+    select 1 from pg_trigger
+    where tgname  = 'ss_user_settings_updated_at'
+      and tgrelid = 'public.user_settings'::regclass
+  ) then
+    create trigger ss_user_settings_updated_at
+      before update on public.user_settings
+      for each row execute function public.ss_set_updated_at();
+  end if;
+end $$;
+
+-- Add device_name column to playback_states if not present
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name   = 'playback_states'
+      and column_name  = 'device_name'
+  ) then
+    alter table public.playback_states add column device_name text;
+  end if;
+end $$;
