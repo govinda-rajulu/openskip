@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.5] - 2026-06-04
+
+### Added
+- **Full backup/restore**: Export now includes watch history (`skipstream_cache`), stats, site rules, theme, `animeSkipEnabled`, and all credentials + prefs. Import merges history (keeps newer timestamp per title), combines session counts, takes higher skip/time-saved values.
+
+### Changed
+- Export filename is date-stamped: `skipstream-backup-YYYY-MM-DD.json`
+- Button labels changed to "Export All" and "Import & Merge" with explanatory hint text
+
+### Docs
+- CONTRIBUTING.md, HOW_TO_RELEASE.md, TESTING.md, PRIVACY.md: all rewritten, concise
+- AMO listing description: rewritten to match current features accurately
+
 ## [1.6.4] - 2026-06-04
 
 ### Added
