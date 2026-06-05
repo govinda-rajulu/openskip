@@ -166,33 +166,66 @@ document.getElementById('saveBtn').addEventListener('click', save);
 document.getElementById('clearBtn').addEventListener('click', clearAll);
 
 // ── Import / Export ───────────────────────────────────────────────────────────
+// Export includes credentials, preferences, watch history, stats, site rules, and theme.
+// Offline queue and pending-resume are session-only and excluded.
 
-const EXPORT_KEYS = [...CRED_KEYS, 'skipIntro', 'skipRecap', 'skipOutro', 'skipMaster', 'resumePlayback', 'autoNextEpisode', 'playbackSpeed'];
+const PREF_KEYS  = ['skipIntro', 'skipRecap', 'skipOutro', 'skipMaster',
+                    'resumePlayback', 'autoNextEpisode', 'playbackSpeed',
+                    'animeSkipEnabled'];
+const DATA_KEYS  = ['skipstream_cache', 'skipstream_stats', 'skipstream_site_rules',
+                    'skipstream_theme', 'skipstream_last_sync'];
+const EXPORT_KEYS = [...CRED_KEYS, ...PREF_KEYS, ...DATA_KEYS];
 
 async function exportSettings() {
   const stored = await br.storage.local.get(EXPORT_KEYS);
-  const blob = new Blob([JSON.stringify(stored, null, 2)], { type: 'application/json' });
+  const out = {
+    _version:   br.runtime.getManifest().version,
+    _exported:  new Date().toISOString(),
+    ...stored,
+  };
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = 'skipstream-settings.json';
+  a.download = `skipstream-backup-${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
+  showGlobal('ok', `Exported ${Object.keys(stored).length} items.`);
 }
 
 async function importSettings(file) {
   try {
     const text = await file.text();
     const data = JSON.parse(text);
-    // Validate: only write known keys
     const safe = {};
+    let count = 0;
     for (const key of EXPORT_KEYS) {
-      if (key in data) safe[key] = data[key];
+      if (key in data) { safe[key] = data[key]; count++; }
+    }
+    if (count === 0) { showGlobal('err', 'No recognised settings found in file.'); return; }
+    // Merge skipstream_cache: keep newer entry per media_id
+    if (data.skipstream_cache) {
+      const existing = (await br.storage.local.get('skipstream_cache')).skipstream_cache || {};
+      const merged = { ...existing };
+      for (const [id, entry] of Object.entries(data.skipstream_cache)) {
+        if (!merged[id] || (entry.t || 0) > (merged[id].t || 0)) merged[id] = entry;
+      }
+      safe.skipstream_cache = merged;
+    }
+    // Merge stats: keep higher values
+    if (data.skipstream_stats) {
+      const existing = (await br.storage.local.get('skipstream_stats')).skipstream_stats || {};
+      safe.skipstream_stats = {
+        skipsTotal:   Math.max(data.skipstream_stats.skipsTotal   || 0, existing.skipsTotal   || 0),
+        timeSavedSec: Math.max(data.skipstream_stats.timeSavedSec || 0, existing.timeSavedSec || 0),
+        sessionsTotal: (data.skipstream_stats.sessionsTotal || 0) + (existing.sessionsTotal || 0),
+      };
     }
     await br.storage.local.set(safe);
-    showGlobal('ok', `Imported ${Object.keys(safe).length} settings. Verifying…`);
+    showGlobal('ok', `Imported ${count} items. Reloading settings…`);
     await load();
     await runCheck();
+    await initSiteRules();
   } catch (e) {
     showGlobal('err', `Import failed: ${e.message}`);
   }
