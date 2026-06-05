@@ -78,6 +78,30 @@ jobs:
           fi
           echo "✅ CHANGELOG.md has entry for v${VERSION}"
 
+      - name: Update updates.json
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          python3 -c "
+import json, sys
+with open('updates.json') as f:
+    u = json.load(f)
+addon_id = list(u['addons'].keys())[0]
+u['addons'][addon_id]['updates'] = [{
+    'version': '$VERSION',
+    'update_link': f'https://github.com/govinda-rajulu/openskip/releases/download/v$VERSION/skipstream-${VERSION}-firefox.zip',
+    'update_info_url': f'https://github.com/govinda-rajulu/openskip/releases/tag/v$VERSION'
+}]
+with open('updates.json', 'w') as f:
+    json.dump(u, f, indent=2)
+    f.write('\n')
+print('updates.json updated to', '$VERSION')
+"
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git config user.name 'github-actions[bot]'
+          git add updates.json
+          git diff --cached --quiet || git commit -m "chore: update updates.json to v${VERSION} [skip ci]"
+          git push
+
       - name: Build ZIP
         run: |
           ZIP_NAME="skipstream-${{ steps.version.outputs.version }}-firefox.zip"
