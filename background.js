@@ -399,6 +399,54 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // ── SUPABASE_SETTINGS_UPSERT ─────────────────────────────────────────────────
+  if (msg.type === 'SUPABASE_SETTINGS_UPSERT') {
+    getConfig().then(async ({ supabaseUrl, supabaseAnonKey }) => {
+      if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ ok: false, err: 'not_configured' }); return; }
+      try {
+        const res = await fetchWithRetry(
+          `${supabaseUrl}/rest/v1/user_settings?on_conflict=user_id`,
+          {
+            method: 'POST',
+            headers: {
+              apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates',
+            },
+            body: JSON.stringify({
+              user_id:    msg.body.user_id,
+              stats:      msg.body.stats      || {},
+              prefs:      msg.body.prefs      || {},
+              site_rules: msg.body.site_rules || {},
+              theme:      msg.body.theme      || null,
+              updated_at: new Date().toISOString(),
+            }),
+          }
+        );
+        sendResponse({ ok: res.ok });
+      } catch (e) { sendResponse({ ok: false, err: String(e) }); }
+    });
+    return true;
+  }
+
+  // ── SUPABASE_SETTINGS_GET ─────────────────────────────────────────────────────
+  if (msg.type === 'SUPABASE_SETTINGS_GET') {
+    getConfig().then(async ({ supabaseUrl, supabaseAnonKey }) => {
+      if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
+      try {
+        const url = `${supabaseUrl}/rest/v1/user_settings` +
+          `?user_id=eq.${encodeURIComponent(msg.userId)}` +
+          `&select=stats,prefs,site_rules,theme,updated_at&limit=1`;
+        const res = await fetchWithRetry(url, {
+          headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` },
+        });
+        const rows = await res.json();
+        sendResponse({ data: rows?.[0] || null });
+      } catch (e) { sendResponse({ data: null, err: String(e) }); }
+    });
+    return true;
+  }
+
   // SUPABASE_GET_ALL - used by popup to fetch all history rows for the user
   if (msg.type === 'SUPABASE_GET_ALL') {
     getConfig().then(({ supabaseUrl, supabaseAnonKey }) => {
