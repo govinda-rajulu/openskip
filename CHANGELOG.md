@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.6] - 2026-06-05
+
+### Added
+- **Cloud settings sync**: stats, preferences, site rules, and theme are now saved to a `user_settings` table in Supabase on every credential save. On the Settings page, if local settings are empty or cloud is more than 1 minute newer, a restore prompt appears.
+- **Android force-update**: `update_url` in `manifest.json` points to `updates.json` hosted at `raw.githubusercontent.com`. Firefox for Android checks this URL and can prompt users to update without reinstalling.
+- **Supabase `user_settings` table**: new table in `supabase_setup.sql` with RLS, auto-updated trigger, and `device_name` column migration for `playback_states`.
+- **CI auto-updates `updates.json`**: `release.yml` writes the new version and download URL to `updates.json` and commits it on every release.
+
 ## [1.6.5] - 2026-06-04
 
 ### Added
