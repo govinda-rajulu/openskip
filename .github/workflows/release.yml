@@ -84,21 +84,8 @@ jobs:
         run: |
           V="${{ steps.version.outputs.version }}"
           REPO="${{ github.repository }}"
-          ZIP="https://github.com/${REPO}/releases/download/v${V}/skipstream-${V}-firefox.zip"
-          TAG="https://github.com/${REPO}/releases/tag/v${V}"
-          # Write file with printf (no heredoc, no python, no quoting issues)
-          printf '{"addons":{"skipstream@extension":{"updates":[{"version":"%s","update_link":"%s","update_info_url":"%s"}]}}}
-' "$V" "$ZIP" "$TAG" | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin),indent=2))" > updates.json
-          echo "updates.json:" && cat updates.json
-          # Commit via API (detached HEAD safe)
-          SHA=$(curl -sf -H "Authorization: token ${GITHUB_TOKEN}" "https://api.github.com/repos/${REPO}/contents/updates.json" | python3 -c "import sys,json;print(json.load(sys.stdin)['sha'])")
-          CONTENT=$(base64 -w0 updates.json)
-          MSG="chore: bump updates.json to v${V} [skip ci]"
-          curl -sf -X PUT -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/json" \
-            "https://api.github.com/repos/${REPO}/contents/updates.json" \
-            --data-binary "{"message":"${MSG}","content":"${CONTENT}","sha":"${SHA}"}" \
-            | python3 -c "import sys,json;d=json.load(sys.stdin);print('committed:',d.get('commit',{}).get('sha','err')[:12])"
-
+          python3 update_release.py "$V" "$REPO" "$GITHUB_TOKEN"
+          cat updates.json
       - name: Build ZIP
         run: |
           ZIP_NAME="skipstream-${{ steps.version.outputs.version }}-firefox.zip"
