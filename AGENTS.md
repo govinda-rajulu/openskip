@@ -38,7 +38,7 @@ There is no `src/`, no `wxt`, no `openskip/` subdirectory, no TypeScript, no bui
 - README version badge must be updated
 - CI (`release.yml`) enforces tag == manifest version and will fail the build if mismatched
 
-Files to update on every version bump: `manifest.json`, `manifest-chrome.json`, `popup.js`, `README.md`, `CHANGELOG.md`
+Files to update on every version bump: `manifest.json`, `manifest-chrome.json`, `popup.js`, `README.md`, `CHANGELOG.md`, `updates.json`
 
 ## Tech constraints
 - Vanilla JS only at root level
@@ -51,13 +51,21 @@ Files to update on every version bump: `manifest.json`, `manifest-chrome.json`, 
 - User ID: SHA-256 hash of `"skipstream:uid:" + supabaseAnonKey` - never random, never stored raw
 
 ## Supabase schema
-Table: `public.playback_states`
+Tables:
+- `public.playback_states` - per-title watch positions
+- `public.user_settings` - stats, prefs, site rules, theme per user
 
-Unique constraint: `playback_states_user_id_media_id_key` on `(user_id, media_id)`
+`playback_states` unique constraint: `playback_states_user_id_media_id_key` on `(user_id, media_id)`
 
-Correct upsert pattern (both required - header alone causes HTTP 409):
+Correct upsert (both required - header alone causes HTTP 409):
 ```
 POST /rest/v1/playback_states?on_conflict=user_id,media_id
+Prefer: resolution=merge-duplicates
+```
+
+`user_settings` upsert:
+```
+POST /rest/v1/user_settings?on_conflict=user_id
 Prefer: resolution=merge-duplicates
 ```
 
