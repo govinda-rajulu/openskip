@@ -78,14 +78,7 @@ jobs:
           fi
           echo "✅ CHANGELOG.md has entry for v${VERSION}"
 
-      - name: Update updates.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          V="${{ steps.version.outputs.version }}"
-          REPO="${{ github.repository }}"
-          python3 update_release.py "$V" "$REPO" "$GITHUB_TOKEN"
-          cat updates.json
+
       - name: Build ZIP
         run: |
           ZIP_NAME="skipstream-${{ steps.version.outputs.version }}-firefox.zip"
