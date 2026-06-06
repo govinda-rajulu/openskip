@@ -21,12 +21,13 @@ Nothing is sent to the extension developer or any third party except the service
 ## Third-party services
 
 When configured, the extension communicates directly with:
-- **Your Supabase project** - for cross-device sync
+- **Your Supabase project** - for cross-device sync and settings backup
 - **IntroDB** - to fetch skip segment timestamps
 - **AnimeSkip** - for anime intro/outro data
 - **TMDB** - for show identification
+- **raw.githubusercontent.com** - to check for extension updates (Android only, no personal data sent)
 
-Each service has its own privacy policy. SkipStream only sends the minimum data needed (episode IDs for segments, playback positions for sync).
+Each service has its own privacy policy. SkipStream only sends the minimum data needed.
 
 ## Your sync identity
 
