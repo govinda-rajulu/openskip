@@ -35,7 +35,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4 # v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Download release ZIP (from triggering workflow)
         if: github.event_name == 'workflow_run'
