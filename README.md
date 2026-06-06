@@ -20,13 +20,16 @@
 
 ## What it does
 
-- **Skips** intros, recaps, and outros automatically (powered by [IntroDB](https://introdb.app))
+- **Skips** intros, recaps, and outros - 3-second countdown toast with Undo (powered by [IntroDB](https://introdb.app))
+- **Native button clicking** - also clicks the platform's own Skip Intro button on Netflix, Prime, Disney+, Hulu, Max, Crunchyroll, and others
 - **Resumes** playback where you left off, on any device
-- **Syncs** watch history to your own Supabase project - you own the data
-- **Native button clicking** - also clicks the platform's own Skip Intro button on Netflix, Prime, Disney+, and others
-- **Auto next episode** - advances to the next episode when near the end (optional)
+- **Syncs** watch history and settings to your own Supabase project - you own the data
+- **Auto next episode** - advances when near end of video (optional, off by default)
 - **Speed control** - 1x / 1.25x / 1.5x / 2x, persists across pages
-- **Per-site rules** - override skip mode for specific domains
+- **Per-site rules** - override skip mode for specific domains in Settings
+- **Watch stats** - segments skipped, time saved, session count tracked locally
+- **Full backup/restore** - export all history, stats, credentials, and settings as JSON; import merges history
+- **Android auto-update** - Firefox for Android checks for updates via `updates.json`
 - **Works on any site** with a standard HTML5 video element
 
 ---
@@ -56,15 +59,17 @@ Create a free project at [supabase.com](https://supabase.com), run the SQL from 
 ```
 manifest.json              - Firefox MV2 manifest (authoritative version source)
 manifest-chrome.json       - Chrome MV3 manifest (must match manifest.json version)
-background.js              - Service worker: API calls, retry logic, user ID derivation
+updates.json               - Firefox Android update feed (checked via update_url in manifest)
+background.js              - Service worker: all API calls, retry logic, user ID, offline queue
 content-scripts/
-  content.js               - Injected into all frames: video detection, skip polling, resume, sync
-popup.html / popup.js      - Extension popup: history, skip settings, segment reporting
-options.html / options.js  - Settings page: credentials, per-site rules, import/export
+  content.js               - Injected into all frames: skip polling, resume, speed, site rules
+popup.html / popup.js      - Popup: history, skip settings, stats, speed, sync button, theme toggle
+options.html / options.js  - Settings: credentials, per-site rules, import/export, cloud restore
 scripts/
-  amo-update.js            - CI: uploads signed ZIP to AMO
+  amo-update.js            - CI: uploads signed ZIP to AMO and updates listing metadata
+update_release.py          - CI helper: writes updates.json with new version
 icons/                     - icon-16/32/48/128.png
-supabase_setup.sql         - One-time DB schema (run once in Supabase SQL editor)
+supabase_setup.sql         - One-time DB schema - run in Supabase SQL editor
 CHANGELOG.md               - Version history
 AGENTS.md                  - AI agent reference
 docs/                      - Additional documentation
@@ -77,11 +82,11 @@ docs/                      - Additional documentation
 
 1. Content script detects any `<video>` element on the page
 2. Identifies the show/episode from the URL, page metadata, or JSON-LD
-3. Fetches skip segment timestamps from IntroDB
-4. Polls every 500ms during playback - shows a countdown toast before auto-skipping
-5. Also clicks the platform's native Skip Intro button when present
-6. Saves playback position locally and syncs to your Supabase project every few seconds
-7. On next load, restores your position from local cache or cloud
+3. Fetches skip segment timestamps from IntroDB; also clicks the platform's native Skip Intro button
+4. Polls every 500ms - shows a 3-second countdown toast with Undo before auto-skipping
+5. Saves playback position locally every 2.5s and syncs to Supabase; queues saves when offline
+6. On next load, restores your position from local cache or cloud, whichever is newer
+7. Stats (skips, time saved, sessions) accumulated locally and backed up to Supabase `user_settings`
 
 ---
 
