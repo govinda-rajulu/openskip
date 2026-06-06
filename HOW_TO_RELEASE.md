@@ -4,14 +4,15 @@
 
 **1. Make your changes** - edit files directly on GitHub (press `.` to open github.dev)
 
-**2. Bump the version** - update these 5 files to `X.Y.Z`:
+**2. Bump the version** - update these 6 files to `X.Y.Z`:
 - `manifest.json` - `"version"` field
 - `manifest-chrome.json` - must match exactly
 - `popup.js` - header comment on line 1
 - `README.md` - version badge
 - `CHANGELOG.md` - add `## [X.Y.Z]` at the top
+- `updates.json` - bump `version` and download URL to match
 
-**3. Commit all 5 files** in one commit
+**3. Commit all 6 files** in one commit
 
 **4. Push the tag:**
 ```
