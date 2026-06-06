@@ -83,6 +83,8 @@ Prefer: resolution=merge-duplicates
 | `GET_SHOW_INFO` | popup→content | get resolved show/episode/mediaId metadata |
 | `REPORT_SEGMENT` | popup→bg | submit a new segment to IntroDB/AnimeSkip |
 | `DELETE_ALL_HISTORY` | popup→bg | delete all Supabase rows for this user |
+| `SUPABASE_SETTINGS_UPSERT` | options→bg | save stats/prefs/site_rules/theme to `user_settings` |
+| `SUPABASE_SETTINGS_GET` | options→bg | fetch `user_settings` row for restore prompt |
 
 ## CI/CD pipeline
 1. Commit all version files, push tag `vX.Y.Z`
