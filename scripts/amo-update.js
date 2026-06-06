@@ -217,7 +217,11 @@ async function main() {
         ? uploadRes.data.slice(0, 500)
         : JSON.stringify(uploadRes.data, null, 2);
       console.error(`❌  Upload failed (HTTP ${uploadRes.status}):\n${body}`);
-      process.exit(1);
+      if (uploadRes.status === 409 || (typeof uploadRes.data === 'object' && uploadRes.data?.error?.includes?.('exists'))) {
+        console.warn('    ⚠  This upload may already exist on AMO. Continuing to version create…');
+      } else {
+        process.exit(1);
+      }
     } else {
       uploadUuid = uploadRes.data.uuid;
       console.log(`    UUID: ${uploadUuid}`);
