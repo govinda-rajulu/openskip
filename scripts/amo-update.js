@@ -333,26 +333,31 @@ function buildDescription() {
 
 What it does
 
-• Skips intros, recaps, and outros - powered by IntroDB and AnimeSkip
-• Clicks the platform's own Skip Intro button (Netflix, Prime, Disney+, Hulu, and others)
-• Resumes playback from where you stopped - locally and synced to your own cloud
-• Auto next episode - advances when near the end (optional, off by default)
+• Skips intros, recaps, and outros - 3s countdown toast with Undo (powered by IntroDB and AnimeSkip)
+• Clicks the platform's own Skip Intro button - Netflix, Prime Video, Disney+, Hulu, Max, Crunchyroll, Peacock, Paramount+, Apple TV+, Tubi
+• Resumes playback from where you stopped - locally cached and synced to your own Supabase project
+• Auto next episode - advances near end of video (optional, off by default)
 • Speed control - 1x / 1.25x / 1.5x / 2x, persists across pages
-• Per-site rules - different skip mode per domain
-• Works on any site with an HTML5 video element
+• Per-site rules - different skip mode for specific domains
+• Watch stats - segments skipped, time saved, session count
+• Dismisses "Are you still watching?" overlays automatically
+• Force sync - push all local positions to cloud and refresh history on demand
+• Full backup and restore - export all history, stats, credentials, preferences as JSON
+• Dark and light theme - follows system preference, manual override available
+• Works on any site with an HTML5 video player
 
 Setup
 
 Click the gear icon in the popup.
 
 • IntroDB key (free at introdb.app) - required for skip segments
-• Supabase URL + anon key (free at supabase.com) - optional, enables cross-device sync
+• Supabase URL + anon key (free at supabase.com) - optional, enables cross-device sync and cloud backup
 • TMDB key (free at themoviedb.org) - optional, improves show detection on Plex and similar
-• AnimeSkip Client ID (free at anime-skip.com) - optional, anime support
+• AnimeSkip Client ID (free at anime-skip.com) - optional, anime intro and outro support
 
 Privacy
 
-Credentials are stored locally on your device. Sync goes directly to your own Supabase project. No telemetry, no ads, no tracking.
+All credentials are stored locally on your device. Playback sync goes directly to your own Supabase project. No telemetry, no ads, no tracking, no accounts required.
 
 Source: github.com/govinda-rajulu/openskip`;
 }
