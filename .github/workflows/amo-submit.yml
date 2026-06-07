@@ -87,26 +87,8 @@ jobs:
           " > /tmp/release_notes.txt
 
           export RELEASE_NOTES="$(cat /tmp/release_notes.txt)"
-          node scripts/amo-update.js > /tmp/amo_output.txt 2>&1 || true
-          NODE_EXIT=$?
-          cat /tmp/amo_output.txt
-          echo "## AMO Script Output" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat /tmp/amo_output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "exit_code=$NODE_EXIT" >> $GITHUB_STEP_SUMMARY
-          cp /tmp/amo_output.txt ./amo_debug.txt
-          exit $NODE_EXIT
+          node scripts/amo-update.js
 
-
-      - name: Upload debug log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: amo-debug-log
-          path: amo_debug.txt
-          retention-days: 7
-        continue-on-error: true
 
       - name: Summary on success
         if: success()
