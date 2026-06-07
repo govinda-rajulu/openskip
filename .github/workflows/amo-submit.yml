@@ -87,12 +87,14 @@ jobs:
           " > /tmp/release_notes.txt
 
           export RELEASE_NOTES="$(cat /tmp/release_notes.txt)"
-          set -o pipefail
-          node scripts/amo-update.js 2>&1 | tee /tmp/amo_output.txt; NODE_EXIT=${PIPESTATUS[0]}
+          node scripts/amo-update.js > /tmp/amo_output.txt 2>&1 || true
+          NODE_EXIT=$?
+          cat /tmp/amo_output.txt
           echo "## AMO Script Output" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           cat /tmp/amo_output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "exit_code=$NODE_EXIT" >> $GITHUB_STEP_SUMMARY
           cp /tmp/amo_output.txt ./amo_debug.txt
           exit $NODE_EXIT
 
