@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.7] - 2026-06-07
+
+### Changed
+- **AMO listing**: updated description to reflect all 1.6.x features (countdown, still-watching, stats, sync button, backup/restore, Android update)
+- **Dependencies**: bumped `actions/checkout` v4→v6, `actions/setup-node` v4→v6, `actions/download-artifact` v4→v8, `softprops/action-gh-release` v2→v3, `github/codeql-action` v3→v4 (Dependabot PRs #17-21)
+
+### Fixed
+- **Issue #11**: CloudStream integration documented as out-of-scope for browser extension; Supabase schema is documented for potential companion app
+
 ## [1.6.6] - 2026-06-05
 
 ### Added
