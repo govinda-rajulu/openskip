@@ -87,7 +87,13 @@ jobs:
           " > /tmp/release_notes.txt
 
           export RELEASE_NOTES="$(cat /tmp/release_notes.txt)"
-          node scripts/amo-update.js
+          node scripts/amo-update.js 2>&1 | tee /tmp/amo_output.txt
+          echo "## AMO Script Output" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/amo_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          # Re-exit with original exit code
+          grep -q "Fatal\|❌" /tmp/amo_output.txt && exit 1 || true
 
       - name: Summary on success
         if: success()
