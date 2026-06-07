@@ -88,13 +88,23 @@ jobs:
 
           export RELEASE_NOTES="$(cat /tmp/release_notes.txt)"
           set -o pipefail
-          node scripts/amo-update.js 2>&1 | tee /tmp/amo_output.txt
-          NODE_EXIT=${PIPESTATUS[0]}
+          node scripts/amo-update.js 2>&1 | tee /tmp/amo_output.txt; NODE_EXIT=${PIPESTATUS[0]}
           echo "## AMO Script Output" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           cat /tmp/amo_output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+          cp /tmp/amo_output.txt ./amo_debug.txt
           exit $NODE_EXIT
+
+
+      - name: Upload debug log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: amo-debug-log
+          path: amo_debug.txt
+          retention-days: 7
+        continue-on-error: true
 
       - name: Summary on success
         if: success()
