@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.8] - 2026-06-07
+
+### Fixed
+- **AMO submission**: removed `supabase_setup.sql` from extension ZIP - it is a developer tool only and may cause AMO validation errors
+
 ## [1.6.7] - 2026-06-07
 
 ### Changed
