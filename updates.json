@@ -3,9 +3,9 @@
     "skipstream@extension": {
       "updates": [
         {
-          "version": "1.6.7",
-          "update_link": "https://github.com/govinda-rajulu/openskip/releases/download/v1.6.7/skipstream-1.6.7-firefox.zip",
-          "update_info_url": "https://github.com/govinda-rajulu/openskip/releases/tag/v1.6.7"
+          "version": "1.6.8",
+          "update_link": "https://github.com/govinda-rajulu/openskip/releases/download/v1.6.8/skipstream-1.6.8-firefox.zip",
+          "update_info_url": "https://github.com/govinda-rajulu/openskip/releases/tag/v1.6.8"
         }
       ]
     }
