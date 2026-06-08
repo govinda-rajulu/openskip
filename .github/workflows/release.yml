@@ -86,8 +86,7 @@ jobs:
             manifest.json background.js \
             content-scripts/ icons/ \
             popup.html popup.js \
-            options.html options.js \
-            supabase_setup.sql
+            options.html options.js
           echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
 
       - name: Upload ZIP to GitHub Release
