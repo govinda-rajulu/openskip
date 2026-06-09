@@ -235,9 +235,10 @@ async function main() {
       if (r.data.processed && r.data.valid) return r.data;
       if (r.data.processed && !r.data.valid) {
         console.error('\n❌  Validation failed:');
+        console.error('    Full validation response:', JSON.stringify(r.data.validation, null, 2));
         (r.data.validation?.messages || [])
           .filter(m => m.type === 'error')
-          .forEach(m => console.error(`    ${m.message}`));
+          .forEach(m => console.error(`    [${m.type}] ${m.message} (${m.file || ''}:${m.line || ''})`));
         process.exit(1);
       }
       return null;
