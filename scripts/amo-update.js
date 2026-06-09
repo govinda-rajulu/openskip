@@ -225,6 +225,7 @@ async function main() {
     } else {
       uploadUuid = uploadRes.data.uuid;
       console.log(`    UUID: ${uploadUuid}`);
+    console.log(`    Upload response status: ${uploadRes.status}`);
     }
 
     // ── Step 2: Poll validation ─────────────────────────────────────────────
