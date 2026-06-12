@@ -49,13 +49,35 @@ body:
     validations:
       required: true
 
-  - type: input
-    id: firefox_version
+  - type: dropdown
+    id: browser
     attributes:
-      label: Firefox version
-      placeholder: e.g. 140.0
+      label: Browser
+      options:
+        - Firefox (desktop)
+        - Firefox for Android
+        - Chrome / Chromium
+        - Edge
+      multiple: true
     validations:
       required: true
+
+  - type: input
+    id: browser_version
+    attributes:
+      label: Browser version
+      placeholder: e.g. Firefox 140.0 / Chrome 126
+    validations:
+      required: true
+
+  - type: input
+    id: extension_version
+    attributes:
+      label: Extension version
+      description: Shown in the popup bottom-right corner
+      placeholder: e.g. 1.6.8
+    validations:
+      required: false
 
   - type: checkboxes
     id: services
@@ -65,7 +87,7 @@ body:
         - label: IntroDB API key set
         - label: Supabase configured
         - label: TMDB API key set
-        - label: OMDB API key set
+        - label: AnimeSkip configured
 
   - type: textarea
     id: console

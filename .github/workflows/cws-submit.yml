@@ -1,0 +1,189 @@
+name: Submit to Chrome Web Store
+
+on:
+  workflow_run:
+    workflows: ["Build & Release"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (validate only, no CWS writes)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+concurrency:
+  group: cws-submit
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    name: Submit to Chrome Web Store
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('manifest-chrome.json'))['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Chrome version: $VERSION"
+
+      - name: Download Chrome ZIP (from triggering workflow)
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: skipstream-chrome-zip
+          path: .
+        continue-on-error: true
+
+      - name: Build Chrome ZIP (fallback / manual trigger)
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP_NAME="skipstream-${VERSION}-chrome.zip"
+          if [ ! -f "$ZIP_NAME" ]; then
+            echo "Building $ZIP_NAME from source…"
+            mkdir -p /tmp/chrome-build
+            cp -r content-scripts icons popup.html popup.js options.html options.js background.js /tmp/chrome-build/
+            cp manifest-chrome.json /tmp/chrome-build/manifest.json
+            cd /tmp/chrome-build && zip -r "$GITHUB_WORKSPACE/$ZIP_NAME" .
+            cd "$GITHUB_WORKSPACE"
+            echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
+          else
+            echo "✅ Using artifact: $ZIP_NAME"
+          fi
+
+      - name: Submit to Chrome Web Store
+        env:
+          CWS_EXTENSION_ID:    ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_CLIENT_ID:       ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET:   ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN:   ${{ secrets.CWS_REFRESH_TOKEN }}
+          DRY_RUN:             ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' && '1' || '0' }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP_NAME="skipstream-${VERSION}-chrome.zip"
+
+          if [ -z "$CWS_EXTENSION_ID" ] || [ -z "$CWS_CLIENT_ID" ] || [ -z "$CWS_CLIENT_SECRET" ] || [ -z "$CWS_REFRESH_TOKEN" ]; then
+            echo "⚠ CWS secrets not configured — skipping Chrome Web Store submission."
+            echo "Set CWS_EXTENSION_ID, CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN in repo secrets."
+            exit 0
+          fi
+
+          python3 << 'PYEOF'
+          import os, json, urllib.request, urllib.parse
+
+          ext_id       = os.environ["CWS_EXTENSION_ID"]
+          client_id    = os.environ["CWS_CLIENT_ID"]
+          client_secret= os.environ["CWS_CLIENT_SECRET"]
+          refresh_token= os.environ["CWS_REFRESH_TOKEN"]
+          dry_run      = os.environ.get("DRY_RUN") == "1"
+          version      = os.environ["VERSION"]
+          zip_name     = os.environ["ZIP_NAME"]
+
+          if dry_run:
+              print(f"[dry-run] Would upload {zip_name} for extension {ext_id}")
+              exit(0)
+
+          # Step 1: Exchange refresh token for access token
+          token_data = urllib.parse.urlencode({
+              "client_id":     client_id,
+              "client_secret": client_secret,
+              "refresh_token": refresh_token,
+              "grant_type":    "refresh_token",
+          }).encode()
+          req = urllib.request.Request(
+              "https://oauth2.googleapis.com/token",
+              data=token_data,
+              headers={"Content-Type": "application/x-www-form-urlencoded"},
+              method="POST"
+          )
+          with urllib.request.urlopen(req) as r:
+              token = json.load(r)
+          access_token = token["access_token"]
+          print("✅ OAuth token obtained")
+
+          # Step 2: Upload ZIP to CWS
+          with open(zip_name, "rb") as f:
+              zip_bytes = f.read()
+
+          upload_req = urllib.request.Request(
+              f"https://www.googleapis.com/upload/chromewebstore/v1.1/items/{ext_id}",
+              data=zip_bytes,
+              headers={
+                  "Authorization": f"Bearer {access_token}",
+                  "x-goog-api-version": "2",
+                  "Content-Type": "application/zip",
+              },
+              method="PUT"
+          )
+          with urllib.request.urlopen(upload_req) as r:
+              upload_result = json.load(r)
+
+          if upload_result.get("uploadState") != "SUCCESS":
+              print("❌ Upload failed:", json.dumps(upload_result, indent=2))
+              exit(1)
+          print(f"✅ ZIP uploaded: {zip_name}")
+
+          # Step 3: Publish
+          pub_req = urllib.request.Request(
+              f"https://www.googleapis.com/chromewebstore/v1.1/items/{ext_id}/publish",
+              data=b"{}",
+              headers={
+                  "Authorization": f"Bearer {access_token}",
+                  "x-goog-api-version": "2",
+                  "Content-Type": "application/json",
+              },
+              method="POST"
+          )
+          with urllib.request.urlopen(pub_req) as r:
+              pub_result = json.load(r)
+
+          status = pub_result.get("status", [])
+          if "OK" in status or "PUBLISHED_WITH_FRICTION" in status:
+              print(f"✅ Published to Chrome Web Store: v{version}")
+              print("   Status:", status)
+          else:
+              print("⚠ Publish returned unexpected status:", json.dumps(pub_result, indent=2))
+              # Non-zero exit only on hard error (status list empty or contains error codes)
+              if not status or any(s not in ("OK", "PUBLISHED_WITH_FRICTION", "ITEM_PENDING_REVIEW") for s in status):
+                  exit(1)
+          PYEOF
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ZIP_NAME: skipstream-${{ steps.version.outputs.version }}-chrome.zip
+
+      - name: Summary on success
+        if: success()
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "## ✅ Chrome Web Store Submission Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "**Listing:** https://chromewebstore.google.com/detail/skipstream/${CWS_EXTENSION_ID:-[set CWS_EXTENSION_ID secret]}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Summary on failure
+        if: failure()
+        run: |
+          echo "## ❌ Chrome Web Store Submission Failed" >> $GITHUB_STEP_SUMMARY
+          echo "Check the step logs above for the error." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Required secrets:** \`CWS_EXTENSION_ID\`, \`CWS_CLIENT_ID\`, \`CWS_CLIENT_SECRET\`, \`CWS_REFRESH_TOKEN\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To get CWS OAuth credentials: https://developer.chrome.com/docs/webstore/using-api/" >> $GITHUB_STEP_SUMMARY

@@ -48,10 +48,24 @@ jobs:
           assert 'content_security_policy' in m, 'CSP missing'
           gecko = m['browser_specific_settings']['gecko']
           assert 'id' in gecko, 'gecko.id missing'
+          assert 'update_url' in gecko, 'gecko.update_url missing (required for Firefox Android auto-update)'
           print('✅ manifest.json valid')
           "
 
-      - name: Validate manifest-chrome.json version matches
+      - name: Validate manifest-chrome.json
+        run: |
+          python3 -c "
+          import json
+          with open('manifest-chrome.json') as f:
+              m = json.load(f)
+          assert m['manifest_version'] == 3, 'manifest_version must be 3 for Chrome'
+          assert 'service_worker' in m.get('background', {}), 'Chrome manifest must use service_worker'
+          assert 'host_permissions' in m, 'Chrome MV3 needs host_permissions'
+          assert '<all_urls>' in m['host_permissions'], 'host_permissions must include <all_urls>'
+          print('✅ manifest-chrome.json valid')
+          "
+
+      - name: Version consistency check
         run: |
           FIREFOX_VER=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
           CHROME_VER=$(python3 -c "import json; print(json.load(open('manifest-chrome.json'))['version'])")
@@ -60,6 +74,26 @@ jobs:
             exit 1
           fi
           echo "✅ manifest-chrome.json version matches: $CHROME_VER"
+
+      - name: Validate updates.json
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('updates.json'))
+          assert 'addons' in d, 'updates.json missing addons key'
+          addon = d['addons'].get('skipstream@extension')
+          assert addon, 'skipstream@extension entry missing'
+          updates = addon.get('updates', [])
+          assert updates, 'updates array is empty'
+          for u in updates:
+              assert 'version' in u, f'update entry missing version: {u}'
+              assert 'update_link' in u, f'update entry missing update_link: {u}'
+              assert u['update_link'].endswith('.zip'), f'update_link should point to ZIP: {u[\"update_link\"]}'
+          manifest_ver = json.load(open('manifest.json'))['version']
+          latest = updates[-1]['version']
+          assert latest == manifest_ver, f'updates.json latest version ({latest}) != manifest version ({manifest_ver})'
+          print(f'✅ updates.json valid - latest: {latest}')
+          "
 
       - name: Check for innerHTML usage (security)
         run: |
@@ -88,6 +122,15 @@ jobs:
           fi
           echo "✅ No localStorage in content script"
 
+      - name: Check for fetch() usage in content script
+        run: |
+          if grep -n '\bfetch(' content-scripts/content.js \
+             | grep -v '^\s*[0-9]*:\s*//' | grep -v '//.*fetch'; then
+            echo "❌ fetch() found in content script — all network calls must go via background.js runtime.sendMessage"
+            exit 1
+          fi
+          echo "✅ No direct fetch() in content script"
+
       - name: Check for hardcoded secrets or API keys
         run: |
           if grep -rn 'eyJ\|sk-\|AIza\|xoxb-\|supabase\.co.*Bearer\|anon.*key.*=.*[a-zA-Z0-9+/]\{40\}' \
@@ -98,19 +141,35 @@ jobs:
           fi
           echo "✅ No hardcoded secrets detected"
 
-      - name: Build release ZIP
+      - name: Build Firefox release ZIP
         run: |
           zip -r skipstream-firefox.zip \
             manifest.json background.js \
             content-scripts/ icons/ \
             popup.html popup.js \
-            options.html options.js \
-            supabase_setup.sql
-          echo "✅ ZIP built: $(du -h skipstream-firefox.zip | cut -f1)"
+            options.html options.js
+          echo "✅ Firefox ZIP built: $(du -h skipstream-firefox.zip | cut -f1)"
 
-      - name: Upload artifact
+      - name: Build Chrome release ZIP
+        run: |
+          # Chrome ZIP uses manifest-chrome.json renamed to manifest.json
+          mkdir -p /tmp/chrome-build
+          cp -r content-scripts icons popup.html popup.js options.html options.js background.js /tmp/chrome-build/
+          cp manifest-chrome.json /tmp/chrome-build/manifest.json
+          cd /tmp/chrome-build && zip -r /home/runner/work/openskip/openskip/skipstream-chrome.zip .
+          cd /home/runner/work/openskip/openskip
+          echo "✅ Chrome ZIP built: $(du -h skipstream-chrome.zip | cut -f1)"
+
+      - name: Upload Firefox artifact
         uses: actions/upload-artifact@v4
         with:
           name: skipstream-firefox-zip
-          path: "skipstream-firefox.zip"
-          retention-days: 30
+          path: skipstream-firefox.zip
+          retention-days: 7
+
+      - name: Upload Chrome artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: skipstream-chrome-zip
+          path: skipstream-chrome.zip
+          retention-days: 7

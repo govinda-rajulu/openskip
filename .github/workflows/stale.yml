@@ -2,7 +2,7 @@ name: Close Stale Issues and PRs
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 0 * * 0'  # Weekly on Sunday, not daily
 
 jobs:
   stale:
@@ -16,11 +16,14 @@ jobs:
         uses: actions/stale@v9
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          stale-issue-message: 'This issue has been automatically marked as stale because it has not had recent activity. It will be closed if no further activity occurs.'
-          stale-pr-message: 'This PR has been automatically marked as stale because it has not had recent activity. It will be closed if no further activity occurs.'
+          stale-issue-message: 'This issue has been automatically marked as stale because it has not had recent activity. It will be closed in 7 days if no further activity occurs. If this is still relevant, please leave a comment.'
+          stale-pr-message: 'This PR has been automatically marked as stale because it has not had recent activity. It will be closed in 7 days if no further activity occurs. Rebase and push to reactivate.'
           close-issue-message: 'Closing due to inactivity. Reopen if this is still relevant.'
-          close-pr-message: 'Closing due to inactivity. Reopen if this is still relevant.'
+          close-pr-message: 'Closing due to inactivity. Reopen if this is still relevant — please rebase on main first.'
           days-before-stale: 30
           days-before-close: 7
-          exempt-issue-labels: 'pinned,security,enhancement'
+          stale-issue-label: 'stale'
+          stale-pr-label: 'stale'
+          exempt-issue-labels: 'pinned,security,enhancement,priority: high'
           exempt-pr-labels: 'pinned,security'
+          exempt-draft-pr: true

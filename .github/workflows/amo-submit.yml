@@ -2,10 +2,14 @@ name: Submit to AMO
 
 on:
   workflow_run:
-    workflows: ["Build & Release ZIP"]
+    workflows: ["Build & Release"]
     types: [completed]
   workflow_dispatch:
     inputs:
+      version:
+        description: 'Version to submit (leave blank to use manifest.json)'
+        required: false
+        default: ''
       dry_run:
         description: 'Dry run (no AMO writes)'
         required: false
@@ -35,7 +39,18 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '20'
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Submitting version: $VERSION"
 
       - name: Download release ZIP (from triggering workflow)
         if: github.event_name == 'workflow_run'
@@ -49,7 +64,7 @@ jobs:
 
       - name: Build ZIP (fallback / manual trigger)
         run: |
-          VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
+          VERSION="${{ steps.version.outputs.version }}"
           ZIP_NAME="skipstream-${VERSION}-firefox.zip"
           if [ ! -f "$ZIP_NAME" ]; then
             echo "Building $ZIP_NAME from source…"
@@ -57,8 +72,7 @@ jobs:
               manifest.json background.js \
               content-scripts/ icons/ \
               popup.html popup.js \
-              options.html options.js \
-              supabase_setup.sql
+              options.html options.js
             echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
           else
             echo "✅ Using artifact: $ZIP_NAME"
@@ -71,7 +85,6 @@ jobs:
           AMO_ADDON_SLUG: skipstream
           DRY_RUN:        ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' && '1' || '0' }}
         run: |
-          # Extract release notes inline (no heredoc)
           python3 -c "
           import re, json
           version = json.load(open('manifest.json'))['version']
@@ -85,16 +98,14 @@ jobs:
           except Exception:
               print('')
           " > /tmp/release_notes.txt
-
           export RELEASE_NOTES="$(cat /tmp/release_notes.txt)"
           node scripts/amo-update.js
-
 
       - name: Summary on success
         if: success()
         run: |
+          VERSION="${{ steps.version.outputs.version }}"
           echo "## ✅ AMO Submission Complete" >> $GITHUB_STEP_SUMMARY
-          VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
           echo "**Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "**Listing:** https://addons.mozilla.org/en-US/firefox/addon/skipstream/" >> $GITHUB_STEP_SUMMARY
           echo "**Dev Hub:** https://addons.mozilla.org/en-US/developers/addon/skipstream/versions" >> $GITHUB_STEP_SUMMARY
@@ -107,5 +118,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Common causes:" >> $GITHUB_STEP_SUMMARY
           echo "- \`AMO_API_KEY\` / \`AMO_API_SECRET\` secrets not set" >> $GITHUB_STEP_SUMMARY
-          echo "- ZIP failed validation" >> $GITHUB_STEP_SUMMARY
+          echo "- ZIP failed AMO validation" >> $GITHUB_STEP_SUMMARY
           echo "- Add-on slug not yet claimed (submit first version manually)" >> $GITHUB_STEP_SUMMARY
+          echo "- Version already exists on AMO (409)" >> $GITHUB_STEP_SUMMARY

@@ -22,28 +22,39 @@ jobs:
       - name: Security checks
         run: |
           FAIL=0
-          if grep -rn 'innerHTML' background.js options.js popup.js content-scripts/ 2>/dev/null | grep -v '//.*innerHTML'; then
+          if grep -rn 'innerHTML' background.js options.js popup.js content-scripts/ 2>/dev/null | grep -v '^\s*//' | grep -v '//.*innerHTML'; then
             echo "❌ innerHTML found"; FAIL=1
           fi
           if grep -rn 'console\.log' background.js options.js popup.js content-scripts/ 2>/dev/null | grep -v '^\s*//'; then
             echo "❌ console.log found"; FAIL=1
           fi
-          if grep -n 'localStorage' content-scripts/content.js 2>/dev/null | grep -v '//.*localStorage'; then
+          if grep -n 'localStorage' content-scripts/content.js 2>/dev/null | grep -v '^\s*[0-9]*:\s*//' | grep -v '//.*localStorage'; then
             echo "❌ localStorage in content script"; FAIL=1
+          fi
+          if grep -n '\bfetch(' content-scripts/content.js 2>/dev/null | grep -v '^\s*[0-9]*:\s*//' | grep -v '//.*fetch'; then
+            echo "❌ fetch() in content script — network calls must go via background.js"; FAIL=1
           fi
           [ $FAIL -eq 1 ] && exit 1
           echo "✅ Security checks passed"
 
-      - name: Validate manifest
+      - name: Validate manifests
         run: |
           python3 -c "
           import json
           m = json.load(open('manifest.json'))
-          assert 'tabs' in m.get('permissions',[]), 'tabs permission required for report tool'
+          assert 'tabs' in m.get('permissions',[]), 'tabs permission required'
           assert 'activeTab' not in m.get('permissions',[]), 'activeTab must not be present'
           assert 'content_security_policy' in m, 'CSP missing'
           gecko = m['browser_specific_settings']['gecko']
+          assert 'update_url' in gecko, 'gecko.update_url missing'
           print('✅ manifest.json valid')
+          "
+          python3 -c "
+          import json
+          m = json.load(open('manifest-chrome.json'))
+          assert m['manifest_version'] == 3, 'Chrome manifest must be MV3'
+          assert 'service_worker' in m.get('background',{}), 'Chrome manifest needs service_worker'
+          print('✅ manifest-chrome.json valid')
           "
 
       - name: Version consistency check
@@ -54,16 +65,44 @@ jobs:
             echo "❌ manifest version mismatch: Firefox=$FIREFOX_VER Chrome=$CHROME_VER"
             exit 1
           fi
-          echo "✅ Version consistent across manifests: $FIREFOX_VER"
+          echo "✅ Version consistent: $FIREFOX_VER"
+
+      - name: Validate updates.json
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('updates.json'))
+          assert 'addons' in d and 'skipstream@extension' in d['addons']
+          updates = d['addons']['skipstream@extension']['updates']
+          assert updates, 'updates array empty'
+          for u in updates:
+              assert 'version' in u and 'update_link' in u
+          print(f'✅ updates.json valid ({len(updates)} entries)')
+          "
 
       - name: Post summary comment
         uses: actions/github-script@v7
         if: always()
         with:
           script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+            });
+            // Delete previous bot review comments to avoid stacking
+            for (const c of comments) {
+              if (c.user.login === 'github-actions[bot]' && c.body.includes('SkipStream Auto-Review')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: c.id,
+                });
+              }
+            }
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
-              body: '## SkipStream Auto-Review ✅\n\nCI checks ran. Review the **Checks** tab above for details.\n\n**Before merging, verify manually:**\n- [ ] Tested in Firefox (about:debugging → Load Temporary Add-on)\n- [ ] No API keys or credentials in code\n- [ ] `CHANGELOG.md` updated if this is a user-facing change\n- [ ] Both `manifest.json` and `manifest-chrome.json` version match\n- [ ] If manifest changed — re-validate with AMO validator'
+              body: '## SkipStream Auto-Review ✅\n\nCI checks ran. Review the **Checks** tab above for details.\n\n**Before merging, verify manually:**\n- [ ] Tested in Firefox (about:debugging → Load Temporary Add-on)\n- [ ] No API keys or credentials in code\n- [ ] `CHANGELOG.md` updated if this is a user-facing change\n- [ ] Both `manifest.json` and `manifest-chrome.json` version match\n- [ ] No `fetch()` or `localStorage` in `content-scripts/content.js`\n- [ ] If manifest changed — re-validate with AMO validator'
             });

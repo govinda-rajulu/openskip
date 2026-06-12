@@ -20,45 +20,49 @@ jobs:
 
       - name: Build repo context for AI
         run: |
-          # Collect all JS source files into a single context file
           echo "=== manifest.json ===" > /tmp/repo_context.txt
           cat manifest.json >> /tmp/repo_context.txt
           echo "" >> /tmp/repo_context.txt
-
           for f in background.js content-scripts/content.js options.js popup.js; do
             echo "=== $f ===" >> /tmp/repo_context.txt
             cat "$f" >> /tmp/repo_context.txt
             echo "" >> /tmp/repo_context.txt
           done
-
           echo "Context size: $(wc -c < /tmp/repo_context.txt) bytes"
 
       - name: Generate fix with Gemini
         id: fix
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
           python3 << 'PYEOF'
-          import os, json, urllib.request
+          import os, json, urllib.request, urllib.error, time
 
-          api_key = os.environ["GEMINI_API_KEY"]
-          issue_title = """${{ github.event.issue.title }}"""
-          issue_body  = """${{ github.event.issue.body }}"""
-          issue_num   = "${{ github.event.issue.number }}"
+          api_key     = os.environ.get("GEMINI_API_KEY", "")
+          issue_num   = os.environ.get("ISSUE_NUMBER", "")
+          issue_title = os.environ.get("ISSUE_TITLE", "")
+          issue_body  = os.environ.get("ISSUE_BODY", "")
+
+          if not api_key:
+              json.dump({"error": "NO_GEMINI_KEY"}, open("/tmp/ai_fix.json", "w"))
+              exit(0)
 
           with open("/tmp/repo_context.txt") as f:
               repo_context = f.read()
 
           prompt = f"""You are fixing a bug or implementing a feature for SkipStream, a Firefox browser extension.
 
-          STRICT ARCHITECTURE RULES — you MUST follow these or the CI will reject the code:
+          STRICT ARCHITECTURE RULES — CI will reject code that violates these:
           1. NEVER use localStorage in content-scripts/content.js — only browser.storage.local
           2. NEVER use fetch() in content-scripts/content.js — all API calls go through background.js via runtime.sendMessage
           3. NEVER use innerHTML — use DOM API: createElement, textContent, replaceChildren
           4. NEVER use console.log — only console.warn for diagnostics
           5. userId MUST be SHA-256 hash of "skipstream:uid:" + supabaseAnonKey — never random
           6. SPA nav MUST use pushState/replaceState intercept + popstate — no setInterval polling
-          7. Video detection thresholds: 25% width, 20% height, aspect ratio 1.2–3.0
+          7. Video detection thresholds: 25% width, 20% height, aspect ratio 1.2-3.0
 
           ISSUE #{issue_num}: {issue_title}
           {issue_body}
@@ -75,32 +79,51 @@ jobs:
             }}
           ]
 
-          Rules for your response:
+          Rules:
           - Only include files that actually need to change
           - Always write the COMPLETE file content, not just the changed part
           - If you cannot safely fix this, return: [{{"filename": "", "content": "", "description": "CANNOT_FIX: reason"}}]
           """
 
-          payload = {
+          payload = json.dumps({
               "contents": [{"parts": [{"text": prompt}]}],
               "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192}
-          }
+          }).encode()
 
-          req = urllib.request.Request(
-              f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}",
-              data=json.dumps(payload).encode(),
-              headers={"Content-Type": "application/json"},
-              method="POST"
-          )
+          url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
 
-          with urllib.request.urlopen(req) as r:
-              data = json.load(r)
-              text = data["candidates"][0]["content"]["parts"][0]["text"]
-              text = text.strip().strip("```json").strip("```").strip()
-
-              with open("/tmp/ai_fix.json", "w") as f:
-                  f.write(text)
-              print("Gemini response saved")
+          for attempt in range(4):
+              try:
+                  req = urllib.request.Request(
+                      url, data=payload,
+                      headers={"Content-Type": "application/json"},
+                      method="POST"
+                  )
+                  with urllib.request.urlopen(req, timeout=60) as r:
+                      data = json.load(r)
+                  text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                  # Strip markdown code fences if present
+                  if text.startswith("```"):
+                      text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+                  # Validate it's parseable JSON
+                  json.loads(text)
+                  with open("/tmp/ai_fix.json", "w") as f:
+                      f.write(text)
+                  print(f"Gemini response saved ({len(text)} chars)")
+                  break
+              except urllib.error.HTTPError as e:
+                  if e.code == 429:
+                      wait = 30 * (attempt + 1)
+                      print(f"429 rate limit — waiting {wait}s (attempt {attempt+1}/4)")
+                      time.sleep(wait)
+                  else:
+                      json.dump({"error": f"HTTP_{e.code}"}, open("/tmp/ai_fix.json", "w"))
+                      break
+              except Exception as e:
+                  if attempt == 3:
+                      json.dump({"error": str(e)}, open("/tmp/ai_fix.json", "w"))
+                  else:
+                      time.sleep(5 * (attempt + 1))
           PYEOF
 
       - name: Apply fix and open PR
@@ -111,32 +134,38 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const issueNum = process.env.ISSUE_NUMBER;
+            const issueNum = parseInt(process.env.ISSUE_NUMBER);
             const issueTitle = process.env.ISSUE_TITLE;
+
+            const postComment = async (body) => {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: issueNum, body
+              });
+            };
 
             let fixes;
             try {
-              fixes = JSON.parse(fs.readFileSync('/tmp/ai_fix.json', 'utf8'));
+              const raw = fs.readFileSync('/tmp/ai_fix.json', 'utf8');
+              const parsed = JSON.parse(raw);
+              // Handle error object from python
+              if (!Array.isArray(parsed)) {
+                await postComment(`## 🤖 AI Fix Failed\n\nError: \`${parsed.error || JSON.stringify(parsed)}\`\n\nManual fix needed.`);
+                return;
+              }
+              fixes = parsed;
             } catch(e) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner, repo: context.repo.repo,
-                issue_number: parseInt(issueNum),
-                body: `## 🤖 AI Fix Failed\n\nCould not parse AI response. Manual fix needed.\n\nError: ${e.message}`
-              });
+              await postComment(`## 🤖 AI Fix Failed\n\nCould not parse AI response. Manual fix needed.\n\nError: ${e.message}`);
               return;
             }
 
-            // Check if AI said it can't fix this
-            if (!fixes[0].filename) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner, repo: context.repo.repo,
-                issue_number: parseInt(issueNum),
-                body: `## 🤖 AI Fix — Manual Review Required\n\n${fixes[0].description}\n\nThis issue needs human attention before an automated fix is safe.`
-              });
+            // AI said it can't fix this
+            if (!fixes[0]?.filename) {
+              await postComment(`## 🤖 AI Fix — Manual Review Required\n\n${fixes[0]?.description || 'No description'}\n\nThis issue needs human attention before an automated fix is safe.`);
               return;
             }
 
-            // Create branch
+            // Create or reset branch
             const branch = `ai-fix/issue-${issueNum}`;
             const { data: ref } = await github.rest.git.getRef({
               owner: context.repo.owner, repo: context.repo.repo,
@@ -149,14 +178,10 @@ jobs:
                 ref: `refs/heads/${branch}`, sha: ref.object.sha
               });
             } catch(e) {
-              // Branch exists — delete and recreate
-              await github.rest.git.deleteRef({
+              // Branch exists - update it to point at main
+              await github.rest.git.updateRef({
                 owner: context.repo.owner, repo: context.repo.repo,
-                ref: `heads/${branch}`
-              });
-              await github.rest.git.createRef({
-                owner: context.repo.owner, repo: context.repo.repo,
-                ref: `refs/heads/${branch}`, sha: ref.object.sha
+                ref: `heads/${branch}`, sha: ref.object.sha, force: true
               });
             }
 
@@ -165,7 +190,6 @@ jobs:
             for (const fix of fixes) {
               if (!fix.filename || !fix.content) continue;
 
-              // Get current file SHA if it exists
               let fileSha;
               try {
                 const { data: existing } = await github.rest.repos.getContent({
@@ -175,28 +199,40 @@ jobs:
                 fileSha = existing.sha;
               } catch(e) { /* new file */ }
 
-              const encoded = Buffer.from(fix.content).toString('base64');
               await github.rest.repos.createOrUpdateFileContents({
                 owner: context.repo.owner, repo: context.repo.repo,
                 path: fix.filename,
-                message: `fix: ${fix.description.slice(0, 72)}`,
-                content: encoded,
+                message: `fix: ${fix.description.slice(0, 72)} (closes #${issueNum})`,
+                content: Buffer.from(fix.content).toString('base64'),
                 branch,
                 ...(fileSha ? { sha: fileSha } : {})
               });
               fileList.push(`- \`${fix.filename}\`: ${fix.description}`);
             }
 
-            // Open PR
-            const { data: pr } = await github.rest.pulls.create({
+            // Check if PR already exists for this branch
+            const { data: existingPRs } = await github.rest.pulls.list({
               owner: context.repo.owner, repo: context.repo.repo,
-              title: `🤖 AI fix: ${issueTitle}`,
-              head: branch, base: 'main',
-              body: `Closes #${issueNum}\n\n## Changes made\n${fileList.join('\n')}\n\n---\n⚠️ **Review carefully before merging.** CI will run automatically. Check:\n- [ ] No localStorage in content script\n- [ ] No innerHTML usage\n- [ ] No console.log\n- [ ] Logic makes sense for the issue\n- [ ] Tested manually in Firefox`
+              head: `${context.repo.owner}:${branch}`, state: 'open'
             });
 
-            await github.rest.issues.createComment({
-              owner: context.repo.owner, repo: context.repo.repo,
-              issue_number: parseInt(issueNum),
-              body: `## 🤖 AI Fix PR Created\n\nPR #${pr.number} is ready for your review: ${pr.html_url}\n\nCI is running automatically. Please test in Firefox before merging.`
-            });
+            let pr;
+            if (existingPRs.length > 0) {
+              // Update existing PR
+              pr = existingPRs[0];
+              await github.rest.pulls.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                pull_number: pr.number,
+                body: `Closes #${issueNum}\n\n## Changes\n${fileList.join('\n')}\n\n---\n⚠️ **Review carefully before merging.** CI runs automatically. Verify:\n- [ ] No \`localStorage\` or \`fetch()\` in content script\n- [ ] No \`innerHTML\` or \`console.log\`\n- [ ] Logic is correct for the reported issue\n- [ ] Tested manually in Firefox`
+              });
+            } else {
+              const { data: newPR } = await github.rest.pulls.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: `🤖 AI fix: ${issueTitle}`,
+                head: branch, base: 'main',
+                body: `Closes #${issueNum}\n\n## Changes\n${fileList.join('\n')}\n\n---\n⚠️ **Review carefully before merging.** CI runs automatically. Verify:\n- [ ] No \`localStorage\` or \`fetch()\` in content script\n- [ ] No \`innerHTML\` or \`console.log\`\n- [ ] Logic is correct for the reported issue\n- [ ] Tested manually in Firefox`
+              });
+              pr = newPR;
+            }
+
+            await postComment(`## 🤖 AI Fix PR Ready\n\nPR #${pr.number}: ${pr.html_url}\n\nCI is running automatically. Please test in Firefox before merging.`);

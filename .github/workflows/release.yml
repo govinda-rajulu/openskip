@@ -1,4 +1,4 @@
-name: Build & Release ZIP
+name: Build & Release
 
 on:
   push:
@@ -17,6 +17,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Validate JS syntax
         run: |
@@ -37,6 +44,9 @@ jobs:
           fi
           if grep -n 'localStorage' content-scripts/content.js | grep -v '^\s*[0-9]*:\s*//' | grep -v '//.*localStorage'; then
             echo "❌ localStorage in content script"; FAIL=1
+          fi
+          if grep -n '\bfetch(' content-scripts/content.js | grep -v '^\s*[0-9]*:\s*//' | grep -v '//.*fetch'; then
+            echo "❌ fetch() in content script"; FAIL=1
           fi
           [ $FAIL -eq 1 ] && exit 1
           echo "✅ Security checks passed"
@@ -78,27 +88,115 @@ jobs:
           fi
           echo "✅ CHANGELOG.md has entry for v${VERSION}"
 
-
-      - name: Build ZIP
+      - name: Extract changelog notes
+        id: notes
         run: |
-          ZIP_NAME="skipstream-${{ steps.version.outputs.version }}-firefox.zip"
+          python3 - << 'PYEOF'
+          import re, json, os
+          version = json.load(open('manifest.json'))['version']
+          try:
+              cl = open('CHANGELOG.md').read()
+              m = re.search(r'## \[' + re.escape(version) + r'\][^\n]*\n([\s\S]*?)(?=\n## \[|\Z)', cl)
+              text = m.group(1) if m else ''
+              # Clean up but keep markdown structure for GitHub release notes
+              text = text.strip()[:4000]
+          except Exception:
+              text = f'Release v{version}'
+          # Write to file to avoid quoting issues
+          open('/tmp/release_notes.md', 'w').write(text)
+          print(f'Extracted {len(text)} chars of release notes')
+          PYEOF
+
+      - name: Build Firefox ZIP
+        id: build_firefox
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP_NAME="skipstream-${VERSION}-firefox.zip"
           zip -r "$ZIP_NAME" \
             manifest.json background.js \
             content-scripts/ icons/ \
             popup.html popup.js \
             options.html options.js
-          echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
+          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
+          echo "✅ Firefox ZIP built: $(du -h $ZIP_NAME | cut -f1)"
 
-      - name: Upload ZIP to GitHub Release
+      - name: Build Chrome ZIP
+        id: build_chrome
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          ZIP_NAME="skipstream-${VERSION}-chrome.zip"
+          mkdir -p /tmp/chrome-build
+          cp -r content-scripts icons popup.html popup.js options.html options.js background.js /tmp/chrome-build/
+          cp manifest-chrome.json /tmp/chrome-build/manifest.json
+          cd /tmp/chrome-build && zip -r "$GITHUB_WORKSPACE/$ZIP_NAME" .
+          cd "$GITHUB_WORKSPACE"
+          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
+          echo "✅ Chrome ZIP built: $(du -h $ZIP_NAME | cut -f1)"
+
+      - name: Update updates.json and commit
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          python3 - << PYEOF
+          import json
+          version = "$VERSION"
+          data = json.load(open('updates.json'))
+          entry = {
+              "version": version,
+              "update_link": f"https://github.com/${{ github.repository }}/releases/download/v{version}/skipstream-{version}-firefox.zip",
+              "update_info_url": f"https://github.com/${{ github.repository }}/releases/tag/v{version}"
+          }
+          updates = data['addons']['skipstream@extension']['updates']
+          # Replace if same version exists, otherwise append
+          existing = [i for i, u in enumerate(updates) if u['version'] == version]
+          if existing:
+              updates[existing[0]] = entry
+          else:
+              updates.append(entry)
+          # Keep only last 10 entries
+          data['addons']['skipstream@extension']['updates'] = updates[-10:]
+          json.dump(data, open('updates.json', 'w'), indent=2)
+          print(f'updates.json updated to v{version}')
+          PYEOF
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add updates.json
+          git diff --staged --quiet || git commit -m "chore: update updates.json for v${VERSION} [skip ci]"
+          git push origin HEAD:main || echo "⚠ Push skipped (tag ref, or no changes)"
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: "skipstream-${{ steps.version.outputs.version }}-firefox.zip"
+          files: |
+            ${{ steps.build_firefox.outputs.zip_name }}
+            ${{ steps.build_chrome.outputs.zip_name }}
           fail_on_unmatched_files: true
           generate_release_notes: false
+          body_path: /tmp/release_notes.md
 
-      - name: Upload ZIP as workflow artifact
+      - name: Upload Firefox artifact (for AMO workflow)
         uses: actions/upload-artifact@v4
         with:
           name: skipstream-firefox-zip
-          path: "skipstream-${{ steps.version.outputs.version }}-firefox.zip"
+          path: ${{ steps.build_firefox.outputs.zip_name }}
           retention-days: 1
+
+      - name: Upload Chrome artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: skipstream-chrome-zip
+          path: ${{ steps.build_chrome.outputs.zip_name }}
+          retention-days: 1
+
+      - name: Release summary
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "## ✅ Release v${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          FF="${{ steps.build_firefox.outputs.zip_name }}"
+          CR="${{ steps.build_chrome.outputs.zip_name }}"
+          echo "| \`$FF\` | $(du -h $FF | cut -f1) |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`$CR\` | $(du -h $CR | cut -f1) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release:** https://github.com/${{ github.repository }}/releases/tag/v${VERSION}" >> $GITHUB_STEP_SUMMARY
