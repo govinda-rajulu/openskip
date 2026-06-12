@@ -95,6 +95,26 @@ jobs:
           print(f'✅ updates.json valid - latest: {latest}')
           "
 
+
+      - name: Check manifest strict_min_version is reasonable
+        run: |
+          python3 -c "
+          import json
+          m = json.load(open('manifest.json'))
+          gecko = m['browser_specific_settings']['gecko']
+          min_ver_str = gecko.get('strict_min_version', '0')
+          min_ver = float(min_ver_str.split('.')[0])
+          # Warn if strict_min_version is very high (blocks most users)
+          # Firefox releases ~4 versions/year; current stable is roughly 130-142 range (2026)
+          if min_ver > 145:
+              print(f'❌ strict_min_version {min_ver_str} is too high - blocks most Firefox users')
+              exit(1)
+          if min_ver < 109:
+              print(f'❌ strict_min_version {min_ver_str} is too low - use at least 109 for MV2 baseline')
+              exit(1)
+          print(f'✅ strict_min_version {min_ver_str} is within acceptable range')
+          "
+
       - name: Check for innerHTML usage (security)
         run: |
           if grep -rn 'innerHTML' background.js options.js popup.js content-scripts/ \

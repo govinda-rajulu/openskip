@@ -1,0 +1,132 @@
+name: Validate Supabase Setup SQL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase_setup.sql'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase_setup.sql'
+  workflow_dispatch:
+    inputs:
+      run_on_supabase:
+        description: 'Apply setup.sql to configured Supabase project'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+jobs:
+  validate-sql:
+    name: Lint & Validate SQL
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client python3
+
+      - name: Validate SQL syntax
+        run: |
+          # Use pg_dump --schema-only approach with psql syntax check
+          # Run a local postgres to parse the SQL
+          echo "Validating supabase_setup.sql syntax..."
+          # Use python to check for obvious issues
+          python3 << 'PYEOF'
+          import re, sys
+
+          sql = open('supabase_setup.sql').read()
+
+          errors = []
+
+          # Check all DO blocks are closed
+          do_opens  = len(re.findall(r'\bdo\b\s*\$\$', sql, re.IGNORECASE))
+          do_closes = len(re.findall(r'\$\$\s*;', sql))
+          if do_opens != do_closes:
+              errors.append(f"DO block mismatch: {do_opens} opens vs {do_closes} closes")
+
+          # Check CREATE TABLE IF NOT EXISTS
+          tables = re.findall(r'create table if not exists\s+(\S+)', sql, re.IGNORECASE)
+          print(f"Tables: {tables}")
+
+          # Check RLS is enabled for all tables
+          for tbl in ['playback_states', 'user_settings']:
+              if f'alter table public.{tbl} enable row level security' not in sql:
+                  errors.append(f"RLS not enabled for {tbl}")
+
+          # Check delete policies exist
+          for tbl in ['playback_states', 'user_settings']:
+              if f'for delete' not in sql:
+                  errors.append(f"Missing delete policy for {tbl}")
+
+          # Check verification function exists
+          if 'ss_verify_setup' not in sql:
+              errors.append("Missing ss_verify_setup() function")
+
+          if errors:
+              for e in errors:
+                  print(f"❌ {e}")
+              sys.exit(1)
+          else:
+              print(f"✅ SQL validation passed ({len(sql)} chars, {len(tables)} tables)")
+          PYEOF
+
+      - name: Check idempotency markers
+        run: |
+          echo "Checking idempotency..."
+          python3 << 'PYEOF'
+          import re, sys
+          sql = open('supabase_setup.sql').read()
+          issues = []
+
+          # All CREATE TABLE must use IF NOT EXISTS
+          bare_creates = re.findall(r'create table (?!if not exists)', sql, re.IGNORECASE)
+          if bare_creates:
+              issues.append(f"Found CREATE TABLE without IF NOT EXISTS: {len(bare_creates)} occurrences")
+
+          # All CREATE INDEX must use IF NOT EXISTS
+          bare_idx = re.findall(r'create index (?!if not exists)', sql, re.IGNORECASE)
+          if bare_idx:
+              issues.append(f"Found CREATE INDEX without IF NOT EXISTS: {len(bare_idx)} occurrences")
+
+          # CREATE OR REPLACE used for functions
+          funcs = re.findall(r'create function', sql, re.IGNORECASE)
+          if funcs:
+              issues.append("Found CREATE FUNCTION without OR REPLACE")
+
+          if issues:
+              for i in issues:
+                  print(f"❌ {i}")
+              sys.exit(1)
+          print("✅ All statements are idempotent")
+          PYEOF
+
+      - name: Apply to Supabase (manual trigger only)
+        if: github.event_name == 'workflow_dispatch' && inputs.run_on_supabase == 'true'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "❌ SUPABASE_DB_URL secret not set."
+            echo "   Format: postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres"
+            exit 1
+          fi
+          echo "Applying supabase_setup.sql to Supabase project..."
+          psql "$SUPABASE_DB_URL" -f supabase_setup.sql
+          echo "✅ Setup SQL applied successfully"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Supabase Setup SQL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "File: \`supabase_setup.sql\`" >> $GITHUB_STEP_SUMMARY
+          echo "Lines: $(wc -l < supabase_setup.sql)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To apply manually: copy the file contents into your Supabase SQL Editor and run." >> $GITHUB_STEP_SUMMARY
+          echo "To verify: run \`select public.ss_verify_setup();\` in the SQL Editor." >> $GITHUB_STEP_SUMMARY

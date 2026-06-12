@@ -52,7 +52,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Submitting version: $VERSION"
 
-      - name: Download release ZIP (from triggering workflow)
+      - name: Download release artifact (from triggering workflow)
         if: github.event_name == 'workflow_run'
         uses: actions/download-artifact@v4
         with:
@@ -62,21 +62,54 @@ jobs:
           path: .
         continue-on-error: true
 
-      - name: Build ZIP (fallback / manual trigger)
+      - name: Build ZIP (fallback for manual trigger or missing artifact)
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           ZIP_NAME="skipstream-${VERSION}-firefox.zip"
-          if [ ! -f "$ZIP_NAME" ]; then
-            echo "Building $ZIP_NAME from source…"
+          if [ -f "$ZIP_NAME" ]; then
+            echo "✅ Using downloaded artifact: $ZIP_NAME"
+          else
+            echo "Building $ZIP_NAME from source..."
             zip -r "$ZIP_NAME" \
               manifest.json background.js \
               content-scripts/ icons/ \
               popup.html popup.js \
               options.html options.js
             echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
-          else
-            echo "✅ Using artifact: $ZIP_NAME"
           fi
+
+      - name: Check AMO secrets configured
+        run: |
+          if [ -z "${{ secrets.AMO_API_KEY }}" ] || [ -z "${{ secrets.AMO_API_SECRET }}" ]; then
+            echo "❌ AMO_API_KEY or AMO_API_SECRET secrets not set."
+            echo "   Go to Settings > Secrets and variables > Actions to add them."
+            echo "   Get keys from: https://addons.mozilla.org/en-US/developers/addon/api/key/"
+            exit 1
+          fi
+          echo "✅ AMO secrets configured"
+
+      - name: Extract release notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          python3 - << 'PYEOF'
+          import re, json, os
+          version = os.environ.get('VERSION', '')
+          if not version:
+              version = json.load(open('manifest.json'))['version']
+          try:
+              cl = open('CHANGELOG.md').read()
+              m = re.search(r'## \[' + re.escape(version) + r'\][^\n]*\n([\s\S]*?)(?=\n## \[|\Z)', cl)
+              text = m.group(1) if m else ''
+              text = re.sub(r'###[^\n]*\n', '', text)
+              text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+              text = text.strip()[:3000]
+          except Exception:
+              text = ''
+          open('/tmp/release_notes.txt', 'w').write(text)
+          print(f'Release notes: {len(text)} chars')
+          PYEOF
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
 
       - name: Submit to AMO
         env:
@@ -84,20 +117,8 @@ jobs:
           AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
           AMO_ADDON_SLUG: skipstream
           DRY_RUN:        ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' && '1' || '0' }}
+          RELEASE_NOTES:  ""
         run: |
-          python3 -c "
-          import re, json
-          version = json.load(open('manifest.json'))['version']
-          try:
-              cl = open('CHANGELOG.md').read()
-              m = re.search(r'## \[' + re.escape(version) + r'\][^\n]*\n([\s\S]*?)(?=\n## \[|\Z)', cl)
-              text = m.group(1) if m else ''
-              text = re.sub(r'###[^\n]*\n', '', text)
-              text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
-              print(text.strip()[:3000])
-          except Exception:
-              print('')
-          " > /tmp/release_notes.txt
           export RELEASE_NOTES="$(cat /tmp/release_notes.txt)"
           node scripts/amo-update.js
 
@@ -117,7 +138,7 @@ jobs:
           echo "Check the step logs above for the error." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Common causes:" >> $GITHUB_STEP_SUMMARY
-          echo "- \`AMO_API_KEY\` / \`AMO_API_SECRET\` secrets not set" >> $GITHUB_STEP_SUMMARY
-          echo "- ZIP failed AMO validation" >> $GITHUB_STEP_SUMMARY
-          echo "- Add-on slug not yet claimed (submit first version manually)" >> $GITHUB_STEP_SUMMARY
-          echo "- Version already exists on AMO (409)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`AMO_API_KEY\` / \`AMO_API_SECRET\` secrets not set or expired" >> $GITHUB_STEP_SUMMARY
+          echo "- ZIP failed AMO validation (check extension structure)" >> $GITHUB_STEP_SUMMARY
+          echo "- Add-on slug not yet claimed (submit first version manually via AMO Dev Hub)" >> $GITHUB_STEP_SUMMARY
+          echo "- Version already exists on AMO (409 - already submitted)" >> $GITHUB_STEP_SUMMARY

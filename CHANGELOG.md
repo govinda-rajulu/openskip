@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.9] - 2026-06-12
+
+### Fixed
+- **AMO submission**: replaced all `console.log` calls with `process.stdout/stderr.write` in `amo-update.js`; fixed unclear error path for non-201/409 upload responses; extended JWT expiry to 300s; cleaner upload error reporting
+- **AMO workflow trigger**: added explicit secrets check step that fails early with a clear message when `AMO_API_KEY`/`AMO_API_SECRET` not set
+- **Chrome ZIP missing from releases**: confirmed `release.yml` builds and uploads both Firefox and Chrome ZIPs as release assets and workflow artifacts
+- **CWS workflow failures**: workflow now detects missing secrets early and skips all submission steps gracefully instead of failing
+- **Supabase setup**: added DELETE RLS policies for `playback_states` and `user_settings`; added `updated_at` index; added `ss_verify_setup()` verification function; auto-runs verification at end of script
+
+### Added
+- **Supabase validation workflow** (`supabase-validate.yml`): lints `supabase_setup.sql` on every change; `workflow_dispatch` option to apply setup to live Supabase project via `SUPABASE_DB_URL` secret
+- **validate.yml**: `strict_min_version` sanity check - rejects values below 109 or above 145
+
+
 ## [1.6.8] - 2026-06-07
 
 ### Fixed
