@@ -717,9 +717,11 @@ async function forceSyncNow() {
       }
 
       // Step 2: refresh history from cloud
-      await loadCloudHistory();
-      mergeHistoryEntries();
-      renderHistory();
+      const syncStored = await br.storage.local.get(['supabaseUrl','supabaseAnonKey']);
+      const syncUidRes = await br.runtime.sendMessage({ type: 'GET_USER_ID' });
+      await loadCloudHistory(syncUidRes?.userId, syncStored.supabaseUrl, syncStored.supabaseAnonKey);
+      populateSiteFilter();
+      applyHistoryFilters();
 
       const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       setSyncStatus('ok', `Synced ${pushed} item${pushed !== 1 ? 's' : ''} - ${ts}`);

@@ -196,9 +196,10 @@ async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, an
     for (const ts of ep.timestamps) {
       const type = (ts.type?.name || '').toLowerCase();
       const end  = ts.at + (ts.duration || 90);
-      if (type.includes('intro') || type === 'op')  segments.intro  = { start_sec: ts.at, end_sec: end };
-      if (type.includes('recap'))                    segments.recap  = { start_sec: ts.at, end_sec: end };
-      if (type.includes('outro') || type === 'ed')   segments.outro  = { start_sec: ts.at, end_sec: end };
+      // Only set if not already populated - first occurrence wins (earliest in episode)
+      if ((type.includes('intro') || type === 'op')  && !segments.intro)  segments.intro  = { start_sec: ts.at, end_sec: end };
+      if (type.includes('recap')                      && !segments.recap)  segments.recap  = { start_sec: ts.at, end_sec: end };
+      if ((type.includes('outro') || type === 'ed')   && !segments.outro)  segments.outro  = { start_sec: ts.at, end_sec: end };
     }
     return Object.keys(segments).length ? segments : null;
   } catch { return null; }

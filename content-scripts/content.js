@@ -148,8 +148,8 @@
     // Try OG title first, then document.title, strip site suffix
     const og = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
     const raw = og || document.title || '';
-    // Strip common " - SiteName" suffixes
-    return raw.replace(/\s*[-| - ]\s*\S.*$/, '').trim().slice(0, 120) || raw.slice(0, 120);
+    // Strip common " - SiteName" / " | SiteName" suffixes (require 2+ char site name)
+    return raw.replace(/\s+[-|]\s+\S.{2,}$/, '').trim().slice(0, 120) || raw.slice(0, 120);
   }
 
   // ── Deterministic user ID (derived in background) ──────────────────────────
@@ -357,7 +357,12 @@
     const autoTimer = setTimeout(() => {
       video.removeEventListener('play', onPlay);
       if (prompt.isConnected) {
-        try { if (video.isConnected && video.currentTime < 3) video.currentTime = position; } catch { /* ok */ }
+        try {
+        if (video.isConnected && video.currentTime < 3) {
+          video.currentTime = position;
+          video.play().catch(() => { /* autoplay policy - ok */ });
+        }
+      } catch { /* ok */ }
         prompt.remove();
       }
     }, 12000);
@@ -1044,9 +1049,12 @@
         }
         return;
       }
-      resolved = true;
-      segments = await fetchSegments(info.imdbId, info.season, info.episode);
-      if (!segments) {
+      const fetched = await fetchSegments(info.imdbId, info.season, info.episode);
+      if (fetched) {
+        resolved = true;
+        segments = fetched;
+      } else {
+        // resolved stays false so timed retries can still attempt if API was temporarily unavailable
         console.warn('[SkipStream] No segment data for', info.imdbId, `S${info.season}E${info.episode}`);
       }
     }
