@@ -2,6 +2,10 @@
 (function () {
   'use strict';
 
+  // ── Injection guard (Chrome MV3 can double-inject on some navigations) ──────
+  if (window.__skipstream_injected__) return;
+  window.__skipstream_injected__ = true;
+
   const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
   // ── Utilities ──────────────────────────────────────────────────────────────
@@ -751,7 +755,8 @@
   }
 
   // Poll every 3s - only when a video is playing
-  setInterval(() => {
+  // Stored so onNavigation can clear and restart it safely
+  let _stillWatchingInterval = setInterval(() => {
     const vid = document.querySelector('video');
     if (vid && !vid.paused) tryDismissStillWatching();
   }, 3000);
@@ -1066,9 +1071,10 @@
     // Start native platform button poller (skip intro buttons, next episode)
     startNativeBtnPoller(video);
 
-    // ── Skip polling ──
-    const pollInterval = setInterval(() => {
-      if (!video.isConnected) { clearInterval(pollInterval); return; }
+    // ── Skip polling (tracked so navigation cleanup can clear it) ──
+    let _videoPollInterval;
+    _videoPollInterval = setInterval(() => {
+      if (!video.isConnected) { clearInterval(_videoPollInterval); return; }
       if (video.paused || !segments) return;
 
       const active = findActiveSegment(segments, video.currentTime);
@@ -1112,7 +1118,8 @@
   }
 
   const debouncedScan = debounce(scanVideos, 400);
-  new MutationObserver(debouncedScan).observe(document.documentElement, { childList: true, subtree: true });
+  const _domObserver = new MutationObserver(debouncedScan);
+  _domObserver.observe(document.documentElement, { childList: true, subtree: true });
   window.addEventListener('load', () => setTimeout(scanVideos, 1000));
 
   let lastHref = location.href;
@@ -1124,8 +1131,17 @@
     _userIdFetched    = false;
     _userIdCache      = null;
     _nextEpTriggered  = false;
+    // Clear and restart still-watching poller (picks up new page's video elements)
+    clearInterval(_stillWatchingInterval);
+    _stillWatchingInterval = setInterval(() => {
+      const vid = document.querySelector('video');
+      if (vid && !vid.paused) tryDismissStillWatching();
+    }, 3000);
     if (_nativeBtnInterval) { clearInterval(_nativeBtnInterval); _nativeBtnInterval = null; }
     segmentCache.clear();
+    // Reconnect MO in case SPA swapped document.documentElement subtree
+    _domObserver.disconnect();
+    _domObserver.observe(document.documentElement, { childList: true, subtree: true });
     loadPrefs();
     setTimeout(scanVideos, 1500);
     setTimeout(scanVideos, 4000);

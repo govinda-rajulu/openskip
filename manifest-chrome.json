@@ -10,6 +10,8 @@
     "128": "icons/icon-128.png"
   },
   "permissions": [
+    "alarms",
+    "scripting",
     "storage",
     "tabs"
   ],
@@ -20,8 +22,7 @@
     "extension_pages": "script-src 'self'; object-src 'self'"
   },
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "action": {
     "default_title": "SkipStream",
@@ -48,5 +49,13 @@
         "content-scripts/content.js"
       ]
     }
-  ]
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+S"
+      },
+      "description": "Open SkipStream popup"
+    }
+  }
 }

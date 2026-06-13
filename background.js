@@ -6,12 +6,58 @@ const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chr
 const IS_SW = typeof ServiceWorkerGlobalScope !== 'undefined' &&
               self instanceof ServiceWorkerGlobalScope;
 
-const tmdbCache  = {};
-let cachedUserId = null;
+// ── SW keepalive alarm ────────────────────────────────────────────────────────
+// Chrome SW dies after ~30s idle. An alarm fires every 25s to keep it awake
+// for pending operations. Only registered in SW context (Chrome MV3).
 
-// Per-tab last-known playback state: tabId → { userId, body }
-// Used by tabs.onRemoved to force a final sync flush
-const tabPlaybackState = new Map();
+const ALARM_HEARTBEAT   = 'ss_heartbeat';
+const ALARM_QUEUE_FLUSH = 'ss_queue_flush';
+
+if (IS_SW) {
+  br.alarms.create(ALARM_HEARTBEAT,   { periodInMinutes: 25 / 60 }); // ~25s
+  br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: 5 });        // retry offline queue every 5min
+}
+
+br.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === ALARM_HEARTBEAT) {
+    // No-op touch of storage keeps SW alive for pending fetch chains
+    try { await br.storage.local.get('_ss_alive'); } catch { /* ok */ }
+  }
+  if (alarm.name === ALARM_QUEUE_FLUSH) {
+    await flushOfflineQueue();
+  }
+});
+
+// ── In-memory caches (storage-backed on SW terminate) ─────────────────────────
+// SW can die and restart at any time in Chrome. Hot caches are rebuilt from
+// storage on wake so we avoid redundant API calls across SW restarts.
+
+const TMDB_CACHE_KEY   = 'ss_tmdb_cache';
+const USERID_CACHE_KEY = 'ss_userid_cache';
+
+let _tmdbCache  = null;  // null = not yet loaded from storage
+let _cachedUserId = null;
+
+async function getTmdbCache() {
+  if (_tmdbCache) return _tmdbCache;
+  try {
+    const s = await br.storage.local.get(TMDB_CACHE_KEY);
+    _tmdbCache = s[TMDB_CACHE_KEY] || {};
+  } catch { _tmdbCache = {}; }
+  return _tmdbCache;
+}
+
+async function setTmdbCache(key, value) {
+  const cache = await getTmdbCache();
+  cache[key] = value;
+  // Cap at 200 entries; evict oldest by insertion order (Map would be better
+  // but storage round-trips don't need insertion-order guarantees)
+  const keys = Object.keys(cache);
+  if (keys.length > 200) {
+    delete cache[keys[0]];
+  }
+  try { await br.storage.local.set({ [TMDB_CACHE_KEY]: cache }); } catch { /* ok */ }
+}
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -40,15 +86,23 @@ async function getConfig() {
 }
 
 // ── Deterministic user ID ─────────────────────────────────────────────────────
+// Storage-backed: survives SW termination without recompute.
 
 async function getDerivedUserId(anonKey) {
-  if (cachedUserId) return cachedUserId;
+  if (_cachedUserId) return _cachedUserId;
+  // Try storage first (avoids SHA-256 recompute on SW wake)
+  try {
+    const s = await br.storage.local.get(USERID_CACHE_KEY);
+    if (s[USERID_CACHE_KEY]) { _cachedUserId = s[USERID_CACHE_KEY]; return _cachedUserId; }
+  } catch { /* compute fresh */ }
   try {
     const enc = new TextEncoder();
     const buf = await crypto.subtle.digest('SHA-256', enc.encode('skipstream:uid:' + anonKey));
     const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-    cachedUserId = `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`;
-    return cachedUserId;
+    _cachedUserId = `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`;
+    // Persist so next SW wake skips recompute
+    await br.storage.local.set({ [USERID_CACHE_KEY]: _cachedUserId });
+    return _cachedUserId;
   } catch { return null; }
 }
 
@@ -68,7 +122,28 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
   throw lastErr;
 }
 
-// ── Supabase upsert (internal helper, used by both message handler and tab flush) ──
+// ── Tab playback state (storage-backed to survive SW termination) ─────────────
+// tabId → { userId, body } stored in ss_tab_state; cleared when tab closes.
+
+const TAB_STATE_KEY = 'ss_tab_state';
+
+async function getTabState() {
+  try {
+    const s = await br.storage.local.get(TAB_STATE_KEY);
+    return s[TAB_STATE_KEY] || {};
+  } catch { return {}; }
+}
+
+async function setTabState(tabId, value) {
+  try {
+    const state = await getTabState();
+    if (value === null) delete state[tabId];
+    else state[String(tabId)] = value;
+    await br.storage.local.set({ [TAB_STATE_KEY]: state });
+  } catch { /* best-effort */ }
+}
+
+// ── Supabase upsert ───────────────────────────────────────────────────────────
 
 async function supabaseUpsert(body, { keepalive = false } = {}) {
   const { supabaseUrl, supabaseAnonKey } = await getConfig();
@@ -78,7 +153,7 @@ async function supabaseUpsert(body, { keepalive = false } = {}) {
       `${supabaseUrl}/rest/v1/playback_states?on_conflict=user_id,media_id`,
       {
         method: 'POST',
-        keepalive,   // true on unload path - survives page/tab death on mobile
+        keepalive,
         headers: {
           apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
           'Content-Type': 'application/json',
@@ -89,22 +164,22 @@ async function supabaseUpsert(body, { keepalive = false } = {}) {
     );
     return res.ok ? { ok: true } : { ok: false, err: `HTTP ${res.status}` };
   } catch (e) {
-    // Network failure - queue for retry when back online
+    // Network failure - queue for retry
     const QUEUE_KEY = 'skipstream_offline_queue';
     try {
       const stored = await br.storage.local.get(QUEUE_KEY);
       const queue = stored[QUEUE_KEY] || [];
-      // Deduplicate: replace existing entry for same user+media
       const idx = queue.findIndex(q => q.user_id === body.user_id && q.media_id === body.media_id);
       if (idx >= 0) queue[idx] = body; else queue.push(body);
-      if (queue.length > 50) queue.splice(0, queue.length - 50); // cap at 50
+      if (queue.length > 50) queue.splice(0, queue.length - 50);
       await br.storage.local.set({ [QUEUE_KEY]: queue });
     } catch { /* storage unavailable */ }
     return { ok: false, err: String(e) };
   }
 }
 
-// ── Offline queue flush on reconnect ──────────────────────────────────────────
+// ── Offline queue flush ───────────────────────────────────────────────────────
+// Called on 'online' event AND on ALARM_QUEUE_FLUSH (every 5 min in Chrome SW).
 
 async function flushOfflineQueue() {
   const QUEUE_KEY = 'skipstream_offline_queue';
@@ -124,16 +199,16 @@ async function flushOfflineQueue() {
 self.addEventListener('online', flushOfflineQueue);
 
 // ── Tab-close flush ───────────────────────────────────────────────────────────
-// When a tab is removed, fire a final upsert for its last-known playback state.
+// Uses storage-backed tab state so it works even if SW was terminated and restarted.
 
 if (br.tabs && br.tabs.onRemoved) {
   br.tabs.onRemoved.addListener(async (tabId) => {
-    const state = tabPlaybackState.get(tabId);
-    if (!state) return;
-    tabPlaybackState.delete(tabId);
-    if (!state.userId || !state.body) return;
+    const state = await getTabState();
+    const entry = state[String(tabId)];
+    await setTabState(tabId, null);
+    if (!entry?.body) return;
     try {
-      await supabaseUpsert(state.body, { keepalive: true });
+      await supabaseUpsert(entry.body, { keepalive: true });
     } catch { /* best-effort */ }
   });
 }
@@ -196,7 +271,6 @@ async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, an
     for (const ts of ep.timestamps) {
       const type = (ts.type?.name || '').toLowerCase();
       const end  = ts.at + (ts.duration || 90);
-      // Only set if not already populated - first occurrence wins (earliest in episode)
       if ((type.includes('intro') || type === 'op')  && !segments.intro)  segments.intro  = { start_sec: ts.at, end_sec: end };
       if (type.includes('recap')                      && !segments.recap)  segments.recap  = { start_sec: ts.at, end_sec: end };
       if ((type.includes('outro') || type === 'ed')   && !segments.outro)  segments.outro  = { start_sec: ts.at, end_sec: end };
@@ -257,25 +331,34 @@ async function checkIntroDB(introdbApiKey) {
   } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
 }
 
-
 // ── First install / update handler ───────────────────────────────────────────
+
 br.runtime.onInstalled.addListener(async ({ reason }) => {
+  // Re-register alarms in case they were cleared by browser update or SW restart
+  if (IS_SW) {
+    br.alarms.get(ALARM_HEARTBEAT).then(a => {
+      if (!a) br.alarms.create(ALARM_HEARTBEAT, { periodInMinutes: 25 / 60 });
+    }).catch(() => { br.alarms.create(ALARM_HEARTBEAT, { periodInMinutes: 25 / 60 }); });
+    br.alarms.get(ALARM_QUEUE_FLUSH).then(a => {
+      if (!a) br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: 5 });
+    }).catch(() => { br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: 5 }); });
+  }
+
   if (reason === 'install') {
-    // Open options page on fresh install so user can configure credentials
     br.runtime.openOptionsPage();
   }
   if (reason === 'install' || reason === 'update') {
-    // Check if Supabase needs setup and cache the result for options page
     const { supabaseUrl, supabaseAnonKey } = await getConfig();
     if (supabaseUrl && supabaseAnonKey) {
       const check = await checkSupabase(supabaseUrl, supabaseAnonKey);
       if (check.needsManualSetup) {
-        // Store flag so options page shows setup prompt immediately
         await br.storage.local.set({ _supabaseNeedsSetup: true });
       } else if (check.ok) {
         await br.storage.local.remove('_supabaseNeedsSetup');
       }
     }
+    // Flush any offline queue that accumulated while extension was off
+    await flushOfflineQueue();
   }
 });
 
@@ -297,7 +380,8 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (msg.type === 'INVALIDATE_USER_ID') {
-    cachedUserId = null;
+    _cachedUserId = null;
+    br.storage.local.remove(USERID_CACHE_KEY).catch(() => {});
     sendResponse({ ok: true });
     return true;
   }
@@ -312,17 +396,17 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (msg.type === 'TMDB_TO_IMDB') {
     const cacheKey = `tv:${msg.tmdbId}`;
-    if (cacheKey in tmdbCache) { sendResponse({ imdbId: tmdbCache[cacheKey] }); return true; }
-    getConfig().then(({ tmdbApiKey }) => {
-      if (!tmdbApiKey) { tmdbCache[cacheKey] = null; sendResponse({ imdbId: null }); return; }
-      fetchWithRetry(`https://api.themoviedb.org/3/tv/${msg.tmdbId}/external_ids?api_key=${tmdbApiKey}`)
-        .then(r => r.json())
-        .then(data => {
-          const id = data.imdb_id || null;
-          tmdbCache[cacheKey] = id;
-          sendResponse({ imdbId: id });
-        })
-        .catch(() => { tmdbCache[cacheKey] = null; sendResponse({ imdbId: null }); });
+    getTmdbCache().then(async (cache) => {
+      if (cacheKey in cache) { sendResponse({ imdbId: cache[cacheKey] }); return; }
+      const { tmdbApiKey } = await getConfig();
+      if (!tmdbApiKey) { await setTmdbCache(cacheKey, null); sendResponse({ imdbId: null }); return; }
+      try {
+        const r = await fetchWithRetry(`https://api.themoviedb.org/3/tv/${msg.tmdbId}/external_ids?api_key=${tmdbApiKey}`);
+        const data = await r.json();
+        const id = data.imdb_id || null;
+        await setTmdbCache(cacheKey, id);
+        sendResponse({ imdbId: id });
+      } catch { await setTmdbCache(cacheKey, null); sendResponse({ imdbId: null }); }
     });
     return true;
   }
@@ -359,10 +443,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       if (animeSkipEnabled && animeSkipClientId && msg.startSec != null && msg.endSec != null && msg.segType) {
         try {
-          const headers = {
-            'Content-Type': 'application/json',
-            'X-Client-ID': animeSkipClientId,
-          };
+          const headers = { 'Content-Type': 'application/json', 'X-Client-ID': animeSkipClientId };
           if (animeSkipAuthToken) headers['Authorization'] = `Bearer ${animeSkipAuthToken}`;
           const mutation = `mutation($showId:ID!,$epNum:Int!,$season:Int!,$at:Float!,$dur:Float!,$typeId:ID!){
             createTimestamp(showId:$showId,episodeNumber:$epNum,season:$season,at:$at,duration:$dur,typeId:$typeId){id}
@@ -373,10 +454,8 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
             body: JSON.stringify({
               query: mutation,
               variables: {
-                showId: msg.animeSkipShowId || '',
-                epNum: msg.episode, season: msg.season,
-                at: msg.startSec, dur: msg.endSec - msg.startSec,
-                typeId: typeMap[msg.segType] || '1',
+                showId: msg.animeSkipShowId || '', epNum: msg.episode, season: msg.season,
+                at: msg.startSec, dur: msg.endSec - msg.startSec, typeId: typeMap[msg.segType] || '1',
               },
             }),
           });
@@ -384,23 +463,21 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         } catch (e) { results.push({ provider: 'animeskip', ok: false, err: String(e) }); }
       }
 
-      const anyOk = results.some(r => r.ok);
-      sendResponse({ ok: anyOk, results });
+      sendResponse({ ok: results.some(r => r.ok), results });
     });
     return true;
   }
 
   if (msg.type === 'SUPABASE_UPSERT') {
-    // Cache last-known state per tab for tab-close flush
+    // Store last-known tab state in storage (SW-restart safe)
     if (sender?.tab?.id && msg.body) {
       getConfig().then(async ({ supabaseAnonKey }) => {
         const userId = supabaseAnonKey ? await getDerivedUserId(supabaseAnonKey) : null;
         if (userId) {
-          tabPlaybackState.set(sender.tab.id, { userId, body: msg.body });
+          await setTabState(sender.tab.id, { userId, body: msg.body });
         }
-      });
+      }).catch(() => {});
     }
-
     supabaseUpsert(msg.body, { keepalive: !!msg.keepalive })
       .then(result => sendResponse(result))
       .catch(err => sendResponse({ ok: false, err: String(err) }));
@@ -422,7 +499,6 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // ── SUPABASE_SETTINGS_UPSERT ─────────────────────────────────────────────────
   if (msg.type === 'SUPABASE_SETTINGS_UPSERT') {
     getConfig().then(async ({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ ok: false, err: 'not_configured' }); return; }
@@ -433,8 +509,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
             method: 'POST',
             headers: {
               apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
-              'Content-Type': 'application/json',
-              'Prefer': 'resolution=merge-duplicates',
+              'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates',
             },
             body: JSON.stringify({
               user_id:    msg.body.user_id,
@@ -452,7 +527,6 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // ── SUPABASE_SETTINGS_GET ─────────────────────────────────────────────────────
   if (msg.type === 'SUPABASE_SETTINGS_GET') {
     getConfig().then(async ({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
@@ -470,7 +544,6 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // SUPABASE_GET_ALL - used by popup to fetch all history rows for the user
   if (msg.type === 'SUPABASE_GET_ALL') {
     getConfig().then(({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
@@ -486,21 +559,14 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-
-  // ── SUPABASE_VERIFY_SETUP ─────────────────────────────────────────────────
-  // Calls ss_verify_setup() RPC to confirm all tables/policies/triggers exist.
   if (msg.type === 'SUPABASE_VERIFY_SETUP') {
     getConfig().then(async ({ supabaseUrl, supabaseAnonKey }) => {
-      if (!supabaseUrl || !supabaseAnonKey) {
-        sendResponse({ ok: false, err: 'not_configured' });
-        return;
-      }
+      if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ ok: false, err: 'not_configured' }); return; }
       try {
-        const res = await fetch(`${supabaseUrl}/rest/v1/rpc/ss_verify_setup`, {
+        const res = await fetchWithRetry(`${supabaseUrl}/rest/v1/rpc/ss_verify_setup`, {
           method: 'POST',
           headers: {
-            apikey: supabaseAnonKey,
-            Authorization: `Bearer ${supabaseAnonKey}`,
+            apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
             'Content-Type': 'application/json',
           },
           body: '{}',
@@ -509,8 +575,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const data = await res.json();
           const complete = data?.setup_complete === true;
           sendResponse({
-            ok: complete,
-            data,
+            ok: complete, data,
             message: complete
               ? 'Setup verified — all tables, RLS policies, and triggers present.'
               : 'Setup incomplete — some objects missing. Re-run supabase_setup.sql.',
