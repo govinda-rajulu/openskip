@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.10] - 2026-06-13
+### Changed
+- Patch release
+
 ## [1.6.9] - 2026-06-12
 
 ### Fixed
