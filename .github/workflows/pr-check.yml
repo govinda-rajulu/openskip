@@ -59,13 +59,45 @@ jobs:
 
       - name: Version consistency check
         run: |
-          FIREFOX_VER=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
-          CHROME_VER=$(python3 -c "import json; print(json.load(open('manifest-chrome.json'))['version'])")
-          if [ "$FIREFOX_VER" != "$CHROME_VER" ]; then
-            echo "❌ manifest version mismatch: Firefox=$FIREFOX_VER Chrome=$CHROME_VER"
-            exit 1
-          fi
-          echo "✅ Version consistent: $FIREFOX_VER"
+          python3 - << 'PYEOF'
+          import json, re, sys
+          
+          # Load Firefox version
+          manifest_ver = json.load(open('manifest.json'))['version']
+          
+          # 1. Check Chrome manifest version
+          chrome_ver = json.load(open('manifest-chrome.json'))['version']
+          if manifest_ver != chrome_ver:
+              print(f"❌ Version mismatch: manifest.json ({manifest_ver}) != manifest-chrome.json ({chrome_ver})")
+              sys.exit(1)
+          print(f"✅ manifest-chrome.json version matches: {chrome_ver}")
+              
+          # 2. Check popup.js version comment
+          popup_js = open('popup.js').read()
+          popup_match = re.search(r'/\* SkipStream - popup v(\d+\.\d+\.\d+) \*/', popup_js)
+          if not popup_match:
+              print("❌ Could not find popup.js version header comment structure! Expected format: /* SkipStream - popup vX.Y.Z */")
+              sys.exit(1)
+          popup_ver = popup_match.group(1)
+          if popup_ver != manifest_ver:
+              print(f"❌ Version mismatch: manifest.json ({manifest_ver}) != popup.js header ({popup_ver})")
+              sys.exit(1)
+          print(f"✅ popup.js version comment matches: {popup_ver}")
+              
+          # 3. Check README version badge
+          readme = open('README.md').read()
+          readme_match = re.search(r'version-(\d+\.\d+\.\d+)-green', readme)
+          if not readme_match:
+              print("❌ Could not find README version badge! Expected format: version-X.Y.Z-green")
+              sys.exit(1)
+          readme_ver = readme_match.group(1)
+          if readme_ver != manifest_ver:
+              print(f"❌ Version mismatch: manifest.json ({manifest_ver}) != README badge ({readme_ver})")
+              sys.exit(1)
+          print(f"✅ README.md version badge matches: {readme_ver}")
+          
+          print(f"✅ All version consistency checks passed successfully for version {manifest_ver}")
+          PYEOF
 
       - name: Validate updates.json
         run: |

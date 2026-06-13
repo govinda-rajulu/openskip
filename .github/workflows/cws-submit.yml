@@ -46,11 +46,16 @@ jobs:
 
       - name: Check CWS secrets configured
         id: check_secrets
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
         run: |
-          if [ -z "${{ secrets.CWS_EXTENSION_ID }}" ] || \
-             [ -z "${{ secrets.CWS_CLIENT_ID }}" ] || \
-             [ -z "${{ secrets.CWS_CLIENT_SECRET }}" ] || \
-             [ -z "${{ secrets.CWS_REFRESH_TOKEN }}" ]; then
+          if [ -z "$CWS_EXTENSION_ID" ] || \
+             [ -z "$CWS_CLIENT_ID" ] || \
+             [ -z "$CWS_CLIENT_SECRET" ] || \
+             [ -z "$CWS_REFRESH_TOKEN" ]; then
             echo "configured=false" >> $GITHUB_OUTPUT
             echo "⚠ CWS secrets not configured - skipping Chrome Web Store submission."
             echo "  Required: CWS_EXTENSION_ID, CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN"
@@ -72,19 +77,21 @@ jobs:
 
       - name: Build Chrome ZIP (fallback / manual trigger)
         if: steps.check_secrets.outputs.configured == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           ZIP_NAME="skipstream-${VERSION}-chrome.zip"
           if [ -f "$ZIP_NAME" ]; then
             echo "✅ Using downloaded artifact: $ZIP_NAME"
           else
             echo "Building $ZIP_NAME from source..."
+            rm -rf /tmp/chrome-build
             mkdir -p /tmp/chrome-build
             cp -r content-scripts icons popup.html popup.js options.html options.js background.js /tmp/chrome-build/
             cp manifest-chrome.json /tmp/chrome-build/manifest.json
             cd /tmp/chrome-build && zip -r "$GITHUB_WORKSPACE/$ZIP_NAME" .
             cd "$GITHUB_WORKSPACE"
-            echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
+            echo "✅ Built: $(du -h "$ZIP_NAME" | cut -f1)"
           fi
 
       - name: Submit to Chrome Web Store
@@ -200,11 +207,13 @@ jobs:
 
       - name: Summary on success
         if: success() && steps.check_secrets.outputs.configured == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           echo "## ✅ Chrome Web Store Submission Complete" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
-          echo "**Listing:** https://chromewebstore.google.com/detail/skipstream/${{ secrets.CWS_EXTENSION_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Listing:** https://chromewebstore.google.com/detail/skipstream/${CWS_EXTENSION_ID}" >> $GITHUB_STEP_SUMMARY
 
       - name: Summary on failure
         if: failure() && steps.check_secrets.outputs.configured == 'true'

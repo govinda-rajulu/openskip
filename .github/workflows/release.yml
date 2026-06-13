@@ -59,20 +59,22 @@ jobs:
           echo "Manifest version: $VERSION"
 
       - name: Check tag matches manifest version
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+          MANIFEST_VER: ${{ steps.version.outputs.version }}
         run: |
-          TAG="${{ github.ref_name }}"
-          MANIFEST_VER="${{ steps.version.outputs.version }}"
-          TAG_VER="${TAG#v}"
+          TAG_VER="${TAG_NAME#v}"
           if [ "$TAG_VER" != "$MANIFEST_VER" ]; then
-            echo "❌ Tag $TAG does not match manifest version $MANIFEST_VER"
+            echo "❌ Tag $TAG_NAME does not match manifest version $MANIFEST_VER"
             exit 1
           fi
-          echo "✅ Tag $TAG matches manifest version $MANIFEST_VER"
+          echo "✅ Tag $TAG_NAME matches manifest version $MANIFEST_VER"
 
       - name: Check manifest-chrome.json version matches
+        env:
+          MANIFEST_VER: ${{ steps.version.outputs.version }}
         run: |
           CHROME_VER=$(python3 -c "import json; print(json.load(open('manifest-chrome.json'))['version'])")
-          MANIFEST_VER="${{ steps.version.outputs.version }}"
           if [ "$CHROME_VER" != "$MANIFEST_VER" ]; then
             echo "❌ manifest-chrome.json version $CHROME_VER != manifest.json $MANIFEST_VER"
             exit 1
@@ -80,8 +82,9 @@ jobs:
           echo "✅ manifest-chrome.json version matches"
 
       - name: Check CHANGELOG has entry for this version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           if ! grep -q "\[${VERSION}\]" CHANGELOG.md; then
             echo "❌ CHANGELOG.md missing entry for v${VERSION}"
             exit 1
@@ -107,8 +110,9 @@ jobs:
 
       - name: Build Firefox ZIP
         id: build_firefox
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           ZIP_NAME="skipstream-${VERSION}-firefox.zip"
           zip -r "$ZIP_NAME" \
             manifest.json background.js \
@@ -120,9 +124,11 @@ jobs:
 
       - name: Build Chrome ZIP
         id: build_chrome
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           ZIP_NAME="skipstream-${VERSION}-chrome.zip"
+          rm -rf /tmp/chrome-build
           mkdir -p /tmp/chrome-build
           cp -r content-scripts icons popup.html popup.js options.html options.js background.js /tmp/chrome-build/
           cp manifest-chrome.json /tmp/chrome-build/manifest.json
@@ -132,16 +138,19 @@ jobs:
           echo "✅ Chrome ZIP built: $(du -h $ZIP_NAME | cut -f1)"
 
       - name: Update updates.json and commit
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          python3 - << PYEOF
-          import json
-          version = "$VERSION"
+          python3 - << 'PYEOF'
+          import json, os
+          version = os.environ['VERSION']
+          repo = os.environ['GITHUB_REPOSITORY']
           data = json.load(open('updates.json'))
           entry = {
               "version": version,
-              "update_link": f"https://github.com/${{ github.repository }}/releases/download/v{version}/skipstream-{version}-firefox.zip",
-              "update_info_url": f"https://github.com/${{ github.repository }}/releases/tag/v{version}"
+              "update_link": f"https://github.com/{repo}/releases/download/v{version}/skipstream-{version}-firefox.zip",
+              "update_info_url": f"https://github.com/{repo}/releases/tag/v{version}"
           }
           updates = data['addons']['skipstream@extension']['updates']
           existing = [i for i, u in enumerate(updates) if u['version'] == version]
@@ -184,15 +193,17 @@ jobs:
           retention-days: 3
 
       - name: Release summary
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          FF: ${{ steps.build_firefox.outputs.zip_name }}
+          CR: ${{ steps.build_chrome.outputs.zip_name }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           echo "## ✅ Release v${VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
           echo "|------|------|" >> $GITHUB_STEP_SUMMARY
-          FF="${{ steps.build_firefox.outputs.zip_name }}"
-          CR="${{ steps.build_chrome.outputs.zip_name }}"
-          echo "| \`$FF\` | $(du -h $FF | cut -f1) |" >> $GITHUB_STEP_SUMMARY
-          echo "| \`$CR\` | $(du -h $CR | cut -f1) |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`$FF\` | $(du -h "$FF" | cut -f1) |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`$CR\` | $(du -h "$CR" | cut -f1) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Release:** https://github.com/${{ github.repository }}/releases/tag/v${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "**Release:** https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${VERSION}" >> $GITHUB_STEP_SUMMARY

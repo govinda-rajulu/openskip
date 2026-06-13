@@ -104,6 +104,23 @@ jobs:
             echo "   Format: postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres"
             exit 1
           fi
+          
+          # Mask DB URL, password, and host to prevent printing to logs
+          echo "::add-mask::$SUPABASE_DB_URL"
+          python3 -c '
+          import os, urllib.parse
+          url = os.environ.get("SUPABASE_DB_URL", "")
+          if url:
+              try:
+                  parsed = urllib.parse.urlparse(url)
+                  if parsed.password:
+                      print(f"::add-mask::{parsed.password}")
+                  if parsed.hostname:
+                      print(f"::add-mask::{parsed.hostname}")
+              except Exception:
+                  pass
+          '
+
           sudo apt-get install -y postgresql-client -qq
           psql "$SUPABASE_DB_URL" -f supabase_setup.sql
           echo "✅ Setup SQL applied"

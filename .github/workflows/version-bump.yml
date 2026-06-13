@@ -28,13 +28,14 @@ jobs:
 
       - name: Compute new version
         id: ver
+        env:
+          BUMP: ${{ inputs.bump }}
         run: |
-          CURRENT=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
-          BUMP="${{ inputs.bump }}"
-          python3 -c "
-          import sys
-          current = '$CURRENT'
-          bump    = '$BUMP'
+          CURRENT_VER=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
+          CURRENT_VER=$CURRENT_VER BUMP=$BUMP python3 - << 'PYEOF'
+          import os, sys
+          current = os.environ['CURRENT_VER']
+          bump    = os.environ['BUMP']
           parts   = list(map(int, current.split('.')))
           while len(parts) < 3:
               parts.append(0)
@@ -44,10 +45,10 @@ jobs:
           new_ver = '.'.join(map(str, parts))
           with open('/tmp/new_version.txt','w') as f: f.write(new_ver)
           print(f'Bumping {current} -> {new_ver}')
-          "
+          PYEOF
           NEW=$(cat /tmp/new_version.txt)
-          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
-          echo "new=$NEW"         >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT_VER" >> "$GITHUB_OUTPUT"
+          echo "new=$NEW"             >> "$GITHUB_OUTPUT"
 
       - name: Generate changelog entry
         env:
@@ -141,60 +142,80 @@ jobs:
           PYEOF
 
       - name: Apply version bump to files
+        env:
+          NEW_VER: ${{ steps.ver.outputs.new }}
+          OLD_VER: ${{ steps.ver.outputs.current }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          NEW="${{ steps.ver.outputs.new }}"
-          OLD="${{ steps.ver.outputs.current }}"
-
-          python3 -c "
-          import json
+          python3 - << 'PYEOF'
+          import os, json, re
+          
+          new_ver = os.environ['NEW_VER']
+          old_ver = os.environ['OLD_VER']
+          repo = os.environ['GITHUB_REPOSITORY']
+          
+          # 1. Update manifest.json
           m = json.load(open('manifest.json'))
-          m['version'] = '$NEW'
-          json.dump(m, open('manifest.json','w'), indent=2)
-          open('manifest.json','a').write('\n')
-          print('manifest.json ->', m['version'])
-          "
-
-          python3 -c "
-          import json
-          m = json.load(open('manifest-chrome.json'))
-          m['version'] = '$NEW'
-          json.dump(m, open('manifest-chrome.json','w'), indent=2)
-          open('manifest-chrome.json','a').write('\n')
-          print('manifest-chrome.json ->', m['version'])
-          "
-
-          sed -i "s/SkipStream v${OLD}/SkipStream v${NEW}/g" popup.js || true
-
-          python3 -c "
-          import json
-          new_ver = '${NEW}'
-          data = json.load(open('updates.json'))
-          entry = {
-              'version': new_ver,
-              'update_link': f'https://github.com/${{ github.repository }}/releases/download/v{new_ver}/skipstream-{new_ver}-firefox.zip',
-              'update_info_url': f'https://github.com/${{ github.repository }}/releases/tag/v{new_ver}'
-          }
-          updates = data['addons']['skipstream@extension']['updates']
-          if not any(u['version'] == new_ver for u in updates):
-              updates.append(entry)
-          data['addons']['skipstream@extension']['updates'] = updates[-10:]
-          json.dump(data, open('updates.json','w'), indent=2)
-          open('updates.json','a').write('\\n')
-          print('updates.json ->', new_ver)
-          "
-
-          python3 << 'PYEOF'
-          entry = open('/tmp/changelog_entry.txt').read().strip()
-          cl    = open('CHANGELOG.md').read()
-          lines = cl.split('\n')
-          insert_at = next((i for i,l in enumerate(lines) if l.startswith('## [')), 0)
-          lines.insert(insert_at, '')
-          lines.insert(insert_at, entry)
-          open('CHANGELOG.md', 'w').write('\n'.join(lines))
-          print('CHANGELOG.md updated')
+          m['version'] = new_ver
+          json.dump(m, open('manifest.json', 'w'), indent=2)
+          open('manifest.json', 'a').write('\n')
+          print('manifest.json ->', new_ver)
+          
+          # 2. Update manifest-chrome.json
+          m_chrome = json.load(open('manifest-chrome.json'))
+          m_chrome['version'] = new_ver
+          json.dump(m_chrome, open('manifest-chrome.json', 'w'), indent=2)
+          open('manifest-chrome.json', 'a').write('\n')
+          print('manifest-chrome.json ->', new_ver)
+          
+          # 3. Update popup.js version header comment
+          popup_path = 'popup.js'
+          if os.path.exists(popup_path):
+              popup = open(popup_path).read()
+              popup_updated = popup.replace(f'SkipStream v{old_ver}', f'SkipStream v{new_ver}')
+              popup_updated = popup_updated.replace(f'popup v{old_ver}', f'popup v{new_ver}')
+              open(popup_path, 'w').write(popup_updated)
+              print('popup.js version comment updated')
+              
+          # 4. Update updates.json
+          updates_path = 'updates.json'
+          if os.path.exists(updates_path):
+              data = json.load(open(updates_path))
+              entry = {
+                  'version': new_ver,
+                  'update_link': f'https://github.com/{repo}/releases/download/v{new_ver}/skipstream-{new_ver}-firefox.zip',
+                  'update_info_url': f'https://github.com/{repo}/releases/tag/v{new_ver}'
+              }
+              updates = data['addons']['skipstream@extension']['updates']
+              if not any(u['version'] == new_ver for u in updates):
+                  updates.append(entry)
+              data['addons']['skipstream@extension']['updates'] = updates[-10:]
+              json.dump(data, open(updates_path, 'w'), indent=2)
+              open(updates_path, 'a').write('\n')
+              print('updates.json updated to v', new_ver)
+              
+          # 5. Update README.md version badge
+          readme_path = 'README.md'
+          if os.path.exists(readme_path):
+              readme = open(readme_path).read()
+              readme_updated = re.sub(r'version-[0-9]+\.[0-9]+\.[0-9]+', f'version-{new_ver}', readme)
+              readme_updated = re.sub(r'tag/v[0-9]+\.[0-9]+\.[0-9]+', f'tag/v{new_ver}', readme_updated)
+              open(readme_path, 'w').write(readme_updated)
+              print('README.md version badge updated')
+              
+          # 6. Update CHANGELOG.md
+          changelog_entry_path = '/tmp/changelog_entry.txt'
+          if os.path.exists(changelog_entry_path):
+              entry = open(changelog_entry_path).read().strip()
+              cl = open('CHANGELOG.md').read()
+              lines = cl.split('\n')
+              insert_at = next((i for i, l in enumerate(lines) if l.startswith('## [')), 0)
+              lines.insert(insert_at, '')
+              lines.insert(insert_at, entry)
+              open('CHANGELOG.md', 'w').write('\n'.join(lines))
+              print('CHANGELOG.md updated')
           PYEOF
-
-          echo "All files bumped to $NEW"
+          echo "All files bumped to $NEW_VER"
 
       - name: Push branch and open Pull Request
         env:
@@ -209,7 +230,7 @@ jobs:
 
           # Switch to (or create) the bump branch from current HEAD
           git checkout -B "$BRANCH"
-          git add manifest.json manifest-chrome.json popup.js CHANGELOG.md updates.json
+          git add manifest.json manifest-chrome.json popup.js CHANGELOG.md updates.json README.md
           git diff --staged --quiet && echo "No changes to commit" && exit 0
           git commit -m "chore: bump version to v${NEW_VER}"
           git push origin "$BRANCH" --force

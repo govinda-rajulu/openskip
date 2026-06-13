@@ -43,9 +43,11 @@ jobs:
 
       - name: Resolve version
         id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            VERSION="${{ inputs.version }}"
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
           else
             VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
           fi
@@ -63,8 +65,9 @@ jobs:
         continue-on-error: true
 
       - name: Build ZIP (fallback for manual trigger or missing artifact)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           ZIP_NAME="skipstream-${VERSION}-firefox.zip"
           if [ -f "$ZIP_NAME" ]; then
             echo "✅ Using downloaded artifact: $ZIP_NAME"
@@ -79,8 +82,11 @@ jobs:
           fi
 
       - name: Check AMO secrets configured
+        env:
+          AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
+          AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
         run: |
-          if [ -z "${{ secrets.AMO_API_KEY }}" ] || [ -z "${{ secrets.AMO_API_SECRET }}" ]; then
+          if [ -z "$AMO_API_KEY" ] || [ -z "$AMO_API_SECRET" ]; then
             echo "❌ AMO_API_KEY or AMO_API_SECRET secrets not set."
             echo "   Go to Settings > Secrets and variables > Actions to add them."
             echo "   Get keys from: https://addons.mozilla.org/en-US/developers/addon/api/key/"
@@ -90,7 +96,6 @@ jobs:
 
       - name: Extract release notes
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           python3 - << 'PYEOF'
           import re, json, os
           version = os.environ.get('VERSION', '')
@@ -124,8 +129,9 @@ jobs:
 
       - name: Summary on success
         if: success()
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           echo "## ✅ AMO Submission Complete" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "**Listing:** https://addons.mozilla.org/en-US/firefox/addon/skipstream/" >> $GITHUB_STEP_SUMMARY
