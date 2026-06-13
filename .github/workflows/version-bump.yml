@@ -165,6 +165,24 @@ jobs:
 
           sed -i "s/SkipStream v${OLD}/SkipStream v${NEW}/g" popup.js || true
 
+          python3 -c "
+          import json
+          new_ver = '${NEW}'
+          data = json.load(open('updates.json'))
+          entry = {
+              'version': new_ver,
+              'update_link': f'https://github.com/${{ github.repository }}/releases/download/v{new_ver}/skipstream-{new_ver}-firefox.zip',
+              'update_info_url': f'https://github.com/${{ github.repository }}/releases/tag/v{new_ver}'
+          }
+          updates = data['addons']['skipstream@extension']['updates']
+          if not any(u['version'] == new_ver for u in updates):
+              updates.append(entry)
+          data['addons']['skipstream@extension']['updates'] = updates[-10:]
+          json.dump(data, open('updates.json','w'), indent=2)
+          open('updates.json','a').write('\\n')
+          print('updates.json ->', new_ver)
+          "
+
           python3 << 'PYEOF'
           entry = open('/tmp/changelog_entry.txt').read().strip()
           cl    = open('CHANGELOG.md').read()
@@ -191,7 +209,7 @@ jobs:
 
           # Switch to (or create) the bump branch from current HEAD
           git checkout -B "$BRANCH"
-          git add manifest.json manifest-chrome.json popup.js CHANGELOG.md
+          git add manifest.json manifest-chrome.json popup.js CHANGELOG.md updates.json
           git diff --staged --quiet && echo "No changes to commit" && exit 0
           git commit -m "chore: bump version to v${NEW_VER}"
           git push origin "$BRANCH" --force
