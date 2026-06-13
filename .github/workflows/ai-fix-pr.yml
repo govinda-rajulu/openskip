@@ -16,7 +16,7 @@ jobs:
       issues: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build repo context for AI
         run: |
@@ -154,7 +154,7 @@ jobs:
           PYEOF
 
       - name: Apply fix and open PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
