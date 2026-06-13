@@ -257,6 +257,28 @@ async function checkIntroDB(introdbApiKey) {
   } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
 }
 
+
+// ── First install / update handler ───────────────────────────────────────────
+br.runtime.onInstalled.addListener(async ({ reason }) => {
+  if (reason === 'install') {
+    // Open options page on fresh install so user can configure credentials
+    br.runtime.openOptionsPage();
+  }
+  if (reason === 'install' || reason === 'update') {
+    // Check if Supabase needs setup and cache the result for options page
+    const { supabaseUrl, supabaseAnonKey } = await getConfig();
+    if (supabaseUrl && supabaseAnonKey) {
+      const check = await checkSupabase(supabaseUrl, supabaseAnonKey);
+      if (check.needsManualSetup) {
+        // Store flag so options page shows setup prompt immediately
+        await br.storage.local.set({ _supabaseNeedsSetup: true });
+      } else if (check.ok) {
+        await br.storage.local.remove('_supabaseNeedsSetup');
+      }
+    }
+  }
+});
+
 // ── Message router ────────────────────────────────────────────────────────────
 
 br.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -460,6 +482,45 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         .then(r => r.json())
         .then(data => sendResponse({ data: Array.isArray(data) ? data : [] }))
         .catch(err => sendResponse({ data: null, err: String(err) }));
+    });
+    return true;
+  }
+
+
+  // ── SUPABASE_VERIFY_SETUP ─────────────────────────────────────────────────
+  // Calls ss_verify_setup() RPC to confirm all tables/policies/triggers exist.
+  if (msg.type === 'SUPABASE_VERIFY_SETUP') {
+    getConfig().then(async ({ supabaseUrl, supabaseAnonKey }) => {
+      if (!supabaseUrl || !supabaseAnonKey) {
+        sendResponse({ ok: false, err: 'not_configured' });
+        return;
+      }
+      try {
+        const res = await fetch(`${supabaseUrl}/rest/v1/rpc/ss_verify_setup`, {
+          method: 'POST',
+          headers: {
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: '{}',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const complete = data?.setup_complete === true;
+          sendResponse({
+            ok: complete,
+            data,
+            message: complete
+              ? 'Setup verified — all tables, RLS policies, and triggers present.'
+              : 'Setup incomplete — some objects missing. Re-run supabase_setup.sql.',
+          });
+        } else if (res.status === 404) {
+          sendResponse({ ok: false, needsSetup: true, message: 'ss_verify_setup() not found — run supabase_setup.sql first.' });
+        } else {
+          sendResponse({ ok: false, message: `Verify failed: HTTP ${res.status}` });
+        }
+      } catch (e) { sendResponse({ ok: false, message: `Network error: ${String(e)}` }); }
     });
     return true;
   }

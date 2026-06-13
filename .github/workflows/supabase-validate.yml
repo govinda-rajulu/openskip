@@ -26,82 +26,70 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install PostgreSQL client tools
+      - name: Validate SQL syntax and completeness
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client python3
-
-      - name: Validate SQL syntax
-        run: |
-          # Use pg_dump --schema-only approach with psql syntax check
-          # Run a local postgres to parse the SQL
-          echo "Validating supabase_setup.sql syntax..."
-          # Use python to check for obvious issues
           python3 << 'PYEOF'
           import re, sys
 
           sql = open('supabase_setup.sql').read()
-
           errors = []
 
-          # Check all DO blocks are closed
+          # DO block balance
           do_opens  = len(re.findall(r'\bdo\b\s*\$\$', sql, re.IGNORECASE))
           do_closes = len(re.findall(r'\$\$\s*;', sql))
           if do_opens != do_closes:
               errors.append(f"DO block mismatch: {do_opens} opens vs {do_closes} closes")
 
-          # Check CREATE TABLE IF NOT EXISTS
+          # Tables defined
           tables = re.findall(r'create table if not exists\s+(\S+)', sql, re.IGNORECASE)
           print(f"Tables: {tables}")
+          for expected in ['public.playback_states', 'public.user_settings']:
+              if expected not in tables:
+                  errors.append(f"Missing table: {expected}")
 
-          # Check RLS is enabled for all tables
+          # RLS enabled
           for tbl in ['playback_states', 'user_settings']:
               if f'alter table public.{tbl} enable row level security' not in sql:
                   errors.append(f"RLS not enabled for {tbl}")
 
-          # Check delete policies exist
-          for tbl in ['playback_states', 'user_settings']:
-              if f'for delete' not in sql:
-                  errors.append(f"Missing delete policy for {tbl}")
+          # Policies: select/insert/update/delete for both tables
+          for tbl_prefix in ['ss_anon', 'ss_settings']:
+              for op in ['select', 'insert', 'update', 'delete']:
+                  policy = f'{tbl_prefix}_{op}'
+                  if policy not in sql:
+                      errors.append(f"Missing policy: {policy}")
 
-          # Check verification function exists
+          # Verification function
           if 'ss_verify_setup' not in sql:
               errors.append("Missing ss_verify_setup() function")
+
+          # Updated_at trigger function
+          if 'ss_set_updated_at' not in sql:
+              errors.append("Missing ss_set_updated_at() trigger function")
 
           if errors:
               for e in errors:
                   print(f"❌ {e}")
               sys.exit(1)
-          else:
-              print(f"✅ SQL validation passed ({len(sql)} chars, {len(tables)} tables)")
+          print(f"✅ SQL validation passed ({len(sql)} chars, {len(tables)} tables)")
           PYEOF
 
-      - name: Check idempotency markers
+      - name: Check idempotency
         run: |
-          echo "Checking idempotency..."
           python3 << 'PYEOF'
           import re, sys
           sql = open('supabase_setup.sql').read()
           issues = []
 
-          # All CREATE TABLE must use IF NOT EXISTS
-          bare_creates = re.findall(r'create table (?!if not exists)', sql, re.IGNORECASE)
-          if bare_creates:
-              issues.append(f"Found CREATE TABLE without IF NOT EXISTS: {len(bare_creates)} occurrences")
-
-          # All CREATE INDEX must use IF NOT EXISTS
-          bare_idx = re.findall(r'create index (?!if not exists)', sql, re.IGNORECASE)
-          if bare_idx:
-              issues.append(f"Found CREATE INDEX without IF NOT EXISTS: {len(bare_idx)} occurrences")
-
-          # CREATE OR REPLACE used for functions
-          funcs = re.findall(r'create function', sql, re.IGNORECASE)
-          if funcs:
-              issues.append("Found CREATE FUNCTION without OR REPLACE")
+          if re.search(r'create table (?!if not exists)', sql, re.IGNORECASE):
+              issues.append("CREATE TABLE without IF NOT EXISTS")
+          if re.search(r'create index (?!if not exists)', sql, re.IGNORECASE):
+              issues.append("CREATE INDEX without IF NOT EXISTS")
+          if re.search(r'create function (?!.*or replace)', sql, re.IGNORECASE | re.DOTALL):
+              issues.append("CREATE FUNCTION without OR REPLACE")
 
           if issues:
-              for i in issues:
-                  print(f"❌ {i}")
+              for i in issues: print(f"❌ {i}")
               sys.exit(1)
           print("✅ All statements are idempotent")
           PYEOF
@@ -116,17 +104,15 @@ jobs:
             echo "   Format: postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres"
             exit 1
           fi
-          echo "Applying supabase_setup.sql to Supabase project..."
+          sudo apt-get install -y postgresql-client -qq
           psql "$SUPABASE_DB_URL" -f supabase_setup.sql
-          echo "✅ Setup SQL applied successfully"
+          echo "✅ Setup SQL applied"
 
       - name: Summary
         if: always()
         run: |
           echo "## Supabase Setup SQL" >> $GITHUB_STEP_SUMMARY
+          echo "File: \`supabase_setup.sql\` | Lines: $(wc -l < supabase_setup.sql)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "File: \`supabase_setup.sql\`" >> $GITHUB_STEP_SUMMARY
-          echo "Lines: $(wc -l < supabase_setup.sql)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "To apply manually: copy the file contents into your Supabase SQL Editor and run." >> $GITHUB_STEP_SUMMARY
-          echo "To verify: run \`select public.ss_verify_setup();\` in the SQL Editor." >> $GITHUB_STEP_SUMMARY
+          echo "To apply: paste into Supabase SQL Editor and run." >> $GITHUB_STEP_SUMMARY
+          echo "To verify: \`select public.ss_verify_setup();\`" >> $GITHUB_STEP_SUMMARY

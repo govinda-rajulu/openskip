@@ -33,7 +33,8 @@ jobs:
       - name: Generate fix with Gemini
         id: fix
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
@@ -90,40 +91,66 @@ jobs:
               "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192}
           }).encode()
 
-          url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+          anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+          gemini_key    = os.environ.get("GEMINI_API_KEY", "")
 
-          for attempt in range(4):
-              try:
-                  req = urllib.request.Request(
-                      url, data=payload,
-                      headers={"Content-Type": "application/json"},
-                      method="POST"
-                  )
-                  with urllib.request.urlopen(req, timeout=60) as r:
-                      data = json.load(r)
-                  text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                  # Strip markdown code fences if present
-                  if text.startswith("```"):
-                      text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-                  # Validate it's parseable JSON
-                  json.loads(text)
-                  with open("/tmp/ai_fix.json", "w") as f:
-                      f.write(text)
-                  print(f"Gemini response saved ({len(text)} chars)")
-                  break
-              except urllib.error.HTTPError as e:
-                  if e.code == 429:
-                      wait = 30 * (attempt + 1)
-                      print(f"429 rate limit — waiting {wait}s (attempt {attempt+1}/4)")
-                      time.sleep(wait)
-                  else:
-                      json.dump({"error": f"HTTP_{e.code}"}, open("/tmp/ai_fix.json", "w"))
-                      break
-              except Exception as e:
-                  if attempt == 3:
-                      json.dump({"error": str(e)}, open("/tmp/ai_fix.json", "w"))
-                  else:
-                      time.sleep(5 * (attempt + 1))
+          def call_claude(prompt_text):
+              p = json.dumps({
+                  "model": "claude-sonnet-4-6",
+                  "max_tokens": 8192,
+                  "messages": [{"role": "user", "content": prompt_text}]
+              }).encode()
+              req = urllib.request.Request(
+                  "https://api.anthropic.com/v1/messages",
+                  data=p,
+                  headers={
+                      "Content-Type": "application/json",
+                      "x-api-key": anthropic_key,
+                      "anthropic-version": "2023-06-01",
+                  },
+                  method="POST"
+              )
+              with urllib.request.urlopen(req, timeout=90) as r:
+                  data = json.load(r)
+              return data["content"][0]["text"].strip()
+
+          def call_gemini(prompt_text):
+              p = json.dumps({
+                  "contents": [{"parts": [{"text": prompt_text}]}],
+                  "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192}
+              }).encode()
+              url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
+              for attempt in range(4):
+                  try:
+                      req = urllib.request.Request(url, data=p, headers={"Content-Type": "application/json"}, method="POST")
+                      with urllib.request.urlopen(req, timeout=60) as r:
+                          data = json.load(r)
+                      return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                  except urllib.error.HTTPError as e:
+                      if e.code == 429:
+                          time.sleep(30 * (attempt + 1))
+                      else:
+                          raise
+              raise RuntimeError("Gemini rate limit exceeded after 4 retries")
+
+          text = None
+          try:
+              if anthropic_key:
+                  text = call_claude(prompt)
+                  print(f"Claude response ({len(text)} chars)")
+              elif gemini_key:
+                  text = call_gemini(prompt)
+                  print(f"Gemini response ({len(text)} chars)")
+              else:
+                  json.dump({"error": "NO_AI_KEY"}, open("/tmp/ai_fix.json", "w"))
+                  exit(0)
+              # Strip markdown code fences if present
+              if text.startswith("```"):
+                  text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+              json.loads(text)  # Validate JSON
+              open("/tmp/ai_fix.json", "w").write(text)
+          except Exception as e:
+              json.dump({"error": str(e)}, open("/tmp/ai_fix.json", "w"))
           PYEOF
 
       - name: Apply fix and open PR

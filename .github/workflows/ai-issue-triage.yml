@@ -13,7 +13,8 @@ jobs:
     steps:
       - name: Triage with Gemini
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
@@ -48,45 +49,58 @@ jobs:
               "generationConfig": {"temperature": 0.1, "maxOutputTokens": 400}
           }).encode()
 
-          url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
-          data = None
+          anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+          gemini_key    = os.environ.get("GEMINI_API_KEY", "")
 
-          for attempt in range(4):
-              try:
+          if not anthropic_key and not gemini_key:
+              json.dump({"status": "NO_KEY"}, open("/tmp/triage.json", "w"))
+              exit(0)
+
+          text = None
+          try:
+              if anthropic_key:
+                  p = json.dumps({
+                      "model": "claude-sonnet-4-6", "max_tokens": 400,
+                      "messages": [{"role": "user", "content": prompt}]
+                  }).encode()
                   req = urllib.request.Request(
-                      url, data=payload,
-                      headers={"Content-Type": "application/json"},
+                      "https://api.anthropic.com/v1/messages", data=p,
+                      headers={"Content-Type": "application/json", "x-api-key": anthropic_key, "anthropic-version": "2023-06-01"},
                       method="POST"
                   )
                   with urllib.request.urlopen(req, timeout=30) as r:
                       data = json.load(r)
-                  break
-              except urllib.error.HTTPError as e:
-                  if e.code == 429:
-                      wait = 30 * (attempt + 1)
-                      print(f"429 rate limit — waiting {wait}s (attempt {attempt+1}/4)")
-                      time.sleep(wait)
-                  else:
-                      json.dump({"status": f"HTTP_ERROR_{e.code}"}, open("/tmp/triage.json", "w"))
+                  text = data["content"][0]["text"].strip()
+                  print("Triage via Claude")
+              else:
+                  p = json.dumps({
+                      "contents": [{"parts": [{"text": prompt}]}],
+                      "generationConfig": {"temperature": 0.1, "maxOutputTokens": 400}
+                  }).encode()
+                  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
+                  for attempt in range(4):
+                      try:
+                          req = urllib.request.Request(url, data=p, headers={"Content-Type": "application/json"}, method="POST")
+                          with urllib.request.urlopen(req, timeout=30) as r:
+                              data = json.load(r)
+                          text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+                          break
+                      except urllib.error.HTTPError as e:
+                          if e.code == 429: time.sleep(30 * (attempt + 1))
+                          else: raise
+                  if text is None:
+                      json.dump({"status": "RATE_LIMITED"}, open("/tmp/triage.json", "w"))
                       exit(0)
-              except Exception as e:
-                  json.dump({"status": f"ERROR:{e}"}, open("/tmp/triage.json", "w"))
-                  exit(0)
+                  print("Triage via Gemini")
 
-          if data is None:
-              json.dump({"status": "RATE_LIMITED"}, open("/tmp/triage.json", "w"))
-              exit(0)
-
-          try:
-              text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
               if text.startswith("```"):
                   text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
               result = json.loads(text)
               result["status"] = "OK"
               json.dump(result, open("/tmp/triage.json", "w"))
-              print("Triage complete:", result.get("type"), result.get("priority"))
+              print("Triage:", result.get("type"), result.get("priority"))
           except Exception as e:
-              json.dump({"status": f"PARSE_ERROR:{e}", "raw": text[:200]}, open("/tmp/triage.json", "w"))
+              json.dump({"status": f"ERROR:{e}"}, open("/tmp/triage.json", "w"))
           PYEOF
 
       - name: Apply labels from triage
