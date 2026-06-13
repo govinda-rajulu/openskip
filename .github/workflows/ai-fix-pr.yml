@@ -42,13 +42,15 @@ jobs:
           python3 << 'PYEOF'
           import os, json, urllib.request, urllib.error, time
 
-          api_key     = os.environ.get("GEMINI_API_KEY", "")
           issue_num   = os.environ.get("ISSUE_NUMBER", "")
           issue_title = os.environ.get("ISSUE_TITLE", "")
           issue_body  = os.environ.get("ISSUE_BODY", "")
 
-          if not api_key:
-              json.dump({"error": "NO_GEMINI_KEY"}, open("/tmp/ai_fix.json", "w"))
+          anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+          gemini_key    = os.environ.get("GEMINI_API_KEY", "")
+
+          if not anthropic_key and not gemini_key:
+              json.dump({"error": "NO_AI_KEY"}, open("/tmp/ai_fix.json", "w"))
               exit(0)
 
           with open("/tmp/repo_context.txt") as f:
@@ -90,9 +92,6 @@ jobs:
               "contents": [{"parts": [{"text": prompt}]}],
               "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192}
           }).encode()
-
-          anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
-          gemini_key    = os.environ.get("GEMINI_API_KEY", "")
 
           def call_claude(prompt_text):
               p = json.dumps({

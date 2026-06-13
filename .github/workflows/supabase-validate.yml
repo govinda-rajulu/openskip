@@ -34,9 +34,9 @@ jobs:
           sql = open('supabase_setup.sql').read()
           errors = []
 
-          # DO block balance
-          do_opens  = len(re.findall(r'\bdo\b\s*\$\$', sql, re.IGNORECASE))
-          do_closes = len(re.findall(r'\$\$\s*;', sql))
+          # DO block balance - count literal 'do $$ begin' and 'end $$;' strings
+          do_opens  = sql.count('do $$ begin')
+          do_closes = sql.count('end $$;')
           if do_opens != do_closes:
               errors.append(f"DO block mismatch: {do_opens} opens vs {do_closes} closes")
 

@@ -178,72 +178,73 @@ jobs:
 
           echo "All files bumped to $NEW"
 
-      - name: Open Pull Request
+      - name: Push branch and open Pull Request
+        env:
+          NEW_VER: ${{ steps.ver.outputs.new }}
+          OLD_VER: ${{ steps.ver.outputs.current }}
+          BUMP:    ${{ inputs.bump }}
+        run: |
+          BRANCH="chore/bump-v${NEW_VER}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Switch to (or create) the bump branch from current HEAD
+          git checkout -B "$BRANCH"
+          git add manifest.json manifest-chrome.json popup.js CHANGELOG.md
+          git diff --staged --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore: bump version to v${NEW_VER}"
+          git push origin "$BRANCH" --force
+
+          echo "Branch pushed: $BRANCH"
+
+      - name: Create Pull Request
         uses: actions/github-script@v7
+        env:
+          NEW_VER: ${{ steps.ver.outputs.new }}
+          OLD_VER: ${{ steps.ver.outputs.current }}
+          BUMP:    ${{ inputs.bump }}
         with:
           script: |
             const fs     = require('fs');
-            const newVer = '${{ steps.ver.outputs.new }}';
-            const oldVer = '${{ steps.ver.outputs.current }}';
-            const bump   = '${{ inputs.bump }}';
-            const entry  = fs.readFileSync('/tmp/changelog_entry.txt', 'utf8').trim();
+            const newVer = process.env.NEW_VER;
+            const oldVer = process.env.OLD_VER;
+            const bump   = process.env.BUMP;
             const branch = `chore/bump-v${newVer}`;
+            const entry  = fs.existsSync('/tmp/changelog_entry.txt')
+              ? fs.readFileSync('/tmp/changelog_entry.txt', 'utf8').trim()
+              : `Bump ${oldVer} → ${newVer}`;
 
-            const { data: ref } = await github.rest.git.getRef({
-              owner: context.repo.owner, repo: context.repo.repo, ref: 'heads/main'
+            // Check for existing open PR for this branch
+            const { data: existing } = await github.rest.pulls.list({
+              owner: context.repo.owner, repo: context.repo.repo,
+              head: `${context.repo.owner}:${branch}`,
+              state: 'open'
             });
-
-            try {
-              await github.rest.git.createRef({
-                owner: context.repo.owner, repo: context.repo.repo,
-                ref: `refs/heads/${branch}`, sha: ref.object.sha
-              });
-            } catch(e) {
-              await github.rest.git.updateRef({
-                owner: context.repo.owner, repo: context.repo.repo,
-                ref: `heads/${branch}`, sha: ref.object.sha, force: true
-              });
+            if (existing.length > 0) {
+              core.notice(`PR already exists: #${existing[0].number} ${existing[0].html_url}`);
+              return;
             }
 
-            const files = ['manifest.json', 'manifest-chrome.json', 'popup.js', 'CHANGELOG.md'];
-            for (const f of files) {
-              let sha;
-              try {
-                const { data: ex } = await github.rest.repos.getContent({
-                  owner: context.repo.owner, repo: context.repo.repo, path: f, ref: branch
-                });
-                sha = ex.sha;
-              } catch(e) {}
-              const content = fs.readFileSync(f);
-              await github.rest.repos.createOrUpdateFileContents({
-                owner: context.repo.owner, repo: context.repo.repo,
-                path: f,
-                message: `chore: bump version to v${newVer}`,
-                content: content.toString('base64'),
-                branch,
-                ...(sha ? { sha } : {})
-              });
-            }
+            const body = [
+              `## Version Bump: ${oldVer} → ${newVer}`,
+              '',
+              `**Bump type:** ${bump}`,
+              '',
+              entry,
+              '',
+              '---',
+              'After merging, create the release tag:',
+              '```',
+              `git pull && git tag v${newVer} && git push origin v${newVer}`,
+              '```',
+              'The **Build & Release** workflow will then build ZIPs, create the GitHub Release,',
+              'update `updates.json`, and trigger AMO + Chrome Web Store submission automatically.'
+            ].join('\n');
 
             const { data: pr } = await github.rest.pulls.create({
               owner: context.repo.owner, repo: context.repo.repo,
               title: `chore: bump ${oldVer} → ${newVer} (${bump})`,
-              head: branch, base: 'main',
-              body: [
-                `## Version Bump: ${oldVer} → ${newVer}`,
-                '',
-                `**Bump type:** ${bump}`,
-                '',
-                entry,
-                '',
-                '---',
-                `After merging, create the release tag:`,
-                '```',
-                `git pull && git tag v${newVer} && git push origin v${newVer}`,
-                '```',
-                'The **Build & Release** workflow will then build ZIPs, create the GitHub Release,',
-                'update `updates.json`, and trigger AMO + Chrome Web Store submission automatically.'
-              ].join('\n')
+              head: branch, base: 'main', body
             });
-
             core.notice(`PR #${pr.number}: ${pr.html_url}`);

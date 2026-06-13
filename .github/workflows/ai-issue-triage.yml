@@ -21,11 +21,13 @@ jobs:
           python3 << 'PYEOF'
           import os, json, urllib.request, urllib.error, time
 
-          api_key = os.environ.get("GEMINI_API_KEY", "")
           title   = os.environ.get("ISSUE_TITLE", "")
           body    = os.environ.get("ISSUE_BODY", "")
 
-          if not api_key:
+          anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+          gemini_key    = os.environ.get("GEMINI_API_KEY", "")
+
+          if not anthropic_key and not gemini_key:
               json.dump({"status": "NO_KEY"}, open("/tmp/triage.json", "w"))
               exit(0)
 
@@ -48,13 +50,6 @@ jobs:
               "contents": [{"parts": [{"text": prompt}]}],
               "generationConfig": {"temperature": 0.1, "maxOutputTokens": 400}
           }).encode()
-
-          anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
-          gemini_key    = os.environ.get("GEMINI_API_KEY", "")
-
-          if not anthropic_key and not gemini_key:
-              json.dump({"status": "NO_KEY"}, open("/tmp/triage.json", "w"))
-              exit(0)
 
           text = None
           try:
