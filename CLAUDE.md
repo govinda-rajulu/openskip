@@ -79,6 +79,38 @@ Workflow `Build & Release` then:
 
 ## AI Automation
 
+## Agent Fleet
+
+Five AI agents run on every event. All prefer Claude (`claude-sonnet-4-6`) when `ANTHROPIC_API_KEY` set, else fallback Gemini.
+
+| Agent | Trigger | Does |
+|-------|---------|------|
+| `ai-issue-triage` | Issue opened | Labels, priority, complexity, posts analysis comment |
+| `ai-fix-pr` | `ai-fix` label added, or slash command on issue | Opens fix PR |
+| `ai-pr-review` | PR opened/updated | Posts code review, checks arch rules |
+| `ai-weekly-audit` | Monday 08:00 UTC | Scans codebase, opens issues for findings |
+| `sweep` | Issue title starts `sweep:` or comment starts `sweep:` | Implements task, opens PR |
+
+### Slash Commands (comment on issue or PR)
+
+| Command | Effect |
+|---------|--------|
+| `/ai-fix [optional hint]` | AI writes fix, opens PR |
+| `/ai-review <code or question>` | AI reviews and responds inline |
+| `/ai-explain <target>` | AI explains code/concept |
+| `/ai-task <instruction>` | AI does arbitrary task - code or analysis |
+| `sweep: <task description>` | Sweep agent implements task end-to-end |
+
+### Workflow (you as master)
+
+1. Issue opened -> triage agent auto-labels + suggests if automatable
+2. If automatable: add `ai-fix` label OR comment `/ai-fix` -> PR opens
+3. Review PR, CI must pass, test in Firefox, merge
+4. Weekly audit opens issues for anything found, high-severity ones auto-labeled `ai-fix`
+5. For new features: open issue with title `sweep: add X` -> Sweep implements, opens PR
+
+
+
 `GEMINI_API_KEY` (set) — used by `ai-issue-triage` and `ai-fix-pr` workflows.
 
 To switch to Claude: add `ANTHROPIC_API_KEY` secret in repo settings. Workflows

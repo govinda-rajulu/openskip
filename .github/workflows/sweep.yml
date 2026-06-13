@@ -1,0 +1,192 @@
+name: Sweep AI Agent
+
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+
+jobs:
+  sweep:
+    # Trigger: new issue title starts with "sweep:" OR comment is "sweep: <task>"
+    if: |
+      (github.event_name == 'issues' && startsWith(github.event.issue.title, 'sweep:')) ||
+      (github.event_name == 'issue_comment' &&
+       github.event.comment.user.login == github.repository_owner &&
+       startsWith(github.event.comment.body, 'sweep:'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build context
+        run: |
+          {
+            cat CLAUDE.md
+            echo ""
+            for f in background.js content-scripts/content.js options.js popup.js manifest.json; do
+              echo "=== $f ==="
+              cat "$f"
+              echo ""
+            done
+          } > /tmp/ctx.txt
+
+      - name: Sweep task
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          ISSUE_NUMBER:      ${{ github.event.issue.number }}
+          ISSUE_TITLE:       ${{ github.event.issue.title }}
+          COMMENT_BODY:      ${{ github.event.comment.body }}
+          EVENT_NAME:        ${{ github.event_name }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, urllib.request, urllib.error, time
+
+          anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
+          gemini_key    = os.environ.get("GEMINI_API_KEY","")
+          issue_num     = os.environ.get("ISSUE_NUMBER","")
+          issue_title   = os.environ.get("ISSUE_TITLE","")
+          comment_body  = os.environ.get("COMMENT_BODY","")
+          event_name    = os.environ.get("EVENT_NAME","")
+          ctx           = open("/tmp/ctx.txt").read()
+
+          if not anthropic_key and not gemini_key:
+              open("/tmp/sweep.json","w").write(json.dumps({"error":"NO_KEY"}))
+              exit(0)
+
+          # Extract task from issue title or comment
+          if event_name == "issue_comment":
+              task = comment_body.strip()[len("sweep:"):].strip()
+          else:
+              task = issue_title.strip()[len("sweep:"):].strip()
+
+          prompt = f"""You are Sweep, an AI coding agent for SkipStream browser extension.
+
+Task: {task}
+
+ARCHITECTURE RULES (CI enforces - violations will fail):
+- No localStorage or fetch() in content-scripts/content.js
+- No innerHTML anywhere
+- No console.log (use console.warn)
+- userId = SHA-256("skipstream:uid:" + supabaseAnonKey)
+
+CODEBASE:
+{ctx[:75000]}
+
+Implement the task completely. Respond ONLY with JSON array (no markdown, no explanation):
+[{{"filename":"path/to/file","content":"COMPLETE file content","description":"what changed"}}]
+
+If task is ambiguous or unsafe: [{{"filename":"","content":"","description":"CLARIFY: what you need to know"}}]
+If task needs discussion first: [{{"filename":"","content":"","description":"DISCUSS: reason"}}]"""
+
+          try:
+              if anthropic_key:
+                  p = json.dumps({"model":"claude-sonnet-4-6","max_tokens":8192,"messages":[{"role":"user","content":prompt}]}).encode()
+                  req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=p,
+                      headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"},method="POST")
+                  with urllib.request.urlopen(req,timeout=120) as r:
+                      text = json.load(r)["content"][0]["text"].strip()
+              else:
+                  p = json.dumps({"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0.1,"maxOutputTokens":8192}}).encode()
+                  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
+                  for att in range(4):
+                      try:
+                          req = urllib.request.Request(url,data=p,headers={"Content-Type":"application/json"},method="POST")
+                          with urllib.request.urlopen(req,timeout=90) as r:
+                              text = json.load(r)["candidates"][0]["content"]["parts"][0]["text"].strip()
+                          break
+                      except urllib.error.HTTPError as e:
+                          if e.code==429: time.sleep(30*(att+1))
+                          else: raise
+
+              if text.startswith("```"): text = text.split("\n",1)[1].rsplit("```",1)[0].strip()
+              json.loads(text)
+              open("/tmp/sweep.json","w").write(text)
+          except Exception as e:
+              open("/tmp/sweep.json","w").write(json.dumps({"error":str(e)}))
+          PYEOF
+
+      - name: Open Sweep PR
+        uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE:  ${{ github.event.issue.title }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          EVENT_NAME:   ${{ github.event_name }}
+        with:
+          script: |
+            const fs         = require('fs');
+            const issueNum   = parseInt(process.env.ISSUE_NUMBER);
+            const issueTitle = process.env.ISSUE_TITLE;
+            const eventName  = process.env.EVENT_NAME;
+            const task       = eventName === 'issue_comment'
+              ? process.env.COMMENT_BODY.slice('sweep:'.length).trim()
+              : issueTitle.slice('sweep:'.length).trim();
+
+            const comment = async (body) => github.rest.issues.createComment({
+              owner:context.repo.owner, repo:context.repo.repo, issue_number:issueNum, body
+            });
+
+            let fixes;
+            try {
+              const raw = fs.readFileSync('/tmp/sweep.json','utf8');
+              const parsed = JSON.parse(raw);
+              if (!Array.isArray(parsed)) { await comment(`## 🧹 Sweep Error\n\n\`${parsed.error||JSON.stringify(parsed)}\``); return; }
+              fixes = parsed;
+            } catch(e) { await comment(`🧹 Sweep parse error: ${e.message}`); return; }
+
+            if (!fixes[0]?.filename) {
+              const desc = fixes[0]?.description || 'No description';
+              if (desc.startsWith('CLARIFY:')) {
+                await comment(`## 🧹 Sweep needs clarification\n\n${desc.slice(8).trim()}`);
+              } else if (desc.startsWith('DISCUSS:')) {
+                await comment(`## 🧹 Sweep: needs discussion first\n\n${desc.slice(8).trim()}`);
+              } else {
+                await comment(`## 🧹 Sweep: cannot automate\n\n${desc}`);
+              }
+              return;
+            }
+
+            const branch = `sweep/issue-${issueNum}`;
+            const { data: ref } = await github.rest.git.getRef({ owner:context.repo.owner, repo:context.repo.repo, ref:'heads/main' });
+            try {
+              await github.rest.git.createRef({ owner:context.repo.owner, repo:context.repo.repo, ref:`refs/heads/${branch}`, sha:ref.object.sha });
+            } catch(e) {
+              await github.rest.git.updateRef({ owner:context.repo.owner, repo:context.repo.repo, ref:`heads/${branch}`, sha:ref.object.sha, force:true });
+            }
+
+            const fileList = [];
+            for (const fix of fixes) {
+              if (!fix.filename || !fix.content) continue;
+              let sha;
+              try { ({ data:{sha} } = await github.rest.repos.getContent({ owner:context.repo.owner, repo:context.repo.repo, path:fix.filename, ref:branch })); } catch(e){}
+              await github.rest.repos.createOrUpdateFileContents({
+                owner:context.repo.owner, repo:context.repo.repo, path:fix.filename,
+                message:`sweep: ${fix.description.slice(0,72)} (#${issueNum})`,
+                content:Buffer.from(fix.content).toString('base64'), branch, ...(sha?{sha}:{})
+              });
+              fileList.push(`- \`${fix.filename}\`: ${fix.description}`);
+            }
+
+            const prBody = [
+              `Resolves #${issueNum}`, ``, `## Task`, task, ``, `## Changes`, fileList.join('\n'), ``,
+              `---`, `⚠️ AI-generated. Review before merging.`, ``,
+              `- [ ] No \`localStorage\`/\`fetch()\` in content script`,
+              `- [ ] No \`innerHTML\` or \`console.log\``,
+              `- [ ] Logic correct`, `- [ ] Tested in Firefox`,
+            ].join('\n');
+
+            const { data: existing } = await github.rest.pulls.list({ owner:context.repo.owner, repo:context.repo.repo, head:`${context.repo.owner}:${branch}`, state:'open' });
+            let pr;
+            if (existing.length > 0) {
+              await github.rest.pulls.update({ owner:context.repo.owner, repo:context.repo.repo, pull_number:existing[0].number, body:prBody });
+              pr = existing[0];
+            } else {
+              ({ data:pr } = await github.rest.pulls.create({ owner:context.repo.owner, repo:context.repo.repo, title:`🧹 sweep: ${task.slice(0,60)}`, head:branch, base:'main', body:prBody }));
+            }
+            await comment(`## 🧹 Sweep PR Ready\n\nPR #${pr.number}: ${pr.html_url}\n\nCI running. Review + test before merge.`);

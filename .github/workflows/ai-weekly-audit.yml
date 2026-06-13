@@ -1,0 +1,201 @@
+name: AI Weekly Audit
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'   # Every Monday 08:00 UTC
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Audit scope'
+        required: false
+        default: 'full'
+        type: choice
+        options: [full, security, performance, compat]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run AI audit
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          SCOPE:             ${{ inputs.scope || 'full' }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, urllib.request, urllib.error, time
+
+          anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
+          gemini_key    = os.environ.get("GEMINI_API_KEY","")
+          scope         = os.environ.get("SCOPE","full")
+
+          if not anthropic_key and not gemini_key:
+              open("/tmp/audit.json","w").write(json.dumps({"status":"NO_KEY"}))
+              exit(0)
+
+          # Gather codebase
+          codebase = {}
+          for f in ["background.js","content-scripts/content.js","options.js","popup.js","manifest.json","manifest-chrome.json"]:
+              try: codebase[f] = open(f).read()
+              except: pass
+
+          scope_prompts = {
+              "security": "Focus ONLY on security issues: XSS vectors, credential exposure, unsafe patterns, CSP bypasses, permission overreach.",
+              "performance": "Focus ONLY on performance: unnecessary re-renders, memory leaks, inefficient loops, blocking operations, redundant API calls.",
+              "compat": "Focus ONLY on compatibility: Firefox MV2 vs Chrome MV3 differences, deprecated APIs, browser-specific bugs.",
+              "full": "Cover all areas: security, performance, compatibility, architecture rule compliance, and code quality.",
+          }
+
+          context_str = "\n\n".join(f"=== {k} ===\n{v[:8000]}" for k,v in codebase.items())
+
+          prompt = f"""You are auditing SkipStream browser extension codebase.
+Scope: {scope} — {scope_prompts.get(scope, scope_prompts['full'])}
+
+Architecture rules:
+- No localStorage in content-scripts/content.js
+- No fetch() in content-scripts/content.js
+- No innerHTML anywhere
+- No console.log anywhere
+- userId = SHA-256("skipstream:uid:" + supabaseAnonKey)
+- SPA nav = pushState/replaceState intercept
+
+CODEBASE:
+{context_str[:70000]}
+
+Reply ONLY with a JSON object (no markdown):
+{{
+  "findings": [
+    {{
+      "severity": "high|medium|low",
+      "category": "security|performance|compat|architecture|quality",
+      "file": "filename.js",
+      "line_hint": "approximate line or function name",
+      "title": "short title",
+      "description": "what the issue is",
+      "suggestion": "concrete fix",
+      "automatable": true
+    }}
+  ],
+  "summary": "2-3 sentence overall assessment",
+  "healthy": true
+}}
+
+Only include real findings. If no issues found, return empty findings array."""
+
+          try:
+              if anthropic_key:
+                  p = json.dumps({"model":"claude-sonnet-4-6","max_tokens":2000,"messages":[{"role":"user","content":prompt}]}).encode()
+                  req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=p,
+                      headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"}, method="POST")
+                  with urllib.request.urlopen(req, timeout=120) as r:
+                      text = json.load(r)["content"][0]["text"].strip()
+                  print("Audit via Claude")
+              else:
+                  p = json.dumps({"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0.1,"maxOutputTokens":2000}}).encode()
+                  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
+                  for attempt in range(4):
+                      try:
+                          req = urllib.request.Request(url, data=p, headers={"Content-Type":"application/json"}, method="POST")
+                          with urllib.request.urlopen(req, timeout=90) as r:
+                              text = json.load(r)["candidates"][0]["content"]["parts"][0]["text"].strip()
+                          break
+                      except urllib.error.HTTPError as e:
+                          if e.code == 429: time.sleep(30*(attempt+1))
+                          else: raise
+
+              if text.startswith("```"): text = text.split("\n",1)[1].rsplit("```",1)[0].strip()
+              result = json.loads(text)
+              result["status"] = "OK"
+              open("/tmp/audit.json","w").write(json.dumps(result))
+              print(f"Audit complete: {len(result.get('findings',[]))} findings")
+          except Exception as e:
+              open("/tmp/audit.json","w").write(json.dumps({"status":f"ERROR:{e}"}))
+          PYEOF
+
+      - name: Create issues for findings
+        uses: actions/github-script@v7
+        env:
+          SCOPE: ${{ inputs.scope || 'full' }}
+        with:
+          script: |
+            const fs    = require('fs');
+            const scope = process.env.SCOPE;
+            let audit;
+            try { audit = JSON.parse(fs.readFileSync('/tmp/audit.json','utf8')); }
+            catch(e) { core.warning('Could not read audit result'); return; }
+
+            if (audit.status !== 'OK') { core.notice(`Audit skipped: ${audit.status}`); return; }
+
+            const findings = audit.findings || [];
+            const highCount = findings.filter(f=>f.severity==='high').length;
+
+            // Create a summary issue
+            const severityIcon = {high:'🔴',medium:'🟡',low:'🟢'};
+            const categoryIcon = {security:'🔒',performance:'⚡',compat:'🔧',architecture:'🏗️',quality:'✨'};
+
+            let summaryBody = `## 🤖 Weekly AI Audit — ${new Date().toISOString().slice(0,10)}\n\n`;
+            summaryBody += `**Scope:** ${scope} &nbsp;|&nbsp; **Findings:** ${findings.length} &nbsp;|&nbsp; **High priority:** ${highCount}\n\n`;
+            summaryBody += `**Summary:** ${audit.summary || 'See findings below.'}\n\n`;
+
+            if (findings.length === 0) {
+              summaryBody += `✅ No issues found. Codebase looks healthy.\n`;
+            } else {
+              summaryBody += `| Severity | Category | File | Issue |\n|----------|----------|------|-------|\n`;
+              for (const f of findings) {
+                summaryBody += `| ${severityIcon[f.severity]||'⚪'} ${f.severity} | ${categoryIcon[f.category]||''} ${f.category} | \`${f.file}\` | ${f.title} |\n`;
+              }
+              summaryBody += `\n---\n\n`;
+              for (const f of findings) {
+                summaryBody += `### ${severityIcon[f.severity]||'⚪'} ${f.title}\n`;
+                summaryBody += `**File:** \`${f.file}\` ${f.line_hint ? `(${f.line_hint})` : ''}\n\n`;
+                summaryBody += `${f.description}\n\n**Fix:** ${f.suggestion}\n\n`;
+                if (f.automatable) summaryBody += `> 💡 Automatable — add \`ai-fix\` label after creating the issue.\n\n`;
+              }
+            }
+            summaryBody += `\n---\n*Generated by AI Weekly Audit workflow*`;
+
+            await github.rest.issues.create({
+              owner:context.repo.owner, repo:context.repo.repo,
+              title:`🤖 Weekly Audit (${scope}): ${findings.length} finding${findings.length!==1?'s':''} — ${new Date().toISOString().slice(0,10)}`,
+              body:summaryBody,
+              labels:['audit', ...(highCount > 0 ? ['priority: high'] : [])]
+            });
+
+            // Also create individual issues for high-severity automatable findings
+            for (const f of findings.filter(f=>f.severity==='high' && f.automatable)) {
+              await github.rest.issues.create({
+                owner:context.repo.owner, repo:context.repo.repo,
+                title:`${f.title} (${f.file})`,
+                body:`## Issue\n\n${f.description}\n\n**File:** \`${f.file}\` ${f.line_hint?`(${f.line_hint})`:''}\n\n## Suggested Fix\n\n${f.suggestion}\n\n---\n*Auto-created by weekly audit. Add \`ai-fix\` label to have the AI open a PR.*`,
+                labels:['bug','priority: high',`component: ${f.file.includes('content')? 'content-script' : f.file.includes('background')? 'background' : f.file.includes('option')? 'options' : 'popup'}`]
+              });
+            }
+
+            core.notice(`Audit complete: ${findings.length} findings, ${highCount} high priority`);
+
+      - name: Audit summary
+        if: always()
+        run: |
+          if [ -f /tmp/audit.json ]; then
+            python3 -c "
+          import json
+          a = json.load(open('/tmp/audit.json'))
+          findings = a.get('findings', [])
+          print('## 🤖 Weekly Audit Results', file=__import__('sys').stdout)
+          " >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
+            python3 << 'PYEOF'
+          import json, sys
+          a = json.load(open('/tmp/audit.json'))
+          findings = a.get('findings', [])
+          high = sum(1 for f in findings if f.get('severity')=='high')
+          print(f"## 🤖 AI Weekly Audit\n")
+          print(f"**Status:** {a.get('status')} | **Findings:** {len(findings)} | **High:** {high}\n")
+          if a.get('summary'): print(f"**Summary:** {a['summary']}\n")
+          PYEOF
+          fi

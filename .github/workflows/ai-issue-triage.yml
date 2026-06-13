@@ -11,19 +11,20 @@ jobs:
       issues: write
 
     steps:
-      - name: Triage with Gemini
+      - uses: actions/checkout@v4
+
+      - name: Triage issue
         env:
-          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          ISSUE_BODY: ${{ github.event.issue.body }}
+          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          ISSUE_TITLE:       ${{ github.event.issue.title }}
+          ISSUE_BODY:        ${{ github.event.issue.body }}
         run: |
           python3 << 'PYEOF'
           import os, json, urllib.request, urllib.error, time
 
-          title   = os.environ.get("ISSUE_TITLE", "")
-          body    = os.environ.get("ISSUE_BODY", "")
-
+          title         = os.environ.get("ISSUE_TITLE", "")
+          body          = os.environ.get("ISSUE_BODY", "")
           anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
           gemini_key    = os.environ.get("GEMINI_API_KEY", "")
 
@@ -32,30 +33,28 @@ jobs:
               exit(0)
 
           prompt = (
-              "You are reviewing GitHub issues for SkipStream — a Firefox/Chrome browser extension "
+              "You are triaging GitHub issues for SkipStream — a Firefox/Chrome browser extension "
               "that skips intros/recaps/outros on streaming sites (IntroDB + AnimeSkip APIs) and syncs "
-              "playback position via user-owned Supabase. Plain JS, Firefox MV2 + Chrome MV3, no build step. "
+              "playback position via user-owned Supabase. Plain JS, Firefox MV2 + Chrome MV3, no build step.\n"
               "Architecture rules: no localStorage in content script, no fetch() in content script, "
               "no innerHTML, no console.log, userId=SHA256(supabase_anon_key).\n\n"
               "Reply ONLY with a JSON object, no markdown:\n"
               '{"type":"bug","priority":"high","component":"content-script",'
-              '"summary":"one sentence","suggestion":"actionable fix","needs_ai_fix":true}\n\n'
+              '"summary":"one sentence","suggestion":"actionable fix in 1-2 sentences",'
+              '"needs_ai_fix":true,"complexity":"simple"}\n\n'
               "Valid types: bug, feature, question, docs\n"
               "Valid priorities: high, medium, low\n"
-              "Valid components: content-script, background, popup, options, manifest, workflow, docs\n\n"
+              "Valid components: content-script, background, popup, options, manifest, workflow, docs\n"
+              "Valid complexity: simple (single file, clear fix), moderate (multi-file), complex (architecture change)\n"
+              "needs_ai_fix=true only for bugs/features where the fix is concrete and safe to automate\n\n"
               f"Title: {title}\nBody: {body}"
           )
-
-          payload = json.dumps({
-              "contents": [{"parts": [{"text": prompt}]}],
-              "generationConfig": {"temperature": 0.1, "maxOutputTokens": 400}
-          }).encode()
 
           text = None
           try:
               if anthropic_key:
                   p = json.dumps({
-                      "model": "claude-sonnet-4-6", "max_tokens": 400,
+                      "model": "claude-sonnet-4-6", "max_tokens": 500,
                       "messages": [{"role": "user", "content": prompt}]
                   }).encode()
                   req = urllib.request.Request(
@@ -70,7 +69,7 @@ jobs:
               else:
                   p = json.dumps({
                       "contents": [{"parts": [{"text": prompt}]}],
-                      "generationConfig": {"temperature": 0.1, "maxOutputTokens": 400}
+                      "generationConfig": {"temperature": 0.1, "maxOutputTokens": 500}
                   }).encode()
                   url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
                   for attempt in range(4):
@@ -93,57 +92,39 @@ jobs:
               result = json.loads(text)
               result["status"] = "OK"
               json.dump(result, open("/tmp/triage.json", "w"))
-              print("Triage:", result.get("type"), result.get("priority"))
+              print("Triage:", result.get("type"), result.get("priority"), result.get("complexity"))
           except Exception as e:
               json.dump({"status": f"ERROR:{e}"}, open("/tmp/triage.json", "w"))
           PYEOF
 
-      - name: Apply labels from triage
+      - name: Apply labels
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             let triage = {};
-            try {
-              triage = JSON.parse(fs.readFileSync('/tmp/triage.json', 'utf8'));
-            } catch(e) { return; }
-
+            try { triage = JSON.parse(fs.readFileSync('/tmp/triage.json', 'utf8')); } catch(e) { return; }
             if (triage.status !== 'OK') return;
 
             const labelMap = {
-              type: { bug: 'bug', feature: 'enhancement', question: 'question', docs: 'documentation' },
-              priority: { high: 'priority: high', medium: 'priority: medium', low: 'priority: low' },
+              type:      { bug:'bug', feature:'enhancement', question:'question', docs:'documentation' },
+              priority:  { high:'priority: high', medium:'priority: medium', low:'priority: low' },
               component: {
-                'content-script': 'component: content-script',
-                'background': 'component: background',
-                'popup': 'component: popup',
-                'options': 'component: options',
-                'manifest': 'component: manifest',
-                'workflow': 'component: workflow',
+                'content-script':'component: content-script', background:'component: background',
+                popup:'component: popup', options:'component: options',
+                manifest:'component: manifest', workflow:'component: workflow',
               },
             };
-
             const labels = [];
             if (labelMap.type[triage.type])           labels.push(labelMap.type[triage.type]);
             if (labelMap.priority[triage.priority])   labels.push(labelMap.priority[triage.priority]);
             if (labelMap.component[triage.component]) labels.push(labelMap.component[triage.component]);
+            if (!labels.length) return;
 
-            if (labels.length === 0) return;
-
-            // Create labels that don't exist yet (ignore errors - label may already exist)
             for (const label of labels) {
-              try {
-                await github.rest.issues.createLabel({
-                  owner: context.repo.owner, repo: context.repo.repo,
-                  name: label, color: 'ededed'
-                });
-              } catch(e) { /* already exists */ }
+              try { await github.rest.issues.createLabel({ owner:context.repo.owner, repo:context.repo.repo, name:label, color:'ededed' }); } catch(e) {}
             }
-
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner, repo: context.repo.repo,
-              issue_number: context.issue.number, labels
-            });
+            await github.rest.issues.addLabels({ owner:context.repo.owner, repo:context.repo.repo, issue_number:context.issue.number, labels });
 
       - name: Post triage comment
         uses: actions/github-script@v7
@@ -151,39 +132,29 @@ jobs:
           script: |
             const fs = require('fs');
             let body = '';
-
             try {
               const r = JSON.parse(fs.readFileSync('/tmp/triage.json', 'utf8'));
-              const status = r.status || 'UNKNOWN';
-
-              if (status === 'OK') {
+              if (r.status === 'NO_KEY') return;
+              if (r.status === 'OK') {
                 const te = {bug:'🐛',feature:'✨',question:'❓',docs:'📝'}[r.type] || '🔍';
                 const pe = {high:'🔴',medium:'🟡',low:'🟢'}[r.priority] || '⚪';
+                const cx = {simple:'⚡ simple',moderate:'🔧 moderate',complex:'🏗️ complex'}[r.complexity] || '';
                 body =
                   `## 🤖 AI Triage\n\n` +
-                  `**Type:** ${te} ${r.type} &nbsp;|&nbsp; **Priority:** ${pe} ${r.priority} &nbsp;|&nbsp; **Component:** \`${r.component}\`\n\n` +
+                  `**Type:** ${te} ${r.type} &nbsp;|&nbsp; **Priority:** ${pe} ${r.priority} &nbsp;|&nbsp; **Component:** \`${r.component}\`` +
+                  (cx ? ` &nbsp;|&nbsp; **Complexity:** ${cx}` : '') + `\n\n` +
                   `**Analysis:** ${r.summary}\n\n` +
                   `**Suggestion:** ${r.suggestion}\n\n---\n` +
                   (r.needs_ai_fix
-                    ? `> 💡 Looks automatable — add the \`ai-fix\` label to have the AI open a PR.`
-                    : `> ℹ️ Needs discussion before automated fix.`) +
-                  `\n\n*Powered by Gemini 2.0 Flash — always verify before acting.*`;
-              } else if (status === 'RATE_LIMITED') {
-                body = `## 🤖 AI Triage\n\n⏳ Gemini rate limit reached after 4 retries. Manual review needed.`;
-              } else if (status === 'NO_KEY') {
-                return; // Silently skip - no key configured
+                    ? `> 💡 Looks automatable — add the \`ai-fix\` label to have the AI agent open a PR.`
+                    : `> ℹ️ Needs discussion or manual implementation before automated fix is safe.`) +
+                  `\n\n*Powered by ${process.env.ANTHROPIC_API_KEY ? 'Claude Sonnet' : 'Gemini 2.0 Flash'}*`;
               } else {
-                body = `## 🤖 AI Triage\n\n_Unavailable (${status}). Manual review needed._`;
+                body = `## 🤖 AI Triage\n\n_Unavailable (${r.status}). Manual review needed._`;
               }
             } catch(e) {
               body = `## 🤖 AI Triage\n\n_Could not read triage result: ${e.message}_`;
             }
-
-            if (body) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body
-              });
-            }
+            if (body) await github.rest.issues.createComment({ owner:context.repo.owner, repo:context.repo.repo, issue_number:context.issue.number, body });
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

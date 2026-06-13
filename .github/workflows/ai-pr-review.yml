@@ -1,0 +1,225 @@
+name: AI PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  # ── Full AI review on PR open/sync ──────────────────────────────────────────
+  review-pr:
+    if: |
+      github.event_name == 'pull_request' &&
+      !github.event.pull_request.draft &&
+      !startsWith(github.event.pull_request.head.ref, 'dependabot/') &&
+      !startsWith(github.event.pull_request.title, 'chore: bump')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff "$BASE_SHA".."$HEAD_SHA" -- \
+            '*.js' '*.json' '*.html' '*.css' '*.yml' \
+            ':!*.min.js' \
+            > /tmp/pr_diff.txt
+          echo "Diff: $(wc -l < /tmp/pr_diff.txt) lines"
+          # Truncate if too large
+          head -c 40000 /tmp/pr_diff.txt > /tmp/pr_diff_trunc.txt
+
+      - name: AI review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          PR_TITLE:          ${{ github.event.pull_request.title }}
+          PR_BODY:           ${{ github.event.pull_request.body }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, urllib.request, urllib.error, time
+
+          anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
+          gemini_key    = os.environ.get("GEMINI_API_KEY","")
+          pr_title      = os.environ.get("PR_TITLE","")
+          pr_body       = os.environ.get("PR_BODY","")
+
+          if not anthropic_key and not gemini_key:
+              open("/tmp/ai_review.txt","w").write("NO_KEY")
+              exit(0)
+
+          diff = open("/tmp/pr_diff_trunc.txt").read()
+
+          prompt = f"""You are reviewing a pull request for SkipStream — a Firefox/Chrome browser extension.
+
+Architecture rules (violations = CI failure):
+- No localStorage in content-scripts/content.js
+- No fetch() in content-scripts/content.js
+- No innerHTML anywhere
+- No console.log anywhere
+- userId = SHA-256("skipstream:uid:" + supabaseAnonKey)
+- SPA nav = pushState/replaceState intercept, no setInterval
+
+PR: {pr_title}
+{pr_body[:500] if pr_body else ''}
+
+DIFF:
+{diff}
+
+Write a concise PR review in markdown. Cover:
+1. **Architecture compliance** — any rule violations?
+2. **Logic correctness** — bugs, edge cases, off-by-ones?
+3. **Security** — any credentials, XSS vectors, unsafe patterns?
+4. **Suggestions** — specific improvements (not nitpicks)
+5. **Verdict** — ✅ Looks good / ⚠️ Needs changes / ❌ Blocking issues
+
+Be direct and specific. Skip praise for obvious things. Max 400 words."""
+
+          try:
+              if anthropic_key:
+                  p = json.dumps({"model":"claude-sonnet-4-6","max_tokens":1000,"messages":[{"role":"user","content":prompt}]}).encode()
+                  req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=p,
+                      headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"}, method="POST")
+                  with urllib.request.urlopen(req, timeout=60) as r:
+                      text = json.load(r)["content"][0]["text"].strip()
+                  print("Review via Claude")
+              else:
+                  p = json.dumps({"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0.2,"maxOutputTokens":1000}}).encode()
+                  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
+                  for attempt in range(3):
+                      try:
+                          req = urllib.request.Request(url, data=p, headers={"Content-Type":"application/json"}, method="POST")
+                          with urllib.request.urlopen(req, timeout=60) as r:
+                              text = json.load(r)["candidates"][0]["content"]["parts"][0]["text"].strip()
+                          break
+                      except urllib.error.HTTPError as e:
+                          if e.code == 429: time.sleep(20*(attempt+1))
+                          else: raise
+                  print("Review via Gemini")
+              open("/tmp/ai_review.txt","w").write(text)
+          except Exception as e:
+              open("/tmp/ai_review.txt","w").write(f"ERROR:{e}")
+          PYEOF
+
+      - name: Post review comment
+        uses: actions/github-script@v7
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        with:
+          script: |
+            const fs = require('fs');
+            const text = fs.readFileSync('/tmp/ai_review.txt','utf8').trim();
+            if (text === 'NO_KEY' || !text) return;
+
+            const model = process.env.ANTHROPIC_API_KEY ? 'Claude Sonnet' : 'Gemini 2.0 Flash';
+            const body = `## 🤖 AI Code Review\n\n${text}\n\n---\n*Powered by ${model} — always verify before merging. Use \`/ai-fix\` on the linked issue to iterate.*`;
+
+            // Delete previous AI review comments to avoid stacking
+            const { data: comments } = await github.rest.issues.listComments({
+              owner:context.repo.owner, repo:context.repo.repo, issue_number:context.payload.pull_request.number
+            });
+            for (const c of comments) {
+              if (c.user.login === 'github-actions[bot]' && c.body.includes('🤖 AI Code Review')) {
+                await github.rest.issues.deleteComment({ owner:context.repo.owner, repo:context.repo.repo, comment_id:c.id });
+              }
+            }
+            await github.rest.issues.createComment({
+              owner:context.repo.owner, repo:context.repo.repo,
+              issue_number:context.payload.pull_request.number, body
+            });
+
+  # ── Respond to /ai-fix /ai-review comments on PRs ──────────────────────────
+  handle-pr-command:
+    if: |
+      github.event_name == 'pull_request_review_comment' &&
+      github.event.comment.user.login == github.repository_owner &&
+      (
+        startsWith(github.event.comment.body, '/ai-fix') ||
+        startsWith(github.event.comment.body, '/ai-review') ||
+        startsWith(github.event.comment.body, '/ai-explain')
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Handle inline comment command
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          COMMENT_BODY:      ${{ github.event.comment.body }}
+          DIFF_HUNK:         ${{ github.event.comment.diff_hunk }}
+          PR_TITLE:          ${{ github.event.pull_request.title }}
+          FILE_PATH:         ${{ github.event.comment.path }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, urllib.request
+
+          anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
+          gemini_key    = os.environ.get("GEMINI_API_KEY","")
+          comment       = os.environ.get("COMMENT_BODY","")
+          diff_hunk     = os.environ.get("DIFF_HUNK","")
+          pr_title      = os.environ.get("PR_TITLE","")
+          file_path     = os.environ.get("FILE_PATH","")
+
+          if not anthropic_key and not gemini_key:
+              open("/tmp/inline_reply.txt","w").write("No AI key configured.")
+              exit(0)
+
+          cmd  = comment.strip().split()[0]
+          args = comment.strip()[len(cmd):].strip()
+
+          prompt = f"""PR: {pr_title}
+File: {file_path}
+Code diff hunk:
+{diff_hunk}
+
+Command: {cmd} {args}
+
+SkipStream rules: no localStorage/fetch in content script, no innerHTML, no console.log.
+
+{'Fix the issue in this code hunk and explain what you changed.' if cmd=='/ai-fix' else 'Review this specific code hunk and give targeted feedback.' if cmd=='/ai-review' else 'Explain what this code does and why it is written this way.'}
+
+Be concise and specific (max 200 words)."""
+
+          try:
+              if anthropic_key:
+                  p = json.dumps({"model":"claude-sonnet-4-6","max_tokens":600,"messages":[{"role":"user","content":prompt}]}).encode()
+                  req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=p,
+                      headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"}, method="POST")
+                  with urllib.request.urlopen(req, timeout=60) as r:
+                      text = json.load(r)["content"][0]["text"].strip()
+              else:
+                  p = json.dumps({"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0.2,"maxOutputTokens":600}}).encode()
+                  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
+                  req = urllib.request.Request(url, data=p, headers={"Content-Type":"application/json"}, method="POST")
+                  with urllib.request.urlopen(req, timeout=60) as r:
+                      text = json.load(r)["candidates"][0]["content"]["parts"][0]["text"].strip()
+              open("/tmp/inline_reply.txt","w").write(text)
+          except Exception as e:
+              open("/tmp/inline_reply.txt","w").write(f"Error: {e}")
+          PYEOF
+
+      - name: Reply to inline comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs   = require('fs');
+            const text = fs.readFileSync('/tmp/inline_reply.txt','utf8').trim();
+            await github.rest.pulls.createReplyForReviewComment({
+              owner:context.repo.owner, repo:context.repo.repo,
+              pull_number:context.payload.pull_request.number,
+              comment_id:context.payload.comment.id,
+              body:`🤖 ${text}`
+            });
