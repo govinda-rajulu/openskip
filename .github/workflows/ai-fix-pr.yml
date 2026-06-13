@@ -439,5 +439,4 @@ jobs:
               ({ data: pr } = await github.rest.pulls.create({ owner:context.repo.owner, repo:context.repo.repo, title:`🤖 AI fix: ${issueTitle}`, head:branch, base:'main', body:prBody }));
             }
             await comment(`## 🤖 AI Fix PR Ready\n\nPR #${pr.number}: ${pr.html_url}\n\nCI running. Review and test in Firefox before merging.`);
-        env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
