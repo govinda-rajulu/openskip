@@ -261,6 +261,8 @@ jobs:
         if: github.event_name == 'schedule'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_STATUS: ${{ env.ANTHROPIC_STATUS }}
+          GEMINI_STATUS: ${{ env.GEMINI_STATUS }}
         run: |
           python3 << 'PYEOF'
           import os, json, urllib.request
@@ -305,6 +307,3 @@ jobs:
             issue = json.load(r)
             print(f"Issue #{issue['number']} opened: {issue['html_url']}")
           PYEOF
-        env:
-          ANTHROPIC_STATUS: ${{ env.ANTHROPIC_STATUS }}
-          GEMINI_STATUS: ${{ env.GEMINI_STATUS }}
