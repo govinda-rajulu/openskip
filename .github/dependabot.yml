@@ -5,8 +5,26 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
       actions:
-        patterns:
-          - "*"
+        patterns: ["*"]
+    ignore:
+      # These actions only publish even minor versions (v2, v4) - never odd like v3, v5
+      # and dependabot incorrectly bumps to non-existent versions like v6, v8, v9
+      - dependency-name: "actions/checkout"
+        versions: [">=5"]
+      - dependency-name: "actions/setup-node"
+        versions: [">=5"]
+      - dependency-name: "actions/upload-artifact"
+        versions: [">=5"]
+      - dependency-name: "actions/download-artifact"
+        versions: [">=5"]
+      - dependency-name: "actions/github-script"
+        versions: [">=8"]
+      - dependency-name: "github/codeql-action"
+        versions: [">=4"]
+      - dependency-name: "softprops/action-gh-release"
+        versions: [">=3"]
+      - dependency-name: "actions/stale"
+        versions: [">=10"]

@@ -10,7 +10,7 @@ on:
         type: choice
         options: [patch, minor, major]
       changelog:
-        description: 'CHANGELOG entry (leave blank to auto-generate with AI)'
+        description: 'CHANGELOG entry (blank = AI-generated)'
         required: false
         default: ''
 
@@ -30,83 +30,76 @@ jobs:
         id: ver
         run: |
           CURRENT=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
-          python3 - << PYEOF
+          BUMP="${{ inputs.bump }}"
+          python3 -c "
           import sys
-          current = "$CURRENT"
-          bump    = "${{ inputs.bump }}"
+          current = '$CURRENT'
+          bump    = '$BUMP'
           parts   = list(map(int, current.split('.')))
           while len(parts) < 3:
               parts.append(0)
-          if bump == 'major': parts[0]+=1; parts[1]=0; parts[2]=0
+          if   bump == 'major': parts[0]+=1; parts[1]=0; parts[2]=0
           elif bump == 'minor': parts[1]+=1; parts[2]=0
-          else: parts[2]+=1
+          else:                 parts[2]+=1
           new_ver = '.'.join(map(str, parts))
-          print(f"::notice::Bumping {current} → {new_ver}")
           with open('/tmp/new_version.txt','w') as f: f.write(new_ver)
-          PYEOF
+          print(f'Bumping {current} -> {new_ver}')
+          "
           NEW=$(cat /tmp/new_version.txt)
-          echo "current=$CURRENT" >> $GITHUB_OUTPUT
-          echo "new=$NEW"         >> $GITHUB_OUTPUT
-          echo "Bumping: $CURRENT → $NEW"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "new=$NEW"         >> "$GITHUB_OUTPUT"
 
-      - name: Generate changelog entry with AI
-        id: notes
+      - name: Generate changelog entry
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          INPUT_BUMP:        ${{ inputs.bump }}
+          INPUT_CHANGELOG:   ${{ inputs.changelog }}
         run: |
-          MANUAL="${{ inputs.changelog }}"
-          if [ -n "$MANUAL" ]; then
-            echo "$MANUAL" > /tmp/changelog_entry.txt
-            echo "Using manual changelog entry"
-            exit 0
-          fi
-
           python3 << 'PYEOF'
-          import os, json, urllib.request, datetime
+          import os, json, urllib.request, datetime, subprocess
 
-          new_ver  = open('/tmp/new_version.txt').read().strip()
-          today    = datetime.date.today().isoformat()
-          bump     = os.environ.get('INPUT_BUMP', 'patch')
+          manual = os.environ.get('INPUT_CHANGELOG', '').strip()
+          if manual:
+              open('/tmp/changelog_entry.txt', 'w').write(manual)
+              print("Using manual changelog entry")
+              exit(0)
 
-          # Get recent commits for context
-          import subprocess
+          new_ver = open('/tmp/new_version.txt').read().strip()
+          today   = datetime.date.today().isoformat()
+          bump    = os.environ.get('INPUT_BUMP', 'patch')
+
           try:
               commits = subprocess.check_output(
-                  ['git', 'log', '--oneline', '-20', '--no-merges'],
-                  text=True
+                  ['git', 'log', '--oneline', '-20', '--no-merges'], text=True
               ).strip()
           except Exception:
-              commits = '(could not read git log)'
+              commits = '(unavailable)'
 
           prompt = (
               f"Generate a concise CHANGELOG.md entry for SkipStream browser extension v{new_ver} ({bump} release).\n"
-              f"Today: {today}\n\nRecent commits:\n{commits}\n\n"
-              "Format exactly like this (no other text):\n"
-              f"## [{new_ver}] - {today}\n### Changed\n- ...\n### Fixed\n- ...\n"
-              "Only include sections that apply. Keep each point under 80 chars. "
-              "Focus on user-visible changes. Skip CI/workflow changes."
+              f"Today: {today}\nRecent commits:\n{commits}\n\n"
+              "Format exactly (no other text):\n"
+              f"## [{new_ver}] - {today}\n### Changed\n- ...\n\n"
+              "Only include sections that apply (Changed/Fixed/Added). Under 80 chars per point. "
+              "Focus on user-visible changes only. Skip CI/workflow/chore commits."
           )
 
           entry = None
-
-          # Try Claude first
           anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '')
+          gemini_key    = os.environ.get('GEMINI_API_KEY', '')
+
           if anthropic_key:
               try:
-                  payload = json.dumps({
-                      "model": "claude-sonnet-4-6",
-                      "max_tokens": 500,
+                  p = json.dumps({
+                      "model": "claude-sonnet-4-6", "max_tokens": 500,
                       "messages": [{"role": "user", "content": prompt}]
                   }).encode()
                   req = urllib.request.Request(
-                      "https://api.anthropic.com/v1/messages",
-                      data=payload,
-                      headers={
-                          "Content-Type": "application/json",
-                          "x-api-key": anthropic_key,
-                          "anthropic-version": "2023-06-01",
-                      },
+                      "https://api.anthropic.com/v1/messages", data=p,
+                      headers={"Content-Type": "application/json",
+                               "x-api-key": anthropic_key,
+                               "anthropic-version": "2023-06-01"},
                       method="POST"
                   )
                   with urllib.request.urlopen(req, timeout=30) as r:
@@ -116,101 +109,90 @@ jobs:
               except Exception as e:
                   print(f"Claude failed: {e}")
 
-          # Fallback to Gemini
-          if not entry:
-              gemini_key = os.environ.get('GEMINI_API_KEY', '')
-              if gemini_key:
+          if not entry and gemini_key:
+              import time
+              for attempt in range(4):
                   try:
-                      payload = json.dumps({
+                      p = json.dumps({
                           "contents": [{"parts": [{"text": prompt}]}],
                           "generationConfig": {"temperature": 0.3, "maxOutputTokens": 500}
                       }).encode()
                       req = urllib.request.Request(
                           f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}",
-                          data=payload,
-                          headers={"Content-Type": "application/json"},
-                          method="POST"
+                          data=p, headers={"Content-Type": "application/json"}, method="POST"
                       )
                       with urllib.request.urlopen(req, timeout=30) as r:
                           data = json.load(r)
                       entry = data['candidates'][0]['content']['parts'][0]['text'].strip()
                       print("Generated via Gemini")
+                      break
                   except Exception as e:
-                      print(f"Gemini failed: {e}")
+                      if attempt == 3:
+                          print(f"Gemini failed: {e}")
+                      else:
+                          time.sleep(10 * (attempt + 1))
 
-          # Fallback: minimal template
           if not entry:
               entry = f"## [{new_ver}] - {today}\n### Changed\n- {bump.capitalize()} release\n"
               print("Using fallback template")
 
-          with open('/tmp/changelog_entry.txt', 'w') as f:
-              f.write(entry)
-          print("Entry:", entry[:200])
+          open('/tmp/changelog_entry.txt', 'w').write(entry)
+          print("Entry preview:", entry[:200])
           PYEOF
-        env:
-          INPUT_BUMP: ${{ inputs.bump }}
 
-      - name: Apply version bump
+      - name: Apply version bump to files
         run: |
           NEW="${{ steps.ver.outputs.new }}"
           OLD="${{ steps.ver.outputs.current }}"
 
-          # manifest.json
           python3 -c "
           import json
           m = json.load(open('manifest.json'))
           m['version'] = '$NEW'
           json.dump(m, open('manifest.json','w'), indent=2)
-          print(f'manifest.json: {m[\"version\"]}')
+          open('manifest.json','a').write('\n')
+          print('manifest.json ->', m['version'])
           "
 
-          # manifest-chrome.json
           python3 -c "
           import json
           m = json.load(open('manifest-chrome.json'))
           m['version'] = '$NEW'
           json.dump(m, open('manifest-chrome.json','w'), indent=2)
-          print(f'manifest-chrome.json: {m[\"version\"]}')
+          open('manifest-chrome.json','a').write('\n')
+          print('manifest-chrome.json ->', m['version'])
           "
 
-          # popup.js header comment
-          sed -i "s/\* SkipStream v${OLD}/\* SkipStream v${NEW}/g" popup.js || true
+          sed -i "s/SkipStream v${OLD}/SkipStream v${NEW}/g" popup.js || true
 
-          # Prepend changelog entry
-          ENTRY=$(cat /tmp/changelog_entry.txt)
-          python3 - << PYEOF
+          python3 << 'PYEOF'
           entry = open('/tmp/changelog_entry.txt').read().strip()
           cl    = open('CHANGELOG.md').read()
-          # Insert after the first heading line
           lines = cl.split('\n')
-          insert_at = 0
-          for i, l in enumerate(lines):
-              if l.startswith('## ['):
-                  insert_at = i
-                  break
+          insert_at = next((i for i,l in enumerate(lines) if l.startswith('## [')), 0)
           lines.insert(insert_at, '')
           lines.insert(insert_at, entry)
           open('CHANGELOG.md', 'w').write('\n'.join(lines))
           print('CHANGELOG.md updated')
           PYEOF
 
-          echo "✅ All files bumped to $NEW"
+          echo "All files bumped to $NEW"
 
       - name: Open Pull Request
         uses: actions/github-script@v7
         with:
           script: |
+            const fs     = require('fs');
             const newVer = '${{ steps.ver.outputs.new }}';
             const oldVer = '${{ steps.ver.outputs.current }}';
             const bump   = '${{ inputs.bump }}';
-            const fs     = require('fs');
             const entry  = fs.readFileSync('/tmp/changelog_entry.txt', 'utf8').trim();
+            const branch = `chore/bump-v${newVer}`;
 
-            // Create branch
             const { data: ref } = await github.rest.git.getRef({
               owner: context.repo.owner, repo: context.repo.repo, ref: 'heads/main'
             });
-            const branch = `chore/bump-v${newVer}`;
+
             try {
               await github.rest.git.createRef({
                 owner: context.repo.owner, repo: context.repo.repo,
@@ -223,18 +205,16 @@ jobs:
               });
             }
 
-            // Push each changed file
             const files = ['manifest.json', 'manifest-chrome.json', 'popup.js', 'CHANGELOG.md'];
             for (const f of files) {
               let sha;
               try {
-                const { data: existing } = await github.rest.repos.getContent({
+                const { data: ex } = await github.rest.repos.getContent({
                   owner: context.repo.owner, repo: context.repo.repo, path: f, ref: branch
                 });
-                sha = existing.sha;
+                sha = ex.sha;
               } catch(e) {}
-              const { execSync } = require('child_process');
-              const content = require('fs').readFileSync(f);
+              const content = fs.readFileSync(f);
               await github.rest.repos.createOrUpdateFileContents({
                 owner: context.repo.owner, repo: context.repo.repo,
                 path: f,
@@ -245,13 +225,25 @@ jobs:
               });
             }
 
-            // Create PR
             const { data: pr } = await github.rest.pulls.create({
               owner: context.repo.owner, repo: context.repo.repo,
-              title: `chore: bump version ${oldVer} → ${newVer} (${bump})`,
+              title: `chore: bump ${oldVer} → ${newVer} (${bump})`,
               head: branch, base: 'main',
-              body: `## Version Bump: ${oldVer} → ${newVer}\n\n**Bump type:** ${bump}\n\n${entry}\n\n---\nAfter merging: tag with \`git tag v${newVer} && git push origin v${newVer}\` to trigger release.`
+              body: [
+                `## Version Bump: ${oldVer} → ${newVer}`,
+                '',
+                `**Bump type:** ${bump}`,
+                '',
+                entry,
+                '',
+                '---',
+                `After merging, create the release tag:`,
+                '```',
+                `git pull && git tag v${newVer} && git push origin v${newVer}`,
+                '```',
+                'The **Build & Release** workflow will then build ZIPs, create the GitHub Release,',
+                'update `updates.json`, and trigger AMO + Chrome Web Store submission automatically.'
+              ].join('\n')
             });
 
-            core.notice(`PR created: ${pr.html_url}`);
-            console.log(`✅ PR #${pr.number}: ${pr.html_url}`);
+            core.notice(`PR #${pr.number}: ${pr.html_url}`);
