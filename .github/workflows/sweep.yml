@@ -65,24 +65,23 @@ jobs:
           else:
               task = issue_title.strip()[len("sweep:"):].strip()
 
-          prompt = f"""You are Sweep, an AI coding agent for SkipStream browser extension.
-
-Task: {task}
-
-ARCHITECTURE RULES (CI enforces - violations will fail):
-- No localStorage or fetch() in content-scripts/content.js
-- No innerHTML anywhere
-- No console.log (use console.warn)
-- userId = SHA-256("skipstream:uid:" + supabaseAnonKey)
-
-CODEBASE:
-{ctx[:75000]}
-
-Implement the task completely. Respond ONLY with JSON array (no markdown, no explanation):
-[{{"filename":"path/to/file","content":"COMPLETE file content","description":"what changed"}}]
-
-If task is ambiguous or unsafe: [{{"filename":"","content":"","description":"CLARIFY: what you need to know"}}]
-If task needs discussion first: [{{"filename":"","content":"","description":"DISCUSS: reason"}}]"""
+          prompt = f"""You are automating a development task on SkipStream — a Firefox/Chrome browser extension.
+                    Task: {task}
+                    
+                    ARCHITECTURE RULES (CI enforces - violations will fail):
+                    - No localStorage or fetch() in content-scripts/content.js
+                    - No innerHTML anywhere
+                    - No console.log (use console.warn)
+                    - userId = SHA-256("skipstream:uid:" + supabaseAnonKey)
+                    
+                    CODEBASE:
+                    {ctx[:75000]}
+                    
+                    Implement the task completely. Respond ONLY with JSON array (no markdown, no explanation):
+                    [{{"filename":"path/to/file","content":"COMPLETE file content","description":"what changed"}}]
+                    
+                    If task is ambiguous or unsafe: [{{"filename":"","content":"","description":"CLARIFY: what you need to know"}}]
+                    If task needs discussion first: [{{"filename":"","content":"","description":"DISCUSS: reason"}}]"""
 
           try:
               if anthropic_key:

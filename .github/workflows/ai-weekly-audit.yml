@@ -55,38 +55,38 @@ jobs:
           context_str = "\n\n".join(f"=== {k} ===\n{v[:8000]}" for k,v in codebase.items())
 
           prompt = f"""You are auditing SkipStream browser extension codebase.
-Scope: {scope} — {scope_prompts.get(scope, scope_prompts['full'])}
-
-Architecture rules:
-- No localStorage in content-scripts/content.js
-- No fetch() in content-scripts/content.js
-- No innerHTML anywhere
-- No console.log anywhere
-- userId = SHA-256("skipstream:uid:" + supabaseAnonKey)
-- SPA nav = pushState/replaceState intercept
-
-CODEBASE:
-{context_str[:70000]}
-
-Reply ONLY with a JSON object (no markdown):
-{{
-  "findings": [
-    {{
-      "severity": "high|medium|low",
-      "category": "security|performance|compat|architecture|quality",
-      "file": "filename.js",
-      "line_hint": "approximate line or function name",
-      "title": "short title",
-      "description": "what the issue is",
-      "suggestion": "concrete fix",
-      "automatable": true
-    }}
-  ],
-  "summary": "2-3 sentence overall assessment",
-  "healthy": true
-}}
-
-Only include real findings. If no issues found, return empty findings array."""
+          Scope: {scope} — {scope_prompts.get(scope, scope_prompts['full'])}
+          
+          Architecture rules:
+          - No localStorage in content-scripts/content.js
+          - No fetch() in content-scripts/content.js
+          - No innerHTML anywhere
+          - No console.log anywhere
+          - userId = SHA-256("skipstream:uid:" + supabaseAnonKey)
+          - SPA nav = pushState/replaceState intercept
+          
+          CODEBASE:
+          {context_str[:70000]}
+          
+          Reply ONLY with a JSON object (no markdown):
+          {{
+            "findings": [
+              {{
+                "severity": "high|medium|low",
+                "category": "security|performance|compat|architecture|quality",
+                "file": "filename.js",
+                "line_hint": "approximate line or function name",
+                "title": "short title",
+                "description": "what the issue is",
+                "suggestion": "concrete fix",
+                "automatable": true
+              }}
+            ],
+            "summary": "2-3 sentence overall assessment",
+            "healthy": true
+          }}
+          
+          Only include real findings. If no issues found, return empty findings array."""
 
           try:
               if anthropic_key:

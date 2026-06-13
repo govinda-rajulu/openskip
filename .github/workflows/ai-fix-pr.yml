@@ -63,36 +63,35 @@ jobs:
           repo_context = open("/tmp/repo_context.txt").read()
 
           prompt = f"""You are fixing a bug or implementing a feature for SkipStream — a Firefox/Chrome browser extension.
-
-STRICT ARCHITECTURE RULES (CI enforces all — violations will fail):
-1. NEVER use localStorage in content-scripts/content.js — only browser.storage.local via sendMessage
-2. NEVER use fetch() in content-scripts/content.js — all network calls go through background.js
-3. NEVER use innerHTML — use DOM API: createElement, textContent, replaceChildren
-4. NEVER use console.log — only console.warn for diagnostics
-5. userId = SHA-256("skipstream:uid:" + supabaseAnonKey) — never random, never stored as-is
-6. SPA nav = intercept pushState/replaceState + popstate listener — no setInterval polling
-7. Video detection: width ≥ 25% viewport, height ≥ 20% viewport, aspect ratio 1.2–3.0
-
-ISSUE #{issue_num}: {issue_title}
-{issue_body}
-
-CURRENT CODEBASE:
-{repo_context[:80000]}
-
-Respond with ONLY a JSON array (no markdown, no explanation, no code fences):
-[
-  {{
-    "filename": "path/to/file.js",
-    "content": "COMPLETE file content — not a diff, not a snippet",
-    "description": "what changed and why (max 72 chars)"
-  }}
-]
-
-Rules:
-- Only include files that actually change
-- Write the COMPLETE file content for each changed file
-- If this cannot be safely automated: [{{"filename":"","content":"","description":"CANNOT_FIX: reason"}}]
-"""
+          
+          STRICT ARCHITECTURE RULES (CI enforces all — violations will fail):
+          1. NEVER use localStorage in content-scripts/content.js — only browser.storage.local via sendMessage
+          2. NEVER use fetch() in content-scripts/content.js — all network calls go through background.js
+          3. NEVER use innerHTML — use DOM API: createElement, textContent, replaceChildren
+          4. NEVER use console.log — only console.warn for diagnostics
+          5. userId = SHA-256("skipstream:uid:" + supabaseAnonKey) — never random, never stored as-is
+          6. SPA nav = intercept pushState/replaceState + popstate listener — no setInterval polling
+          7. Video detection: width >= 25% viewport, height >= 20% viewport, aspect ratio 1.2-3.0
+          
+          ISSUE #{issue_num}: {issue_title}
+          {issue_body}
+          
+          CURRENT CODEBASE:
+          {repo_context[:80000]}
+          
+          Respond with ONLY a JSON array (no markdown, no explanation, no code fences):
+          [
+            {{
+              "filename": "path/to/file.js",
+              "content": "COMPLETE file content — not a diff, not a snippet",
+              "description": "what changed and why (max 72 chars)"
+            }}
+          ]
+          
+          Rules:
+          - Only include files that actually change
+          - Write the COMPLETE file content for each changed file
+          - If this cannot be safely automated: [{{"filename":"","content":"","description":"CANNOT_FIX: reason"}}]"""
 
           def call_claude(p):
               data = json.dumps({"model":"claude-sonnet-4-6","max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode()
@@ -271,59 +270,59 @@ Rules:
           if cmd == "/ai-fix":
               task = args or f"{issue_title}\n{issue_body}"
               prompt = f"""Fix this for SkipStream browser extension:
-{task}
-
-Context from issue #{issue_num}: {issue_title}
-
-STRICT RULES: no localStorage/fetch in content script, no innerHTML, no console.log.
-
-CODEBASE:
-{repo_context[:70000]}
-
-Respond ONLY with JSON array (no markdown):
-[{{"filename":"path","content":"COMPLETE file content","description":"what changed"}}]
-If unsafe to automate: [{{"filename":"","content":"","description":"CANNOT_FIX: reason"}}]"""
+              {task}
+              
+              Context from issue #{issue_num}: {issue_title}
+              
+              STRICT RULES: no localStorage/fetch in content script, no innerHTML, no console.log.
+              
+              CODEBASE:
+              {repo_context[:70000]}
+              
+              Respond ONLY with JSON array (no markdown):
+              [{{"filename":"path","content":"COMPLETE file content","description":"what changed"}}]
+              If unsafe to automate: [{{"filename":"","content":"","description":"CANNOT_FIX: reason"}}]"""
               mode = "fix"
-
+              
           elif cmd == "/ai-review":
               prompt = f"""Review the following for SkipStream browser extension and give specific, actionable feedback:
-
-{args or comment_body}
-
-CODEBASE:
-{repo_context[:70000]}
-
-Respond with a concise markdown review covering: correctness, architecture rule compliance, edge cases, suggestions."""
+              
+              {args or comment_body}
+              
+              CODEBASE:
+              {repo_context[:70000]}
+              
+              Respond with a concise markdown review covering: correctness, architecture rule compliance, edge cases, suggestions."""
               mode = "review"
-
+              
           elif cmd == "/ai-explain":
               target = args or issue_title
               prompt = f"""Explain how this works in the SkipStream codebase:
-{target}
-
-CODEBASE:
-{repo_context[:70000]}
-
-Give a clear, concise explanation with code references."""
+              {target}
+              
+              CODEBASE:
+              {repo_context[:70000]}
+              
+              Give a clear, concise explanation with code references."""
               mode = "explain"
-
+              
           elif cmd == "/ai-task":
               prompt = f"""You are a senior developer for SkipStream browser extension.
-
-Task: {args}
-
-Context (issue #{issue_num}): {issue_title}
-{issue_body}
-
-STRICT RULES: no localStorage/fetch in content script, no innerHTML, no console.log.
-
-CODEBASE:
-{repo_context[:70000]}
-
-If this is a code change, respond with ONLY a JSON array:
-[{{"filename":"path","content":"COMPLETE file content","description":"what changed"}}]
-If this is a question/analysis, respond with markdown.
-If unsafe: [{{"filename":"","content":"","description":"CANNOT_FIX: reason"}}]"""
+              
+              Task: {args}
+              
+              Context (issue #{issue_num}): {issue_title}
+              {issue_body}
+              
+              STRICT RULES: no localStorage/fetch in content script, no innerHTML, no console.log.
+              
+              CODEBASE:
+              {repo_context[:70000]}
+              
+              If this is a code change, respond with ONLY a JSON array:
+              [{{"filename":"path","content":"COMPLETE file content","description":"what changed"}}]
+              If this is a question/analysis, respond with markdown.
+              If unsafe: [{{"filename":"","content":"","description":"CANNOT_FIX: reason"}}]"""
               mode = "task"
 
           else:

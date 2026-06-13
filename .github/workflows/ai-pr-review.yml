@@ -59,29 +59,29 @@ jobs:
           diff = open("/tmp/pr_diff_trunc.txt").read()
 
           prompt = f"""You are reviewing a pull request for SkipStream — a Firefox/Chrome browser extension.
-
-Architecture rules (violations = CI failure):
-- No localStorage in content-scripts/content.js
-- No fetch() in content-scripts/content.js
-- No innerHTML anywhere
-- No console.log anywhere
-- userId = SHA-256("skipstream:uid:" + supabaseAnonKey)
-- SPA nav = pushState/replaceState intercept, no setInterval
-
-PR: {pr_title}
-{pr_body[:500] if pr_body else ''}
-
-DIFF:
-{diff}
-
-Write a concise PR review in markdown. Cover:
-1. **Architecture compliance** — any rule violations?
-2. **Logic correctness** — bugs, edge cases, off-by-ones?
-3. **Security** — any credentials, XSS vectors, unsafe patterns?
-4. **Suggestions** — specific improvements (not nitpicks)
-5. **Verdict** — ✅ Looks good / ⚠️ Needs changes / ❌ Blocking issues
-
-Be direct and specific. Skip praise for obvious things. Max 400 words."""
+          
+          Architecture rules (violations = CI failure):
+          - No localStorage in content-scripts/content.js
+          - No fetch() in content-scripts/content.js
+          - No innerHTML anywhere
+          - No console.log anywhere
+          - userId = SHA-256("skipstream:uid:" + supabaseAnonKey)
+          - SPA nav = pushState/replaceState intercept, no setInterval
+          
+          PR: {pr_title}
+          {pr_body[:500] if pr_body else ''}
+          
+          DIFF:
+          {diff}
+          
+          Write a concise PR review in markdown. Cover:
+          1. **Architecture compliance** — any rule violations?
+          2. **Logic correctness** — bugs, edge cases, off-by-ones?
+          3. **Security** — any credentials, XSS vectors, unsafe patterns?
+          4. **Suggestions** — specific improvements (not nitpicks)
+          5. **Verdict** — ✅ Looks good / ⚠️ Needs changes / ❌ Blocking issues
+          
+          Be direct and specific. Skip praise for obvious things. Max 400 words."""
 
           try:
               if anthropic_key:
@@ -181,17 +181,17 @@ Be direct and specific. Skip praise for obvious things. Max 400 words."""
           args = comment.strip()[len(cmd):].strip()
 
           prompt = f"""PR: {pr_title}
-File: {file_path}
-Code diff hunk:
-{diff_hunk}
-
-Command: {cmd} {args}
-
-SkipStream rules: no localStorage/fetch in content script, no innerHTML, no console.log.
-
-{'Fix the issue in this code hunk and explain what you changed.' if cmd=='/ai-fix' else 'Review this specific code hunk and give targeted feedback.' if cmd=='/ai-review' else 'Explain what this code does and why it is written this way.'}
-
-Be concise and specific (max 200 words)."""
+          File: {file_path}
+          Code diff hunk:
+          {diff_hunk}
+          
+          Command: {cmd} {args}
+          
+          SkipStream rules: no localStorage/fetch in content script, no innerHTML, no console.log.
+          
+          {'Fix the issue in this code hunk and explain what you changed.' if cmd=='/ai-fix' else 'Review this specific code hunk and give targeted feedback.' if cmd=='/ai-review' else 'Explain what this code does and why it is written this way.'}
+          
+          Be concise and specific (max 200 words)."""
 
           try:
               if anthropic_key:
