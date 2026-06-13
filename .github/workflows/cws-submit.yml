@@ -17,6 +17,9 @@ concurrency:
   group: cws-submit
   cancel-in-progress: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   submit:
     name: Submit to Chrome Web Store

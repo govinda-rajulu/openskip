@@ -6,6 +6,9 @@ on:
   issue_comment:
     types: [created]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   sweep:
     # Trigger: new issue title starts with "sweep:" OR comment is "sweep: <task>"

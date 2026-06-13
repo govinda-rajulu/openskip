@@ -6,6 +6,9 @@ on:
   pull_request_review_comment:
     types: [created]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ── Full AI review on PR open/sync ──────────────────────────────────────────
   review-pr:

@@ -12,6 +12,9 @@ on:
   schedule:
     - cron: '0 9 * * 1'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   diagnostics:
     name: Secret & Workflow Health Check
@@ -155,6 +158,10 @@ jobs:
             "release.yml":         "Build & Release",
           }
 
+          # Only flag failures from the last 7 days as current issues
+          from datetime import datetime, timezone, timedelta
+          cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+
           latest = {}
           for run in runs:
             k = run["path"].split("/")[-1]
@@ -167,22 +174,32 @@ jobs:
           for wf_file, label in IMPORTANT.items():
             run = latest.get(wf_file)
             if not run:
-              print(f"  -- {label:30s}  never run")
+              print(f"  NEVER   {label:30s}  never triggered")
             else:
               c    = run.get("conclusion") or run.get("status", "?")
               ago  = run["updated_at"]
-              icon = {"success":"OK","failure":"FAIL","skipped":"SKIP","in_progress":"RUNNING"}.get(c, "?")
-              print(f"  {icon:7s} {label:30s}  {ago}")
-              if c == "failure":
+              # Check if startup_failure (0-second runs) - these are event-mismatch, not real failures
+              from datetime import datetime, timezone
+              started = datetime.fromisoformat(run["run_started_at"].replace("Z","+00:00"))
+              ended   = datetime.fromisoformat(run["updated_at"].replace("Z","+00:00"))
+              duration = (ended - started).total_seconds()
+              stale   = started < cutoff
+              startup = duration == 0 and c == "failure"
+              icon = {"success":"OK","skipped":"SKIP","in_progress":"RUNNING"}.get(c, "FAIL")
+              if startup: icon = "SKIP"
+              note = " (startup/event-mismatch, not a real failure)" if startup else ""
+              note = note or (" (stale - >7 days ago)" if stale and c == "failure" else "")
+              print(f"  {icon:7s} {label:30s}  {ago[:10]}{note}")
+              if c == "failure" and not startup and not stale:
                 failures.append((label, run["html_url"]))
 
           print("-" * 60)
           if failures:
-            print(f"\n::error::Failed workflows: {', '.join(l for l,_ in failures)}")
+            print(f"\n::error::Failed workflows (recent): {', '.join(l for l,_ in failures)}")
             for label, url in failures:
               print(f"  {label}: {url}")
           else:
-            print("\n::notice::All recently-run workflows healthy")
+            print("\n::notice::No current workflow failures (stale/startup failures excluded)")
 
           open("/tmp/wf_failures.json","w").write(json.dumps(failures))
           PYEOF
