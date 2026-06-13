@@ -10,7 +10,7 @@ on:
         type: choice
         options: [all, secrets, workflows, amo]
   schedule:
-    - cron: '0 9 * * 1'   # Monday 09:00 UTC (after weekly audit)
+    - cron: '0 9 * * 1'
 
 jobs:
   diagnostics:
@@ -31,9 +31,9 @@ jobs:
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then
             echo "::error::ANTHROPIC_API_KEY is not set"
-            echo "ANTHROPIC_STATUS=missing" >> $GITHUB_ENV
+            echo "missing" > /tmp/anthropic_status.txt
           else
-            echo "Key present (${#ANTHROPIC_API_KEY} chars), testing API call..."
+            echo "Key present (${#ANTHROPIC_API_KEY} chars), testing..."
             HTTP=$(curl -s -o /tmp/anthropic_resp.json -w "%{http_code}" \
               -X POST https://api.anthropic.com/v1/messages \
               -H "x-api-key: $ANTHROPIC_API_KEY" \
@@ -41,12 +41,12 @@ jobs:
               -H "content-type: application/json" \
               -d '{"model":"claude-haiku-4-5-20251001","max_tokens":16,"messages":[{"role":"user","content":"ping"}]}')
             if [ "$HTTP" = "200" ]; then
-              echo "::notice::ANTHROPIC_API_KEY ✅ valid (HTTP 200)"
-              echo "ANTHROPIC_STATUS=ok" >> $GITHUB_ENV
+              echo "::notice::ANTHROPIC_API_KEY valid (HTTP 200)"
+              echo "ok" > /tmp/anthropic_status.txt
             else
               BODY=$(cat /tmp/anthropic_resp.json)
-              echo "::error::ANTHROPIC_API_KEY ❌ HTTP $HTTP — $BODY"
-              echo "ANTHROPIC_STATUS=fail_$HTTP" >> $GITHUB_ENV
+              echo "::error::ANTHROPIC_API_KEY HTTP $HTTP -- $BODY"
+              echo "fail_$HTTP" > /tmp/anthropic_status.txt
             fi
           fi
 
@@ -57,20 +57,20 @@ jobs:
         run: |
           if [ -z "$GEMINI_API_KEY" ]; then
             echo "::error::GEMINI_API_KEY is not set"
-            echo "GEMINI_STATUS=missing" >> $GITHUB_ENV
+            echo "missing" > /tmp/gemini_status.txt
           else
-            echo "Key present (${#GEMINI_API_KEY} chars), testing API call..."
+            echo "Key present (${#GEMINI_API_KEY} chars), testing..."
             HTTP=$(curl -s -o /tmp/gemini_resp.json -w "%{http_code}" \
               -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_API_KEY" \
               -H "content-type: application/json" \
               -d '{"contents":[{"parts":[{"text":"ping"}]}],"generationConfig":{"maxOutputTokens":16}}')
             if [ "$HTTP" = "200" ]; then
-              echo "::notice::GEMINI_API_KEY ✅ valid (HTTP 200)"
-              echo "GEMINI_STATUS=ok" >> $GITHUB_ENV
+              echo "::notice::GEMINI_API_KEY valid (HTTP 200)"
+              echo "ok" > /tmp/gemini_status.txt
             else
               BODY=$(cat /tmp/gemini_resp.json)
-              echo "::error::GEMINI_API_KEY ❌ HTTP $HTTP — $BODY"
-              echo "GEMINI_STATUS=fail_$HTTP" >> $GITHUB_ENV
+              echo "::error::GEMINI_API_KEY HTTP $HTTP -- $BODY"
+              echo "fail_$HTTP" > /tmp/gemini_status.txt
             fi
           fi
 
@@ -104,22 +104,21 @@ jobs:
           header  = b64url(json.dumps({"alg":"HS256","typ":"JWT"}))
           payload = b64url(json.dumps({"iss":key,"jti":str(iat),"iat":iat,"exp":iat+60}))
           sig     = b64url(hmac.new(secret.encode(), f"{header}.{payload}".encode(), hashlib.sha256).digest())
-          jwt     = f"{header}.{payload}.{sig}"
+          jwt_tok = f"{header}.{payload}.{sig}"
 
-          # Test against AMO profile endpoint - read-only, no side effects
           try:
             req = urllib.request.Request(
               "https://addons.mozilla.org/api/v5/accounts/profile/",
-              headers={"Authorization": f"JWT {jwt}"}
+              headers={"Authorization": f"JWT {jwt_tok}"}
             )
             with urllib.request.urlopen(req, timeout=15) as r:
               data = json.load(r)
               name = data.get("username", data.get("display_name", "unknown"))
-              print(f"::notice::AMO keys ✅ valid — authenticated as '{name}'")
+              print(f"::notice::AMO keys valid -- authenticated as '{name}'")
               open("/tmp/amo_status.txt","w").write("ok")
           except urllib.error.HTTPError as e:
             body = e.read().decode()
-            print(f"::error::AMO keys ❌ HTTP {e.code} — {body[:300]}")
+            print(f"::error::AMO keys HTTP {e.code} -- {body[:300]}")
             open("/tmp/amo_status.txt","w").write(f"fail_{e.code}")
           except Exception as e:
             print(f"::error::AMO test error: {e}")
@@ -146,36 +145,34 @@ jobs:
           runs = gh(f"/repos/{repo}/actions/runs?per_page=100")["workflow_runs"]
 
           IMPORTANT = {
-            "validate.yml": "Validate Extension",
+            "validate.yml":        "Validate Extension",
             "ai-issue-triage.yml": "AI Issue Triage",
-            "ai-fix-pr.yml": "AI Fix PR",
-            "ai-pr-review.yml": "AI PR Review",
+            "ai-fix-pr.yml":       "AI Fix PR",
+            "ai-pr-review.yml":    "AI PR Review",
             "ai-weekly-audit.yml": "AI Weekly Audit",
-            "sweep.yml": "Sweep Agent",
-            "amo-submit.yml": "Submit to AMO",
-            "release.yml": "Build & Release",
+            "sweep.yml":           "Sweep Agent",
+            "amo-submit.yml":      "Submit to AMO",
+            "release.yml":         "Build & Release",
           }
 
           latest = {}
           for run in runs:
-            key = run["path"].split("/")[-1]
-            if key not in latest:
-              latest[key] = run
+            k = run["path"].split("/")[-1]
+            if k not in latest:
+              latest[k] = run
 
           print("Workflow health summary:")
           print("-" * 60)
           failures = []
-          never_run = []
           for wf_file, label in IMPORTANT.items():
             run = latest.get(wf_file)
             if not run:
-              print(f"  ⚪ {label:30s}  never run")
-              never_run.append(label)
+              print(f"  -- {label:30s}  never run")
             else:
-              c   = run.get("conclusion") or run.get("status", "?")
-              ago = run["updated_at"]
-              icon = {"success":"✅","failure":"❌","skipped":"⏭️","in_progress":"🔄"}.get(c, "❓")
-              print(f"  {icon} {label:30s}  {c:12s}  {ago}")
+              c    = run.get("conclusion") or run.get("status", "?")
+              ago  = run["updated_at"]
+              icon = {"success":"OK","failure":"FAIL","skipped":"SKIP","in_progress":"RUNNING"}.get(c, "?")
+              print(f"  {icon:7s} {label:30s}  {ago}")
               if c == "failure":
                 failures.append((label, run["html_url"]))
 
@@ -184,10 +181,10 @@ jobs:
             print(f"\n::error::Failed workflows: {', '.join(l for l,_ in failures)}")
             for label, url in failures:
               print(f"  {label}: {url}")
-            open("/tmp/wf_failures.json","w").write(json.dumps(failures))
           else:
             print("\n::notice::All recently-run workflows healthy")
-            open("/tmp/wf_failures.json","w").write("[]")
+
+          open("/tmp/wf_failures.json","w").write(json.dumps(failures))
           PYEOF
 
       - name: Write job summary
@@ -196,7 +193,7 @@ jobs:
           CHECKS: ${{ inputs.checks || 'all' }}
         run: |
           {
-            echo "## 🩺 Diagnostics Report"
+            echo "## Diagnostics Report"
             echo ""
             echo "**Triggered:** $(date -u '+%Y-%m-%d %H:%M UTC')"
             echo "**Scope:** $CHECKS"
@@ -208,27 +205,29 @@ jobs:
               echo "| Secret | Status |"
               echo "|--------|--------|"
 
-              case "${ANTHROPIC_STATUS:-unknown}" in
-                ok)       echo "| \`ANTHROPIC_API_KEY\` | ✅ Valid |" ;;
-                missing)  echo "| \`ANTHROPIC_API_KEY\` | ❌ Not set |" ;;
-                fail_*)   echo "| \`ANTHROPIC_API_KEY\` | ❌ API error (${ANTHROPIC_STATUS}) |" ;;
-                *)        echo "| \`ANTHROPIC_API_KEY\` | ❓ Unknown |" ;;
+              A=$(cat /tmp/anthropic_status.txt 2>/dev/null || echo "skipped")
+              case "$A" in
+                ok)       echo "| \`ANTHROPIC_API_KEY\` | OK - valid |" ;;
+                missing)  echo "| \`ANTHROPIC_API_KEY\` | NOT SET |" ;;
+                skipped)  echo "| \`ANTHROPIC_API_KEY\` | skipped |" ;;
+                *)        echo "| \`ANTHROPIC_API_KEY\` | FAIL ($A) |" ;;
               esac
 
-              case "${GEMINI_STATUS:-unknown}" in
-                ok)       echo "| \`GEMINI_API_KEY\` | ✅ Valid |" ;;
-                missing)  echo "| \`GEMINI_API_KEY\` | ❌ Not set |" ;;
-                fail_*)   echo "| \`GEMINI_API_KEY\` | ❌ API error (${GEMINI_STATUS}) |" ;;
-                *)        echo "| \`GEMINI_API_KEY\` | ❓ Unknown |" ;;
+              G=$(cat /tmp/gemini_status.txt 2>/dev/null || echo "skipped")
+              case "$G" in
+                ok)       echo "| \`GEMINI_API_KEY\` | OK - valid |" ;;
+                missing)  echo "| \`GEMINI_API_KEY\` | NOT SET |" ;;
+                skipped)  echo "| \`GEMINI_API_KEY\` | skipped |" ;;
+                *)        echo "| \`GEMINI_API_KEY\` | FAIL ($G) |" ;;
               esac
 
-              AMO_S=$(cat /tmp/amo_status.txt 2>/dev/null || echo "unknown")
+              AMO_S=$(cat /tmp/amo_status.txt 2>/dev/null || echo "skipped")
               case "$AMO_S" in
-                ok)       echo "| \`AMO_API_KEY/SECRET\` | ✅ Valid |" ;;
-                missing)  echo "| \`AMO_API_KEY/SECRET\` | ❌ Not set |" ;;
-                fail_401) echo "| \`AMO_API_KEY/SECRET\` | ❌ Expired/invalid |" ;;
-                fail_*)   echo "| \`AMO_API_KEY/SECRET\` | ❌ API error ($AMO_S) |" ;;
-                *)        echo "| \`AMO_API_KEY/SECRET\` | ❓ Unknown |" ;;
+                ok)       echo "| \`AMO_API_KEY/SECRET\` | OK - valid |" ;;
+                missing)  echo "| \`AMO_API_KEY/SECRET\` | NOT SET |" ;;
+                fail_401) echo "| \`AMO_API_KEY/SECRET\` | FAIL - expired/invalid |" ;;
+                skipped)  echo "| \`AMO_API_KEY/SECRET\` | skipped |" ;;
+                *)        echo "| \`AMO_API_KEY/SECRET\` | FAIL ($AMO_S) |" ;;
               esac
 
               echo ""
@@ -239,43 +238,46 @@ jobs:
               if [ "$WF_FAIL" = "[]" ]; then
                 echo "### Workflow Health"
                 echo ""
-                echo "✅ No failed workflows detected."
+                echo "No failed workflows detected."
               else
-                echo "### Workflow Health — ❌ Failures Found"
+                echo "### Workflow Health - Failures Found"
                 echo ""
                 python3 -c "
           import json, sys
-          failures = json.loads(sys.argv[1])
-          for label, url in failures:
-              print(f'- ❌ [{label}]({url})')
+          for label, url in json.loads(sys.argv[1]):
+              print(f'- FAIL [{label}]({url})')
                 " "$WF_FAIL"
               fi
               echo ""
             fi
 
             echo "---"
-            echo "🔗 [Actions tab](https://github.com/govinda-rajulu/openskip/actions) · [Secrets settings](https://github.com/govinda-rajulu/openskip/settings/secrets/actions)"
+            echo "[Actions tab](https://github.com/govinda-rajulu/openskip/actions) | [Secrets settings](https://github.com/govinda-rajulu/openskip/settings/secrets/actions)"
           } >> $GITHUB_STEP_SUMMARY
 
-      - name: Open issue if secrets failing (scheduled only)
+      - name: Open issue if secrets failing (scheduled runs only)
         if: github.event_name == 'schedule'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ANTHROPIC_STATUS: ${{ env.ANTHROPIC_STATUS }}
-          GEMINI_STATUS: ${{ env.GEMINI_STATUS }}
         run: |
           python3 << 'PYEOF'
           import os, json, urllib.request
 
-          token = os.environ.get("GH_TOKEN","")
-          repo  = "govinda-rajulu/openskip"
-          headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "Content-Type": "application/json"}
+          token   = os.environ.get("GH_TOKEN","")
+          repo    = "govinda-rajulu/openskip"
+          headers = {
+            "Authorization":  f"Bearer {token}",
+            "Accept":         "application/vnd.github+json",
+            "Content-Type":   "application/json"
+          }
+
+          def read(f): return open(f).read().strip() if os.path.exists(f) else ""
+
+          a   = read("/tmp/anthropic_status.txt")
+          g   = read("/tmp/gemini_status.txt")
+          amo = read("/tmp/amo_status.txt")
 
           failing = []
-          a = os.environ.get("ANTHROPIC_STATUS","")
-          g = os.environ.get("GEMINI_STATUS","")
-          amo = open("/tmp/amo_status.txt","r").read().strip() if os.path.exists("/tmp/amo_status.txt") else ""
-
           if a and a != "ok": failing.append(f"ANTHROPIC_API_KEY ({a})")
           if g and g != "ok": failing.append(f"GEMINI_API_KEY ({g})")
           if amo and amo not in ("ok",""): failing.append(f"AMO keys ({amo})")
@@ -284,25 +286,28 @@ jobs:
             print("All secrets healthy - no issue needed")
             exit(0)
 
-          title = f"[diagnostics] Secret failure detected: {', '.join(failing)}"
-          body  = f"""## Secret health check failed
+          title = f"[diagnostics] Secret failure: {', '.join(failing)}"
+          body  = "\n".join([
+            "## Secret health check failed",
+            "",
+            "Secrets with issues:",
+            *[f"- **{f}**" for f in failing],
+            "",
+            "### Fix",
+            f"Go to [Settings > Secrets](https://github.com/{repo}/settings/secrets/actions) and update the failing secrets.",
+            "",
+            "- `ANTHROPIC_API_KEY`: https://console.anthropic.com/account/keys",
+            "- `GEMINI_API_KEY`: https://aistudio.google.com/app/apikey",
+            "- `AMO_API_KEY/SECRET`: https://addons.mozilla.org/en-US/developers/addon/api/key/",
+            "",
+            "_Auto-opened by diagnostics workflow._",
+          ])
 
-          The weekly diagnostics run detected issues with the following secrets:
-
-          {chr(10).join(f'- **{f}**' for f in failing)}
-
-          ### Action needed
-          Go to [Settings → Secrets](https://github.com/{repo}/settings/secrets/actions) and update the failing secrets.
-
-          - `ANTHROPIC_API_KEY`: get from [console.anthropic.com](https://console.anthropic.com/account/keys)
-          - `GEMINI_API_KEY`: get from [aistudio.google.com](https://aistudio.google.com/app/apikey)
-          - `AMO_API_KEY/SECRET`: get from [addons.mozilla.org/developers/addon/api/key](https://addons.mozilla.org/en-US/developers/addon/api/key/)
-
-          _Auto-opened by diagnostics workflow._
-          """
-
-          data = json.dumps({"title": title, "body": body, "labels": []}).encode()
-          req  = urllib.request.Request(f"https://api.github.com/repos/{repo}/issues", data=data, headers=headers, method="POST")
+          data = json.dumps({"title": title, "body": body}).encode()
+          req  = urllib.request.Request(
+            f"https://api.github.com/repos/{repo}/issues",
+            data=data, headers=headers, method="POST"
+          )
           with urllib.request.urlopen(req, timeout=15) as r:
             issue = json.load(r)
             print(f"Issue #{issue['number']} opened: {issue['html_url']}")
