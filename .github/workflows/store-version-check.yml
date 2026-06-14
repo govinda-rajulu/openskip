@@ -1,0 +1,339 @@
+name: Store Version Check
+
+on:
+  schedule:
+    - cron: '0 10 * * 1'   # Monday 10:00 UTC (after diagnostics at 09:00)
+  workflow_dispatch:
+    inputs:
+      force_submit:
+        description: 'Force submission even if store is current'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+concurrency:
+  group: store-version-check
+  cancel-in-progress: false
+
+jobs:
+  check-and-submit:
+    name: Check store versions and submit if behind
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+      actions: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get repo version
+        id: repo
+        run: |
+          FF_VER=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
+          CR_VER=$(python3 -c "import json; print(json.load(open('manifest-chrome.json'))['version'])")
+          echo "firefox=$FF_VER" >> $GITHUB_OUTPUT
+          echo "chrome=$CR_VER"  >> $GITHUB_OUTPUT
+          echo "Repo: Firefox=$FF_VER  Chrome=$CR_VER"
+
+      - name: Check AMO (Firefox) live version
+        id: amo
+        env:
+          AMO_API_KEY:    ${{ secrets.AMO_API_KEY }}
+          AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, time, hmac, hashlib, base64, urllib.request, urllib.error, sys
+
+          key    = os.environ.get("AMO_API_KEY", "")
+          secret = os.environ.get("AMO_API_SECRET", "")
+          slug   = "skipstream"
+
+          def b64url(data):
+            buf = data if isinstance(data, bytes) else data.encode()
+            return base64.urlsafe_b64encode(buf).rstrip(b'=').decode()
+
+          def make_jwt():
+            iat     = int(time.time())
+            header  = b64url(json.dumps({"alg":"HS256","typ":"JWT"}))
+            payload = b64url(json.dumps({"iss":key,"jti":str(iat),"iat":iat,"exp":iat+120}))
+            sig     = b64url(hmac.new(secret.encode(), f"{header}.{payload}".encode(), hashlib.sha256).digest())
+            return f"{header}.{payload}.{sig}"
+
+          if not key or not secret:
+            print("AMO secrets not set - skipping AMO check")
+            open("/tmp/amo_store_version.txt","w").write("unknown")
+            sys.exit(0)
+
+          try:
+            # Public API - no auth needed for published version
+            req = urllib.request.Request(
+              f"https://addons.mozilla.org/api/v5/addons/addon/{slug}/?lang=en-US",
+              headers={"User-Agent": "SkipStream-CI/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=15) as r:
+              data = json.load(r)
+            current = data.get("current_version", {}).get("version", "unknown")
+            print(f"AMO live version: {current}")
+            open("/tmp/amo_store_version.txt","w").write(current)
+
+            # Also check latest version in review queue (may be newer than published)
+            if key and secret:
+              req2 = urllib.request.Request(
+                f"https://addons.mozilla.org/api/v5/addons/addon/{slug}/versions/?ordering=-created&page_size=1",
+                headers={"Authorization": f"JWT {make_jwt()}", "User-Agent": "SkipStream-CI/1.0"}
+              )
+              with urllib.request.urlopen(req2, timeout=15) as r2:
+                vdata = json.load(r2)
+              latest_submitted = vdata.get("results",[{}])[0].get("version","unknown")
+              print(f"AMO latest submitted (inc. review queue): {latest_submitted}")
+              open("/tmp/amo_latest_submitted.txt","w").write(latest_submitted)
+            else:
+              open("/tmp/amo_latest_submitted.txt","w").write(current)
+
+          except urllib.error.HTTPError as e:
+            if e.code == 404:
+              print("Add-on not yet on AMO")
+              open("/tmp/amo_store_version.txt","w").write("0.0.0")
+              open("/tmp/amo_latest_submitted.txt","w").write("0.0.0")
+            else:
+              print(f"AMO API error HTTP {e.code}: {e.read().decode()[:200]}")
+              open("/tmp/amo_store_version.txt","w").write("unknown")
+              open("/tmp/amo_latest_submitted.txt","w").write("unknown")
+          except Exception as e:
+            print(f"AMO check error: {e}")
+            open("/tmp/amo_store_version.txt","w").write("unknown")
+            open("/tmp/amo_latest_submitted.txt","w").write("unknown")
+          PYEOF
+
+      - name: Check Chrome Web Store live version
+        id: cws
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_CLIENT_ID:     ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, urllib.request, urllib.error, urllib.parse, sys
+
+          ext_id       = os.environ.get("CWS_EXTENSION_ID","")
+          client_id    = os.environ.get("CWS_CLIENT_ID","")
+          client_secret= os.environ.get("CWS_CLIENT_SECRET","")
+          refresh_token= os.environ.get("CWS_REFRESH_TOKEN","")
+
+          if not all([ext_id, client_id, client_secret, refresh_token]):
+            print("CWS secrets not set - skipping CWS check")
+            open("/tmp/cws_store_version.txt","w").write("unknown")
+            sys.exit(0)
+
+          try:
+            # Get OAuth token
+            token_data = urllib.parse.urlencode({
+              "client_id": client_id, "client_secret": client_secret,
+              "refresh_token": refresh_token, "grant_type": "refresh_token"
+            }).encode()
+            req = urllib.request.Request(
+              "https://oauth2.googleapis.com/token",
+              data=token_data,
+              headers={"Content-Type": "application/x-www-form-urlencoded"},
+              method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=15) as r:
+              token = json.load(r)
+            access_token = token["access_token"]
+
+            # Get item details
+            req2 = urllib.request.Request(
+              f"https://www.googleapis.com/chromewebstore/v1.1/items/{ext_id}?projection=DRAFT",
+              headers={"Authorization": f"Bearer {access_token}", "x-goog-api-version": "2"}
+            )
+            with urllib.request.urlopen(req2, timeout=15) as r2:
+              item = json.load(r2)
+
+            # CWS API returns crxVersion in item detail
+            version = item.get("crxVersion") or \
+                      item.get("publicKey","").split("_")[-1] or "unknown"
+            # Fallback: parse from item JSON
+            if version == "unknown":
+              for k in ["version","crxVersion","latestPublishedVersion"]:
+                if k in item:
+                  version = item[k]
+                  break
+            print(f"CWS live version: {version}")
+            print(f"CWS item status: {item.get('itemState','unknown')}")
+            open("/tmp/cws_store_version.txt","w").write(version)
+
+          except urllib.error.HTTPError as e:
+            body = e.read().decode()[:300]
+            print(f"CWS API error HTTP {e.code}: {body}")
+            open("/tmp/cws_store_version.txt","w").write("unknown")
+          except Exception as e:
+            print(f"CWS check error: {e}")
+            open("/tmp/cws_store_version.txt","w").write("unknown")
+          PYEOF
+
+      - name: Compare versions and decide
+        id: decide
+        env:
+          REPO_FF:       ${{ steps.repo.outputs.firefox }}
+          FORCE_SUBMIT:  ${{ inputs.force_submit || 'false' }}
+        run: |
+          python3 << 'PYEOF'
+          import os
+          from packaging.version import Version
+
+          def read(f):
+            try: return open(f).read().strip()
+            except: return "unknown"
+
+          repo_ff  = os.environ.get("REPO_FF","0.0.0")
+          repo_cr  = repo_ff  # Chrome manifest always matches
+          amo_live = read("/tmp/amo_store_version.txt")
+          amo_sub  = read("/tmp/amo_latest_submitted.txt")
+          cws_live = read("/tmp/cws_store_version.txt")
+          force    = os.environ.get("FORCE_SUBMIT","false") == "true"
+
+          def needs_submit(repo, store, label):
+            if store == "unknown":
+              print(f"{label}: store version unknown - skipping submission")
+              return False
+            if force:
+              print(f"{label}: force_submit=true - triggering")
+              return True
+            try:
+              behind = Version(repo) > Version(store)
+              if behind:
+                print(f"{label}: repo={repo} > store={store} - NEEDS SUBMISSION")
+              else:
+                print(f"{label}: repo={repo} == store={store} - up to date")
+              return behind
+            except Exception as e:
+              print(f"{label}: version parse error ({e}) - skipping")
+              return False
+
+          # For AMO: check against latest submitted (not just published) to avoid re-submitting
+          # what's already in review queue
+          submit_amo = needs_submit(repo_ff, amo_sub, "AMO")
+          submit_cws = needs_submit(repo_cr, cws_live, "CWS")
+
+          # Write outputs
+          with open(os.environ.get("GITHUB_OUTPUT",""), "a") as f:
+            f.write(f"submit_amo={'true' if submit_amo else 'false'}\n")
+            f.write(f"submit_cws={'true' if submit_cws else 'false'}\n")
+            f.write(f"amo_live={amo_live}\n")
+            f.write(f"amo_sub={amo_sub}\n")
+            f.write(f"cws_live={cws_live}\n")
+          PYEOF
+
+      - name: Trigger AMO submission
+        if: steps.decide.outputs.submit_amo == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Dispatching amo-submit workflow..."
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/amo-submit.yml/dispatches \
+            -d '{"ref":"main","inputs":{"dry_run":"false"}}'
+          echo "AMO submission dispatched"
+
+      - name: Trigger CWS submission
+        if: steps.decide.outputs.submit_cws == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Dispatching cws-submit workflow..."
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/cws-submit.yml/dispatches \
+            -d '{"ref":"main","inputs":{"dry_run":"false"}}'
+          echo "CWS submission dispatched"
+
+      - name: Write job summary
+        if: always()
+        env:
+          REPO_VER:  ${{ steps.repo.outputs.firefox }}
+          AMO_LIVE:  ${{ steps.decide.outputs.amo_live }}
+          AMO_SUB:   ${{ steps.decide.outputs.amo_sub }}
+          CWS_LIVE:  ${{ steps.decide.outputs.cws_live }}
+          SUB_AMO:   ${{ steps.decide.outputs.submit_amo }}
+          SUB_CWS:   ${{ steps.decide.outputs.submit_cws }}
+        run: |
+          {
+            echo "## Store Version Check"
+            echo ""
+            echo "| Store | Repo | In Store | Submitted/Queue | Action |"
+            echo "|-------|------|----------|-----------------|--------|"
+            AMO_ACT="up to date"
+            CWS_ACT="up to date"
+            [ "$SUB_AMO" = "true" ] && AMO_ACT="**submission triggered**"
+            [ "$SUB_CWS" = "true" ] && CWS_ACT="**submission triggered**"
+            echo "| Firefox (AMO) | $REPO_VER | $AMO_LIVE | $AMO_SUB | $AMO_ACT |"
+            echo "| Chrome (CWS)  | $REPO_VER | $CWS_LIVE | $CWS_LIVE | $CWS_ACT |"
+            echo ""
+            echo "**Run:** $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo ""
+            echo "---"
+            echo "[AMO listing](https://addons.mozilla.org/en-US/firefox/addon/skipstream/) | [CWS listing](https://chromewebstore.google.com/detail/skipstream/) | [Actions](https://github.com/${{ github.repository }}/actions)"
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Open issue if both stores failed to update
+        if: |
+          steps.decide.outputs.submit_amo == 'false' &&
+          steps.decide.outputs.submit_cws == 'false' &&
+          github.event_name == 'schedule'
+        env:
+          GH_TOKEN:  ${{ secrets.GITHUB_TOKEN }}
+          REPO_VER:  ${{ steps.repo.outputs.firefox }}
+          AMO_LIVE:  ${{ steps.decide.outputs.amo_live }}
+          CWS_LIVE:  ${{ steps.decide.outputs.cws_live }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, urllib.request
+
+          repo = os.environ.get("REPO_VER","?")
+          amo  = os.environ.get("AMO_LIVE","?")
+          cws  = os.environ.get("CWS_LIVE","?")
+          token = os.environ.get("GH_TOKEN","")
+
+          # Only open issue if stores are unknown (secrets missing or API down)
+          if amo != "unknown" and cws != "unknown":
+            print("Stores are current or unknown - no issue needed")
+            exit(0)
+
+          body = f"""## Store version check: secrets may be missing
+
+          Weekly store check could not verify store versions:
+
+          | Store | Repo | Store |
+          |-------|------|-------|
+          | AMO   | {repo} | {amo} |
+          | CWS   | {repo} | {cws} |
+
+          `unknown` means the relevant secrets are not configured or the store API was unreachable.
+
+          **AMO secrets:** `AMO_API_KEY`, `AMO_API_SECRET`
+          **CWS secrets:** `CWS_EXTENSION_ID`, `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`
+
+          _Auto-opened by store-version-check workflow._
+          """
+
+          data = json.dumps({"title": "[store-check] Store version unknown - secrets may be missing", "body": body}).encode()
+          req  = urllib.request.Request(
+            "https://api.github.com/repos/${{ github.repository }}/issues",
+            data=data,
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "Content-Type": "application/json"},
+            method="POST"
+          )
+          with urllib.request.urlopen(req, timeout=15) as r:
+            issue = json.load(r)
+            print(f"Issue #{issue['number']}: {issue['html_url']}")
+          PYEOF
