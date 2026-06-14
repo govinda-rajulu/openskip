@@ -53,7 +53,8 @@
       "strict_min_version": "140.0"
     },
     "gecko_android": {
-      "strict_min_version": "142.0"
+      "strict_min_version": "142.0",
+      "update_url": "https://raw.githubusercontent.com/govinda-rajulu/openskip/main/updates.json"
     }
   },
   "commands": {
