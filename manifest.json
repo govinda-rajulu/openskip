@@ -51,7 +51,11 @@
     "gecko": {
       "id": "skipstream@extension",
       "strict_min_version": "140.0",
-      "update_url": ""
+      "update_url": "https://localhost/updates.json",
+      "data_collection_permissions": {
+        "is_on_by_default": false,
+        "description": "We do not collect personal data."
+      }
     },
     "gecko_android": {
       "strict_min_version": "142.0"
