@@ -12,11 +12,10 @@ on:
         type: choice
         options: [full, security, performance, compat]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   audit:
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     runs-on: ubuntu-latest
     permissions:
       issues: write

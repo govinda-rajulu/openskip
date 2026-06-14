@@ -18,12 +18,11 @@ on:
         type: choice
         options: ['false', 'true']
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   validate-sql:
     name: Lint & Validate SQL
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     runs-on: ubuntu-latest
 
     steps:

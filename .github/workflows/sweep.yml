@@ -6,9 +6,6 @@ on:
   issue_comment:
     types: [created]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   sweep:
     # Trigger: new issue title starts with "sweep:" OR comment is "sweep: <task>"
@@ -17,6 +14,8 @@ jobs:
       (github.event_name == 'issue_comment' &&
        github.event.comment.user.login == github.repository_owner &&
        startsWith(github.event.comment.body, 'sweep:'))
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -21,15 +21,14 @@ concurrency:
   group: amo-submit
   cancel-in-progress: false
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   submit:
     name: Submit & update AMO listing
     if: |
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,7 +41,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Resolve version
         id: version
@@ -76,6 +75,10 @@ jobs:
             echo "✅ Using downloaded artifact: $ZIP_NAME"
           else
             echo "Building $ZIP_NAME from source..."
+            if [ ! -f "content-scripts/content.js" ]; then
+              echo "❌ content-scripts/content.js not found - ZIP would fail AMO validation"
+              exit 1
+            fi
             zip -r "$ZIP_NAME" \
               manifest.json background.js \
               content-scripts/ icons/ \
@@ -83,6 +86,8 @@ jobs:
               options.html options.js
             echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
           fi
+          echo "ZIP contents:"
+          unzip -l "$ZIP_NAME"
 
       - name: Check AMO secrets configured
         env:

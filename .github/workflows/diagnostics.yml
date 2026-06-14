@@ -12,12 +12,11 @@ on:
   schedule:
     - cron: '0 9 * * 1'
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   diagnostics:
     name: Secret & Workflow Health Check
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     runs-on: ubuntu-latest
     permissions:
       contents: read

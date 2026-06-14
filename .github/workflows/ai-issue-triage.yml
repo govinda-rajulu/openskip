@@ -4,11 +4,10 @@ on:
   issues:
     types: [opened, reopened]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   triage:
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     runs-on: ubuntu-latest
     permissions:
       issues: write

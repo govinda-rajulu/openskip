@@ -3,6 +3,7 @@
 **Skip intros, recaps, and outros. Resume where you left off on any device.**
 
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-Active-blue?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
+[![Chrome](https://img.shields.io/badge/Chrome-Manual%20Install-yellow?logo=googlechrome)](../../releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.6.9-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.6.9)
 
@@ -14,7 +15,7 @@
 
 **Chrome/Edge (manual):**
 1. [Download the latest ZIP](../../releases/latest)
-2. Go to `chrome://extensions` - enable Developer mode - Load unpacked
+2. Go to `chrome://extensions` → enable Developer mode → Load unpacked
 
 ---
 
@@ -57,13 +58,13 @@ Create a free project at [supabase.com](https://supabase.com), run the SQL from 
 ## File Structure
 
 ```
-manifest.json              - Firefox MV2 manifest (authoritative version source)
+manifest.json              - Firefox MV3 manifest (authoritative version source)
 manifest-chrome.json       - Chrome MV3 manifest (must match manifest.json version)
-updates.json               - Firefox Android update feed (checked via update_url in manifest)
-background.js              - Service worker: all API calls, retry logic, user ID, offline queue
+updates.json               - Firefox Android update feed
+background.js              - Service worker: all API calls, retry logic, offline queue
 content-scripts/
   content.js               - Injected into all frames: skip polling, resume, speed, site rules
-popup.html / popup.js      - Popup: history, skip settings, stats, speed, sync button, theme toggle
+popup.html / popup.js      - Popup: history, skip settings, stats, speed, sync, theme toggle
 options.html / options.js  - Settings: credentials, per-site rules, import/export, cloud restore
 scripts/
   amo-update.js            - CI: uploads signed ZIP to AMO and updates listing metadata
@@ -71,7 +72,7 @@ update_release.py          - CI helper: writes updates.json with new version
 icons/                     - icon-16/32/48/128.png
 supabase_setup.sql         - One-time DB schema - run in Supabase SQL editor
 CHANGELOG.md               - Version history
-AGENTS.md                  - AI agent reference
+AGENTS.md                  - AI agent reference for coding agents
 docs/                      - Additional documentation
 .github/workflows/         - CI/CD pipelines
 ```
@@ -87,6 +88,22 @@ docs/                      - Additional documentation
 5. Saves playback position locally every 2.5s and syncs to Supabase; queues saves when offline
 6. On next load, restores your position from local cache or cloud, whichever is newer
 7. Stats (skips, time saved, sessions) accumulated locally and backed up to Supabase `user_settings`
+
+---
+
+## AI Agents
+
+This repo has 5 AI-powered agents (OpenRouter Llama 3.3 / Gemini fallback) that work directly from GitHub issues and PRs:
+
+| Trigger | Agent | What it does |
+|---------|-------|-------------|
+| Issue title starts with `sweep: ` | Sweep | Full feature implementation, opens PR |
+| Add `ai-fix` label to issue | AI Fix | Bug fix, opens PR automatically |
+| Comment `/ai-review` on PR | AI Review | Code review + architecture check |
+| Comment `/ai-task <task>` on issue | AI Task | Arbitrary code or analysis task |
+| Comment `/ai-explain` on issue | AI Explain | Explains code inline |
+
+See [AGENTS.md](AGENTS.md) for full details and [docs/](docs/) for CI/CD documentation.
 
 ---
 

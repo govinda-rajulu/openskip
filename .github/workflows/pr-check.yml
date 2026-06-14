@@ -4,11 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   checklist:
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

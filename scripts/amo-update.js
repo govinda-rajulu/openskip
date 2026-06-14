@@ -206,14 +206,20 @@ async function main() {
       uploadUuid = uploadRes.data.uuid;
       process.stdout.write(`    ✅  Uploaded - UUID: ${uploadUuid}\n`);
     } else if (uploadRes.status === 409) {
-      // ZIP already uploaded for this version - safe to continue if we get uuid back
-      process.stderr.write('    ⚠  HTTP 409 - ZIP already submitted for this version.\n');
+      process.stderr.write('    ⚠  HTTP 409 - ZIP already uploaded for this version.\n');
       uploadUuid = uploadRes.data?.uuid || null;
       if (!uploadUuid) {
-        process.stderr.write('    ⚠  No UUID in 409 response - version may already be fully processed. Exiting cleanly.\n');
-        process.exit(0);
+        // Re-fetch upload list to find existing UUID by filename
+        process.stdout.write('    Fetching existing upload UUID...\n');
+        const listRes = await apiRequest('GET', `/api/v5/addons/upload/?page_size=5`);
+        const match = (listRes.data?.results || []).find(u => u.version === VERSION);
+        uploadUuid = match?.uuid || null;
+        if (!uploadUuid) {
+          process.stderr.write('    ⚠  Could not find existing upload UUID. Version may already be fully processed on AMO.\n');
+          process.exit(0);
+        }
       }
-      process.stdout.write(`    UUID from conflict response: ${uploadUuid}\n`);
+      process.stdout.write(`    UUID from existing upload: ${uploadUuid}\n`);
     } else {
       const body = typeof uploadRes.data === 'string'
         ? uploadRes.data.slice(0, 800)
@@ -238,7 +244,7 @@ async function main() {
       }
       return null;
     }, 'Validating', { interval: 8000, timeout: 600_000 });
-    process.stdout.write(`    Warnings: ${0}\n`);
+    process.stdout.write(`    Warnings: ${r.data.validation?.warnings?.length || 0}\n`);
   }
 
   // ── Step 3: Create new version ────────────────────────────────────────────
