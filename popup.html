@@ -1,482 +1,383 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="auto">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SkipStream</title>
-  <style>
-    /* ── Tokens ──────────────────────────────────────────────────────────── */
-    :root {
-      --bg: #f0f2f7;
-      --card: rgba(255,255,255,0.70);
-      --card-border: rgba(255,255,255,0.85);
-      --surface: rgba(0,0,0,0.038);
-      --surface2: rgba(0,0,0,0.055);
-      --divider: rgba(0,0,0,0.072);
-      --text: #0d0f14;
-      --text2: #515c70;
-      --text3: #8a95a8;
-      --accent: #2860f0;
-      --accent-dim: rgba(40,96,240,0.13);
-      --accent-hover: #1a4fd8;
-      --ok: #15a350;
-      --ok-dim: rgba(21,163,80,0.12);
-      --warn: #c0720a;
-      --warn-dim: rgba(192,114,10,0.10);
-      --danger: #d93025;
-      --danger-dim: rgba(217,48,37,0.09);
-      --toggle-off: rgba(0,0,0,0.16);
-      --shadow-card: 0 12px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
-      --shadow-sm: 0 1px 4px rgba(0,0,0,0.09);
-      --radius-card: 18px;
-      --radius-md: 10px;
-      --radius-sm: 7px;
-      --font: 'Inter', system-ui, -apple-system, sans-serif;
-      --transition: 0.18s cubic-bezier(0.4,0,0.2,1);
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #0b0d12;
-        --card: rgba(20,22,30,0.80);
-        --card-border: rgba(255,255,255,0.09);
-        --surface: rgba(255,255,255,0.055);
-        --surface2: rgba(255,255,255,0.08);
-        --divider: rgba(255,255,255,0.075);
-        --text: #edf0f7;
-        --text2: #7e8da4;
-        --text3: #4e5a6e;
-        --ok: #34d474;
-        --ok-dim: rgba(52,212,116,0.12);
-        --warn: #f5a623;
-        --warn-dim: rgba(245,166,35,0.11);
-        --danger: #f25a4f;
-        --danger-dim: rgba(242,90,79,0.10);
-        --toggle-off: rgba(255,255,255,0.16);
-        --shadow-card: 0 12px 40px rgba(0,0,0,0.55);
-      }
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkipStream</title>
+<style>
+/* ── Design tokens ─────────────────────────────────────────────── */
+:root {
+  --bg:           #f0f2f7;
+  --card:         rgba(255,255,255,0.72);
+  --card-border:  rgba(255,255,255,0.88);
+  --surface:      rgba(0,0,0,0.038);
+  --surface2:     rgba(0,0,0,0.06);
+  --divider:      rgba(0,0,0,0.07);
+  --text:         #0d0f14;
+  --text2:        #50596a;
+  --text3:        #8a95a8;
+  --accent:       #2860f0;
+  --accent-dim:   rgba(40,96,240,0.12);
+  --accent-h:     #1a4fd8;
+  --ok:           #15a350;
+  --ok-dim:       rgba(21,163,80,0.11);
+  --warn:         #c0720a;
+  --warn-dim:     rgba(192,114,10,0.10);
+  --danger:       #d93025;
+  --danger-dim:   rgba(217,48,37,0.09);
+  --toggle-off:   rgba(0,0,0,0.15);
+  --shadow:       0 14px 48px rgba(0,0,0,0.11), 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-sm:    0 1px 4px rgba(0,0,0,0.08);
+  --r-card:       18px;
+  --r-md:         10px;
+  --r-sm:         7px;
+  --font:         'Inter', system-ui, -apple-system, sans-serif;
+  --ease:         0.18s cubic-bezier(0.4,0,0.2,1);
+}
 
-    /* ── Reset ───────────────────────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { background: var(--bg); }
-    body {
-      width: 320px;
-      font-family: var(--font);
-      font-size: 13px;
-      line-height: 1.4;
-      background: var(--bg);
-      color: var(--text);
-      padding: 10px;
-    }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:          #0b0d12;
+    --card:        rgba(18,21,30,0.82);
+    --card-border: rgba(255,255,255,0.08);
+    --surface:     rgba(255,255,255,0.05);
+    --surface2:    rgba(255,255,255,0.08);
+    --divider:     rgba(255,255,255,0.07);
+    --text:        #edf0f7;
+    --text2:       #7e8da4;
+    --text3:       #4e5a6e;
+    --ok:          #34d474;
+    --ok-dim:      rgba(52,212,116,0.11);
+    --warn:        #f5a623;
+    --warn-dim:    rgba(245,166,35,0.10);
+    --danger:      #f25a4f;
+    --danger-dim:  rgba(242,90,79,0.10);
+    --toggle-off:  rgba(255,255,255,0.15);
+    --shadow:      0 14px 48px rgba(0,0,0,0.55);
+  }
+}
 
-    /* ── Card shell ──────────────────────────────────────────────────────── */
-    .card {
-      background: var(--card);
-      backdrop-filter: blur(24px) saturate(180%);
-      -webkit-backdrop-filter: blur(24px) saturate(180%);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-card);
-      box-shadow: var(--shadow-card);
-      padding: 14px 14px 12px;
-    }
+/* ── Reset ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: var(--bg); }
 
-    /* ── Header ──────────────────────────────────────────────────────────── */
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-    .logo {
-      width: 26px; height: 26px;
-      border-radius: 8px;
-      overflow: hidden;
-      flex-shrink: 0;
-      box-shadow: var(--shadow-sm);
-    }
-    .logo img { width: 100%; height: 100%; display: block; }
-    .header-title { font-size: 15px; font-weight: 800; letter-spacing: -0.03em; flex: 1; }
-    .ver-badge {
-      font-size: 9px; font-weight: 700;
-      background: var(--accent); color: #fff;
-      border-radius: 5px; padding: 2px 6px;
-      letter-spacing: 0.03em; flex-shrink: 0;
-    }
-    .icon-btn {
-      width: 28px; height: 28px;
-      display: flex; align-items: center; justify-content: center;
-      background: var(--surface); border: 1px solid var(--divider);
-      border-radius: 8px; cursor: pointer; color: var(--text2);
-      transition: background var(--transition), color var(--transition), border-color var(--transition);
-      flex-shrink: 0;
-    }
-    .icon-btn:hover { background: var(--surface2); color: var(--accent); border-color: var(--accent); }
-    .icon-btn svg { display: block; }
+body {
+  width: 320px;
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--bg);
+  padding: 10px;
+  user-select: none;
+}
 
-    /* ── Status pill ─────────────────────────────────────────────────────── */
-    .status-row {
-      display: flex; align-items: center; gap: 6px;
-      padding: 7px 10px;
-      background: var(--surface);
-      border: 1px solid var(--divider);
-      border-radius: var(--radius-md);
-      margin-bottom: 10px;
-      min-height: 30px;
-    }
-    .status-dot {
-      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-      background: var(--text3);
-    }
-    .status-dot.ok  { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-dim); }
-    .status-dot.warn{ background: var(--warn); box-shadow: 0 0 0 3px var(--warn-dim); }
-    .status-dot.err { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-dim); }
-    #statusText { font-size: 11px; font-weight: 500; color: var(--text2); flex: 1; }
+/* ── Card ──────────────────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
 
-    /* ── Tabs ────────────────────────────────────────────────────────────── */
-    .tabs {
-      display: flex;
-      background: var(--surface);
-      border: 1px solid var(--divider);
-      border-radius: var(--radius-md);
-      padding: 3px;
-      gap: 2px;
-      margin-bottom: 12px;
-    }
-    .tab {
-      flex: 1; padding: 5px 8px;
-      font-family: var(--font); font-size: 11px; font-weight: 600;
-      color: var(--text2); background: none; border: none;
-      border-radius: 7px; cursor: pointer;
-      transition: background var(--transition), color var(--transition);
-      white-space: nowrap;
-      display: flex; align-items: center; justify-content: center; gap: 4px;
-    }
-    .tab svg { flex-shrink: 0; }
-    .tab.active { background: var(--card); color: var(--text); box-shadow: var(--shadow-sm); }
+/* ── Header strip ──────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 0;
+}
 
-    /* ── Panels ──────────────────────────────────────────────────────────── */
-    .panel { display: none; }
-    .panel.active { display: block; }
+.logo {
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+.logo img { width: 100%; height: 100%; display: block; }
 
-    /* ── Alert banner ────────────────────────────────────────────────────── */
-    .alert {
-      font-size: 11px; line-height: 1.5;
-      border-radius: var(--radius-sm);
-      padding: 7px 10px; margin-bottom: 10px; display: none;
-    }
-    .alert.warn { display: block; color: var(--warn); background: var(--warn-dim); border: 1px solid rgba(192,114,10,0.20); }
-    .alert.err  { display: block; color: var(--danger); background: var(--danger-dim); border: 1px solid rgba(217,48,37,0.20); }
+.header-title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  flex: 1;
+}
 
-    /* ── Section label ───────────────────────────────────────────────────── */
-    .section-label {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--text3);
-      padding: 0 2px; margin: 10px 0 4px;
-      display: flex; align-items: center; gap: 5px;
-    }
-    .section-label::after {
-      content: ''; flex: 1; height: 1px; background: var(--divider);
-    }
+.ver-badge {
+  font-size: 9px; font-weight: 700;
+  background: var(--accent); color: #fff;
+  border-radius: 5px; padding: 2px 6px;
+  letter-spacing: 0.03em; flex-shrink: 0;
+}
 
-    /* ── Segment folder ──────────────────────────────────────────────────── */
-    /*  Both "Skip Segments" and "Add Segment" share identical folder chrome  */
-    .seg-folder {
-      border: 1px solid var(--divider);
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      margin-bottom: 8px;
-    }
+.icon-btn {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text2);
+  transition: background var(--ease), color var(--ease), border-color var(--ease);
+  flex-shrink: 0;
+}
+.icon-btn:hover {
+  background: var(--surface2);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.icon-btn svg { display: block; }
 
-    /* Header row — the "Skip" trigger / "Add Segment" trigger */
-    .seg-header {
-      display: flex; align-items: center; gap: 8px;
-      padding: 9px 12px;
-      background: var(--surface);
-      cursor: default;
-      user-select: none;
-    }
-    .seg-header.clickable { cursor: pointer; }
-    .seg-header.clickable:hover { background: var(--surface2); }
+/* ── Domain pill ───────────────────────────────────────────────── */
+.domain-strip {
+  padding: 8px 14px 0;
+}
+.domain-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px 4px 7px;
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: 20px;
+  font-size: 11px;
+  color: var(--text2);
+  font-weight: 500;
+  max-width: 100%;
+  overflow: hidden;
+}
+.domain-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text3);
+  flex-shrink: 0;
+  transition: background var(--ease), box-shadow var(--ease);
+}
+.domain-dot.active {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px var(--ok-dim);
+}
+.domain-dot.warn {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px var(--warn-dim);
+}
+#domainLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 230px;
+}
 
-    .seg-icon {
-      width: 28px; height: 28px; border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; font-size: 14px;
-    }
-    .seg-icon.blue   { background: var(--accent-dim); }
-    .seg-icon.green  { background: var(--ok-dim); }
+/* ── Master toggle hero ────────────────────────────────────────── */
+.master-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--divider);
+}
 
-    .seg-title-wrap { flex: 1; min-width: 0; }
-    .seg-title { font-size: 13px; font-weight: 600; line-height: 1.2; }
-    .seg-sub   { font-size: 10px; color: var(--text3); margin-top: 1px; }
+.master-info { flex: 1; }
+.master-label {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.master-sub {
+  font-size: 11px;
+  color: var(--text2);
+  margin-top: 2px;
+}
 
-    /* Skip-specific right side — toggle + badge */
-    .seg-right { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
-    .seg-badge {
-      font-size: 9px; font-weight: 700;
-      background: var(--accent-dim); color: var(--accent);
-      border-radius: 4px; padding: 2px 5px;
-      transition: opacity var(--transition);
-    }
-    .seg-badge.hidden { opacity: 0; pointer-events: none; }
+/* Large toggle (iOS-style) */
+.toggle-lg { position: relative; width: 48px; height: 28px; flex-shrink: 0; }
+.toggle-lg input { opacity: 0; width: 0; height: 0; position: absolute; }
+.slider-lg {
+  position: absolute; inset: 0;
+  background: var(--toggle-off);
+  border-radius: 28px;
+  cursor: pointer;
+  transition: background var(--ease);
+}
+.slider-lg::before {
+  content: '';
+  position: absolute;
+  width: 22px; height: 22px;
+  left: 3px; top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.26);
+  transition: transform var(--ease);
+}
+.toggle-lg input:checked + .slider-lg { background: var(--accent); }
+.toggle-lg input:checked + .slider-lg::before { transform: translateX(20px); }
 
-    /* Add-segment right side — chevron */
-    .seg-chevron {
-      color: var(--text3);
-      transition: transform var(--transition);
-      flex-shrink: 0;
-    }
-    .seg-chevron.open { transform: rotate(180deg); }
+/* ── Stats row ─────────────────────────────────────────────────── */
+.stats-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--divider);
+  border-bottom: 1px solid var(--divider);
+}
+.stat-cell {
+  background: var(--card);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.stat-val {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1;
+}
+.stat-lbl {
+  font-size: 10px;
+  color: var(--text3);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
 
-    /* ── Toggle ──────────────────────────────────────────────────────────── */
-    .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
-    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
-    .slider {
-      position: absolute; inset: 0;
-      background: var(--toggle-off); border-radius: 20px;
-      transition: background var(--transition); cursor: pointer;
-    }
-    .slider::before {
-      content: ''; position: absolute;
-      width: 14px; height: 14px; left: 3px; bottom: 3px;
-      background: #fff; border-radius: 50%;
-      transition: transform var(--transition);
-      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
-    }
-    input:checked + .slider { background: var(--accent); }
-    input:checked + .slider::before { transform: translateX(16px); }
+/* ── Skip mode pill row ────────────────────────────────────────── */
+.mode-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--divider);
+}
+.mode-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+  flex: 1;
+}
+.mode-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.mode-badge.off { background: var(--surface2); color: var(--text3); }
 
-    /* ── Expandable body (shared: child rows + add-seg flow) ─────────────── */
-    .seg-body {
-      overflow: hidden;
-      transition: max-height 0.26s cubic-bezier(0.4,0,0.2,1),
-                  opacity    0.22s cubic-bezier(0.4,0,0.2,1);
-      max-height: 0; opacity: 0;
-    }
-    .seg-body.open { max-height: 400px; opacity: 1; }
+/* ── Segment child toggles ─────────────────────────────────────── */
+.seg-toggles {
+  padding: 0 0 4px;
+}
 
-    /* Child toggle rows */
-    .child-row {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 12px 8px 20px;
-      border-top: 1px solid var(--divider);
-    }
-    .child-row-label { flex: 1; font-size: 12px; color: var(--text2); }
-    .child-row-sub   { font-size: 10px; color: var(--text3); }
+.seg-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--divider);
+  transition: background var(--ease);
+}
+.seg-row:last-child { border-bottom: none; }
+.seg-row:hover { background: var(--surface); }
 
-    /* ── Add Segment flow ────────────────────────────────────────────────── */
-    .add-seg-flow {
-      padding: 10px 12px 12px;
-      border-top: 1px solid var(--divider);
-    }
-    .flow-label {
-      font-size: 11px; color: var(--text2);
-      margin-bottom: 8px; line-height: 1.5;
-    }
-    .flow-label.ok   { color: var(--ok); }
-    .flow-label.warn { color: var(--warn); }
+.seg-icon {
+  width: 24px; height: 24px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.seg-icon.intro { background: var(--accent-dim); }
+.seg-icon.recap { background: var(--warn-dim); }
+.seg-icon.outro { background: var(--ok-dim); }
 
-    .flow-step { display: none; }
-    .flow-step.active { display: block; }
+.seg-text { flex: 1; }
+.seg-name { font-size: 12px; font-weight: 600; }
+.seg-desc { font-size: 10px; color: var(--text3); margin-top: 1px; }
 
-    /* Step 1 – Record buttons */
-    .flow-btns { display: flex; gap: 6px; }
-    .flow-btn {
-      flex: 1; padding: 7px 10px;
-      font-family: var(--font); font-size: 11px; font-weight: 700;
-      border-radius: var(--radius-sm); border: none;
-      cursor: pointer; text-align: center;
-      transition: opacity var(--transition), background var(--transition);
-      display: flex; align-items: center; justify-content: center; gap: 5px;
-    }
-    .flow-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .flow-btn.primary { background: var(--accent); color: #fff; }
-    .flow-btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
-    .flow-btn.stop { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(217,48,37,0.25); }
-    .flow-btn.stop:hover:not(:disabled) { background: rgba(217,48,37,0.16); }
-    .flow-btn.ghost { background: var(--surface); color: var(--text2); border: 1px solid var(--divider); }
-    .flow-btn.ghost:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+/* Small toggle */
+.toggle-sm { position: relative; width: 34px; height: 19px; flex-shrink: 0; }
+.toggle-sm input { opacity: 0; width: 0; height: 0; position: absolute; }
+.slider-sm {
+  position: absolute; inset: 0;
+  background: var(--toggle-off);
+  border-radius: 19px;
+  cursor: pointer;
+  transition: background var(--ease);
+}
+.slider-sm::before {
+  content: '';
+  position: absolute;
+  width: 13px; height: 13px;
+  left: 3px; top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.22);
+  transition: transform var(--ease);
+}
+.toggle-sm input:checked + .slider-sm { background: var(--accent); }
+.toggle-sm input:checked + .slider-sm::before { transform: translateX(15px); }
 
-    /* Step 2 – Type chips */
-    .type-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
-    .type-chip {
-      flex: 1; padding: 6px 8px;
-      font-family: var(--font); font-size: 11px; font-weight: 600;
-      background: var(--surface); border: 1px solid var(--divider);
-      border-radius: var(--radius-sm); cursor: pointer; color: var(--text2);
-      text-align: center;
-      transition: background var(--transition), border-color var(--transition), color var(--transition);
-    }
-    .type-chip:hover { border-color: var(--accent); color: var(--accent); }
-    .type-chip.selected {
-      background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
-    }
+/* disabled state for child toggles */
+.seg-row.disabled { opacity: 0.38; pointer-events: none; }
 
-    /* Time pill */
-    .time-pill {
-      display: inline-flex; align-items: center; gap: 4px;
-      font-size: 10px; font-weight: 600; color: var(--ok);
-      background: var(--ok-dim); border-radius: 4px;
-      padding: 2px 6px; margin-bottom: 8px;
-    }
+/* ── Bottom action bar ─────────────────────────────────────────── */
+.action-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--divider);
+}
 
-    /* ── Playback row ────────────────────────────────────────────────────── */
-    .play-row {
-      display: flex; align-items: center; gap: 10px;
-      padding: 9px 12px;
-      background: var(--surface);
-      border: 1px solid var(--divider);
-      border-radius: var(--radius-md);
-      margin-bottom: 8px;
-    }
-    .play-row-icon {
-      width: 28px; height: 28px; border-radius: 8px;
-      background: var(--ok-dim);
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; font-size: 14px;
-    }
-    .play-row-label { flex: 1; font-size: 13px; font-weight: 600; }
-    .play-row-sub   { font-size: 10px; color: var(--text3); }
+.action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 10px;
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--r-md);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+  transition: background var(--ease), color var(--ease), border-color var(--ease);
+}
+.action-btn:hover {
+  background: var(--surface2);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.action-btn svg { flex-shrink: 0; }
 
-    /* ── History panel ───────────────────────────────────────────────────── */
-    .hist-controls {
-      display: flex; gap: 6px; margin-bottom: 8px;
-    }
-    .hist-input {
-      flex: 1; padding: 7px 10px;
-      background: var(--surface); border: 1px solid var(--divider);
-      border-radius: var(--radius-sm); font-family: var(--font);
-      font-size: 12px; color: var(--text);
-      outline: none; transition: border-color var(--transition);
-    }
-    .hist-input:focus { border-color: var(--accent); }
-    .hist-select {
-      padding: 7px 8px; min-width: 90px;
-      background: var(--surface); border: 1px solid var(--divider);
-      border-radius: var(--radius-sm); font-family: var(--font);
-      font-size: 11px; color: var(--text2); cursor: pointer;
-      outline: none;
-    }
-    .hist-source-row {
-      display: flex; align-items: center; gap: 6px;
-      margin-bottom: 8px; font-size: 10px; color: var(--text3);
-    }
-    .source-pill {
-      padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 10px;
-      cursor: pointer; border: 1px solid transparent;
-      transition: background var(--transition), border-color var(--transition), color var(--transition);
-    }
-    .source-pill.active {
-      background: var(--accent-dim); color: var(--accent); border-color: var(--accent);
-    }
-    .source-pill:not(.active) {
-      background: var(--surface); color: var(--text2); border-color: var(--divider);
-    }
-    #historyList {
-      max-height: 270px; overflow-y: auto;
-      display: flex; flex-direction: column; gap: 5px;
-      scrollbar-width: thin; scrollbar-color: var(--divider) transparent;
-    }
-    .h-item {
-      display: block; text-decoration: none; color: inherit;
-      background: var(--surface); border: 1px solid var(--divider);
-      border-radius: var(--radius-md); padding: 9px 11px;
-      transition: border-color var(--transition), background var(--transition);
-      position: relative;
-    }
-    .h-item:hover { border-color: var(--accent); background: var(--surface2); }
-    .h-item-top {
-      display: flex; align-items: flex-start; gap: 8px; margin-bottom: 5px;
-    }
-    .h-thumb {
-      width: 38px; height: 28px; border-radius: 5px;
-      background: var(--surface2); flex-shrink: 0;
-      overflow: hidden; display: flex; align-items: center; justify-content: center;
-    }
-    .h-thumb svg { opacity: 0.3; }
-    .h-info { flex: 1; min-width: 0; }
-    .h-title {
-      font-size: 12px; font-weight: 600;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      line-height: 1.3; margin-bottom: 2px;
-    }
-    .h-meta {
-      display: flex; align-items: center; gap: 5px;
-      font-size: 10px; color: var(--text3); flex-wrap: wrap;
-    }
-    .h-site {
-      background: var(--surface2); border-radius: 3px;
-      padding: 1px 5px; font-weight: 600; color: var(--text2);
-    }
-    .h-cloud {
-      color: var(--accent); font-size: 9px; font-weight: 700;
-      background: var(--accent-dim); border-radius: 3px; padding: 1px 4px;
-    }
-    .h-bar { width: 100%; height: 2px; background: var(--divider); border-radius: 1px; overflow: hidden; }
-    .h-fill { height: 100%; background: var(--accent); border-radius: 1px; transition: width 0.3s; }
-    .h-time { font-size: 10px; color: var(--text3); margin-top: 4px; text-align: right; }
-    .h-empty {
-      text-align: center; padding: 28px 16px;
-      color: var(--text3); font-size: 12px; line-height: 1.6;
-    }
-    .h-empty svg { display: block; margin: 0 auto 10px; opacity: 0.25; }
-    .h-loading {
-      text-align: center; padding: 20px 0;
-      color: var(--text3); font-size: 11px;
-    }
-    .sync-status {
-      display: flex; align-items: center; gap: 5px;
-      font-size: 10px; color: var(--text3); margin-bottom: 6px;
-      padding: 4px 8px; background: var(--surface); border-radius: var(--radius-sm);
-    }
-    .sync-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text3); }
-    .sync-dot.ok   { background: var(--ok); }
-    .sync-dot.warn { background: var(--warn); }
+.action-btn.gear {
+  flex: 0 0 auto;
+  width: 34px;
+  padding: 7px;
+}
 
-    /* ── Footer ──────────────────────────────────────────────────────────── */
-    footer {
-      text-align: center; font-size: 10px; color: var(--text3);
-      padding: 7px 0 2px; opacity: 0.7;
-    }
-    footer a { color: inherit; text-decoration: none; }
-    footer a:hover { color: var(--accent); }
-
-    /* ── Theme overrides ─────────────────────────────────────────────────── */
-    html[data-theme="light"] {
-      --bg:       #f5f5f7; --bg2:      #ffffff;
-      --surface:  #efefef; --surface2: #e5e5ea;
-      --text:     #1c1c1e; --text2:    #3a3a3c; --text3:    #8e8e93;
-      --divider:  rgba(0,0,0,0.1); --accent-dim: rgba(59,130,246,.12);
-    }
-    /* Sun/moon icon swap via CSS - no JS DOM manipulation needed */
-    #themeIcon .moon-part { display: none; }
-    #themeIcon[data-mode="light"] .sun-parts { display: none; }
-    #themeIcon[data-mode="light"] .moon-part { display: block; }
-
-    /* ── Sync spin animation ────────────────────────────────────────────── */
-    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    #syncNowBtn:hover { color: var(--text); border-color: var(--text3); }
-
-    /* ── Speed buttons ───────────────────────────────────────────────────── */
-    .speed-btn {
-      padding: 4px 7px; font-size: 10px; font-weight: 700;
-      background: var(--surface); border: 1px solid var(--divider);
-      border-radius: 6px; cursor: pointer; color: var(--text2);
-      font-family: var(--font);
-      transition: background var(--transition), border-color var(--transition), color var(--transition);
-    }
-    .speed-btn:hover { background: var(--surface2); }
-    .speed-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
-
-    /* ── Stats panel ─────────────────────────────────────────────────────── */
-    .stat-card {
-      background: var(--surface); border: 1px solid var(--divider);
-      border-radius: var(--radius-md); padding: 10px 12px;
-      display: flex; flex-direction: column; gap: 2px;
-    }
-    .stat-val { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
-    .stat-lbl { font-size: 10px; color: var(--text3); font-weight: 500; }
-  </style>
+/* ── Footer ────────────────────────────────────────────────────── */
+footer {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text3);
+  padding: 6px 0 2px;
+  opacity: 0.6;
+}
+footer a { color: inherit; text-decoration: none; }
+footer a:hover { color: var(--accent); }
+</style>
 </head>
 <body>
 
@@ -484,232 +385,112 @@
 
   <!-- Header -->
   <div class="header">
-    <div class="logo"><img src="icons/icon-48.png" alt=""></div>
+    <div class="logo"><img src="icons/icon-48.png" alt="SkipStream"></div>
     <span class="header-title">SkipStream</span>
     <span class="ver-badge" id="versionBadge"></span>
-    <button class="icon-btn" id="themeToggle" title="Toggle light/dark theme" aria-label="Toggle theme">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" id="themeIcon">
-        <g class="sun-parts"><circle cx="8" cy="8" r="3.5"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="3.1" y1="3.1" x2="4.5" y2="4.5"/><line x1="11.5" y1="11.5" x2="12.9" y2="12.9"/><line x1="3.1" y1="12.9" x2="4.5" y2="11.5"/><line x1="11.5" y1="4.5" x2="12.9" y2="3.1"/></g>
-        <path class="moon-part" d="M12.5 9.5a5 5 0 01-6-6 5.5 5.5 0 106 6z" fill="currentColor" stroke="none"/>
-      </svg>
-    </button>
-    <button class="icon-btn" id="optionsBtn" title="Open Settings">
-      <!-- gear -->
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="8" cy="8" r="2.4"/>
-        <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/>
-      </svg>
-    </button>
   </div>
 
-  <!-- Status -->
-  <div class="status-row">
-    <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">Checking services…</span>
+  <!-- Active domain pill -->
+  <div class="domain-strip">
+    <div class="domain-pill">
+      <div class="domain-dot" id="domainDot"></div>
+      <span id="domainLabel">No active video tab</span>
+    </div>
   </div>
 
-  <!-- Config warning -->
-  <div class="alert" id="alertBanner"></div>
+  <!-- Master toggle -->
+  <div class="master-block">
+    <div class="master-info">
+      <div class="master-label">SkipStream</div>
+      <div class="master-sub" id="masterSub">Loading…</div>
+    </div>
+    <label class="toggle-lg">
+      <input type="checkbox" id="masterToggle">
+      <span class="slider-lg"></span>
+    </label>
+  </div>
 
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab active" data-tab="settings">
-      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-        <circle cx="8" cy="8" r="2.4"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/>
-      </svg>
-      Settings
-    </button>
-    <button class="tab" data-tab="history">
-      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/>
-      </svg>
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-cell">
+      <div class="stat-val" id="statSkips">0</div>
+      <div class="stat-lbl">Skips today</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val" id="statTime">0m</div>
+      <div class="stat-lbl">Time saved</div>
+    </div>
+  </div>
+
+  <!-- Skip mode indicator -->
+  <div class="mode-row">
+    <span class="mode-label">Skip mode</span>
+    <span class="mode-badge off" id="modeBadge">Disabled</span>
+  </div>
+
+  <!-- Segment child toggles -->
+  <div class="seg-toggles">
+
+    <div class="seg-row" id="rowIntro">
+      <div class="seg-icon intro">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><polygon points="1,1 11,6 1,11"/><line x1="11" y1="1" x2="11" y2="11"/></svg>
+      </div>
+      <div class="seg-text">
+        <div class="seg-name">Skip Intros</div>
+        <div class="seg-desc">Opening credits &amp; title sequences</div>
+      </div>
+      <label class="toggle-sm">
+        <input type="checkbox" id="skipIntro">
+        <span class="slider-sm"></span>
+      </label>
+    </div>
+
+    <div class="seg-row" id="rowRecap">
+      <div class="seg-icon recap">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="var(--warn)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,4 5,8 11,1"/><path d="M1 10h10"/></svg>
+      </div>
+      <div class="seg-text">
+        <div class="seg-name">Skip Recaps</div>
+        <div class="seg-desc">Previously on… summaries</div>
+      </div>
+      <label class="toggle-sm">
+        <input type="checkbox" id="skipRecap">
+        <span class="slider-sm"></span>
+      </label>
+    </div>
+
+    <div class="seg-row" id="rowOutro">
+      <div class="seg-icon outro">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="1" y2="11"/><polygon points="3,1 11,6 3,11"/></svg>
+      </div>
+      <div class="seg-text">
+        <div class="seg-name">Skip Outros</div>
+        <div class="seg-desc">End credits &amp; post-roll</div>
+      </div>
+      <label class="toggle-sm">
+        <input type="checkbox" id="skipOutro">
+        <span class="slider-sm"></span>
+      </label>
+    </div>
+
+  </div>
+
+  <!-- Action bar -->
+  <div class="action-bar">
+    <button class="action-btn" id="historyBtn">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg>
       History
     </button>
-    <button class="tab" data-tab="stats">
-      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/>
-      </svg>
+    <button class="action-btn" id="statsBtn">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>
       Stats
+    </button>
+    <button class="action-btn gear" id="settingsBtn" title="Open Settings">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.4"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/></svg>
     </button>
   </div>
 
-  <!-- ═══ Settings panel ══════════════════════════════════════════════════ -->
-  <div id="settings" class="panel active">
-
-    <div class="section-label">Segments</div>
-
-    <!-- Skip Segments folder -->
-    <div class="seg-folder">
-      <div class="seg-header">
-        <div class="seg-icon blue">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/>
-          </svg>
-        </div>
-        <div class="seg-title-wrap">
-          <div class="seg-title">Skip Segments</div>
-        </div>
-        <select id="skipModeSelect" class="hist-select" style="min-width: 120px; flex-shrink: 0;">
-          <option value="off">Disabled</option>
-          <option value="prompt">Prompt Before Skip</option>
-          <option value="auto-intro">Auto-skip Intros</option>
-          <option value="auto-recap">Auto-skip Recaps</option>
-          <option value="auto-outro">Auto-skip Outros</option>
-          <option value="auto-all">Auto-skip All Types</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Add Segment folder -->
-    <div class="seg-folder" id="addFolder">
-      <div class="seg-header clickable" id="addHeader">
-        <div class="seg-icon green">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round">
-            <circle cx="8" cy="8" r="6.5"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/>
-          </svg>
-        </div>
-        <div class="seg-title-wrap">
-          <div class="seg-title">Add Segment</div>
-          <div class="seg-sub" id="addSub">Record a missing intro, recap, or outro</div>
-        </div>
-        <svg class="seg-chevron" id="addChevron" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="2,4 6,8 10,4"/>
-        </svg>
-      </div>
-      <div class="seg-body" id="addBody">
-        <div class="add-seg-flow">
-          <!-- Step 1: Record -->
-          <div class="flow-step active" id="flowStep1">
-            <div class="flow-label" id="flowLabel">Press <strong>Start</strong> when the segment begins.</div>
-            <div class="flow-btns">
-              <button class="flow-btn primary" id="flowStartBtn">
-                <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor"><polygon points="2,1 11,6 2,11"/></svg>
-                Start
-              </button>
-              <button class="flow-btn ghost" id="flowCancelBtn">Cancel</button>
-            </div>
-          </div>
-          <!-- Step 2: Select type -->
-          <div class="flow-step" id="flowStep2">
-            <div class="time-pill" id="flowTimePill">
-              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="6" r="5"/><path d="M6 3v3l2 1"/></svg>
-              <span id="flowTimeText">0:00 – 0:00</span>
-            </div>
-            <div class="flow-label">Select the segment type:</div>
-            <div class="type-chips">
-              <button class="type-chip" data-type="intro">Intro</button>
-              <button class="type-chip" data-type="recap">Recap</button>
-              <button class="type-chip" data-type="outro">Outro</button>
-            </div>
-            <div class="flow-btns">
-              <button class="flow-btn primary" id="flowSubmitBtn" disabled>Submit</button>
-              <button class="flow-btn ghost" id="flowBackBtn">← Back</button>
-            </div>
-          </div>
-          <!-- Step 3: Result -->
-          <div class="flow-step" id="flowStep3">
-            <div class="flow-label" id="flowResultLabel"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="section-label">Playback</div>
-
-    <!-- Resume toggle -->
-    <div class="play-row">
-      <div class="play-row-icon">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="3,2 13,8 3,14"/>
-        </svg>
-      </div>
-      <div class="seg-title-wrap">
-        <div class="play-row-label">Resume Playback</div>
-        <div class="play-row-sub">Continue where you left off</div>
-      </div>
-      <label class="toggle">
-        <input type="checkbox" id="resumePlayback">
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <div class="play-row">
-      <div class="play-row-icon" style="background:var(--green-dim,rgba(34,197,94,.12))">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="5,3 14,8 5,13"/><path d="M2 3v10"/>
-        </svg>
-      </div>
-      <div class="seg-title-wrap">
-        <div class="play-row-label">Auto Next Episode</div>
-        <div class="play-row-sub">Jump to next episode near end</div>
-      </div>
-      <label class="toggle">
-        <input type="checkbox" id="autoNextEpisode">
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <div class="section-label">Playback Speed</div>
-    <div class="play-row">
-      <div class="play-row-icon" style="background:var(--accent-dim)">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/>
-        </svg>
-      </div>
-      <div class="seg-title-wrap">
-        <div class="play-row-label">Speed</div>
-        <div class="play-row-sub" id="speedLabel">1x - Normal</div>
-      </div>
-      <div style="display:flex;gap:4px;flex-shrink:0">
-        <button class="speed-btn active" data-rate="1">1x</button>
-        <button class="speed-btn" data-rate="1.25">1.25x</button>
-        <button class="speed-btn" data-rate="1.5">1.5x</button>
-        <button class="speed-btn" data-rate="2">2x</button>
-      </div>
-    </div>
-
-  </div><!-- /settings -->
-
-  <!-- ═══ History panel ═══════════════════════════════════════════════════ -->
-  <div id="history" class="panel">
-    <div class="hist-controls">
-      <input type="search" id="historySearch" class="hist-input" placeholder="Search title…" autocomplete="off">
-      <select id="historyFilter" class="hist-select">
-        <option value="">All sites</option>
-      </select>
-    </div>
-    <div class="hist-source-row">
-      <span>Source:</span>
-      <span class="source-pill active" data-source="local" id="srcLocal">Local</span>
-      <span class="source-pill" data-source="cloud" id="srcCloud">Cloud</span>
-      <span class="source-pill" data-source="merged" id="srcMerged">Merged</span>
-    </div>
-    <div class="sync-status" id="syncStatus" style="display:flex;align-items:center;gap:6px;justify-content:space-between">
-      <div style="display:flex;align-items:center;gap:5px">
-        <div class="sync-dot" id="syncDot"></div>
-        <span id="syncText">Loading history…</span>
-      </div>
-      <button id="syncNowBtn" title="Force sync: push local changes to cloud then refresh" style="all:unset;cursor:pointer;padding:3px 8px;border-radius:5px;border:1px solid var(--divider);color:var(--text3);font-size:10px;font-weight:600;font-family:var(--font);display:flex;align-items:center;gap:4px;flex-shrink:0">
-        <svg id="syncIcon" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M13.5 6A5.5 5.5 0 0 0 3 8"/><path d="M2.5 10A5.5 5.5 0 0 0 13 8"/>
-          <polyline points="13.5,3 13.5,6 10.5,6"/><polyline points="2.5,13 2.5,10 5.5,10"/>
-        </svg>
-        Sync
-      </button>
-    </div>
-    <div id="historyList"><div class="h-loading">Loading…</div></div>
-  </div>
-
-  <!-- Stats panel -->
-  <div id="stats" class="panel">
-    <div class="section-label">This session</div>
-    <div id="statsGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px"></div>
-    <div class="section-label">All time</div>
-    <div id="statsAllGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
-    <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:10px">Tracked locally - never uploaded</div>
-  </div>
-
-</div><!-- /card -->
+</div>
 
 <footer><a href="https://github.com/govinda-rajulu/openskip" target="_blank">SkipStream</a></footer>
 

@@ -1,343 +1,1229 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SkipStream — Settings</title>
-  <style>
-    :root {
-      --bg-solid: #eef0f5;
-      --surface: rgba(255,255,255,0.60);
-      --surface-2: rgba(255,255,255,0.40);
-      --border: rgba(0,0,0,0.08);
-      --border-strong: rgba(0,0,0,0.13);
-      --text: #0f1117;
-      --text-muted: #586070;
-      --accent: #2563eb;
-      --accent-hover: #1d4ed8;
-      --ok: #16a34a;   --ok-bg: rgba(22,163,74,0.08);   --ok-border: rgba(22,163,74,0.2);
-      --warn: #b45309; --warn-bg: rgba(180,83,9,0.08);  --warn-border: rgba(180,83,9,0.2);
-      --err: #dc2626;  --err-bg: rgba(220,38,38,0.08);  --err-border: rgba(220,38,38,0.2);
-      --input-bg: rgba(255,255,255,0.85);
-      --row-border: rgba(0,0,0,0.06);
-      --shadow: 0 8px 40px rgba(0,0,0,0.09), 0 1.5px 5px rgba(0,0,0,0.05);
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg-solid: #0c0d12;
-        --surface: rgba(255,255,255,0.055);
-        --surface-2: rgba(255,255,255,0.035);
-        --border: rgba(255,255,255,0.09);
-        --border-strong: rgba(255,255,255,0.14);
-        --text: #eef0f5;
-        --text-muted: #7a8494;
-        --ok: #4ade80;   --ok-bg: rgba(74,222,128,0.08);   --ok-border: rgba(74,222,128,0.2);
-        --warn: #fbbf24; --warn-bg: rgba(251,191,36,0.08);  --warn-border: rgba(251,191,36,0.2);
-        --err: #f87171;  --err-bg: rgba(248,113,113,0.08);  --err-border: rgba(248,113,113,0.2);
-        --input-bg: rgba(255,255,255,0.07);
-        --row-border: rgba(255,255,255,0.07);
-        --shadow: 0 8px 40px rgba(0,0,0,0.5), 0 1.5px 5px rgba(0,0,0,0.25);
-      }
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkipStream — Settings</title>
+<style>
+/* ── Tokens ──────────────────────────────────────────────────────── */
+:root {
+  --bg:           #eef1f7;
+  --sidebar-bg:   rgba(255,255,255,0.60);
+  --card:         rgba(255,255,255,0.72);
+  --card-border:  rgba(255,255,255,0.90);
+  --surface:      rgba(0,0,0,0.038);
+  --surface2:     rgba(0,0,0,0.06);
+  --divider:      rgba(0,0,0,0.07);
+  --input-bg:     rgba(255,255,255,0.90);
+  --input-border: rgba(0,0,0,0.13);
+  --text:         #0d0f14;
+  --text2:        #50596a;
+  --text3:        #8a95a8;
+  --accent:       #2860f0;
+  --accent-dim:   rgba(40,96,240,0.11);
+  --accent-h:     #1a4fd8;
+  --ok:           #15a350;
+  --ok-dim:       rgba(21,163,80,0.11);
+  --ok-border:    rgba(21,163,80,0.22);
+  --warn:         #c0720a;
+  --warn-dim:     rgba(192,114,10,0.10);
+  --warn-border:  rgba(192,114,10,0.22);
+  --danger:       #d93025;
+  --danger-dim:   rgba(217,48,37,0.09);
+  --danger-border:rgba(217,48,37,0.22);
+  --toggle-off:   rgba(0,0,0,0.15);
+  --shadow:       0 12px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.05);
+  --shadow-sm:    0 1px 4px rgba(0,0,0,0.08);
+  --r-card:       16px;
+  --r-md:         10px;
+  --r-sm:         7px;
+  --font:         'Inter', system-ui, -apple-system, sans-serif;
+  --ease:         0.17s cubic-bezier(0.4,0,0.2,1);
+  --sidebar-w:    220px;
+}
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:           #0b0d12;
+    --sidebar-bg:   rgba(18,21,30,0.70);
+    --card:         rgba(18,21,30,0.80);
+    --card-border:  rgba(255,255,255,0.08);
+    --surface:      rgba(255,255,255,0.05);
+    --surface2:     rgba(255,255,255,0.08);
+    --divider:      rgba(255,255,255,0.07);
+    --input-bg:     rgba(255,255,255,0.06);
+    --input-border: rgba(255,255,255,0.13);
+    --text:         #edf0f7;
+    --text2:        #7e8da4;
+    --text3:        #4e5a6e;
+    --ok:           #34d474;
+    --ok-dim:       rgba(52,212,116,0.11);
+    --ok-border:    rgba(52,212,116,0.22);
+    --warn:         #f5a623;
+    --warn-dim:     rgba(245,166,35,0.10);
+    --warn-border:  rgba(245,166,35,0.22);
+    --danger:       #f25a4f;
+    --danger-dim:   rgba(242,90,79,0.10);
+    --danger-border:rgba(242,90,79,0.22);
+    --toggle-off:   rgba(255,255,255,0.15);
+    --shadow:       0 12px 40px rgba(0,0,0,0.55);
+  }
+}
 
-    html { background: var(--bg-solid); }
+/* ── Reset ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: var(--bg); min-height: 100vh; }
 
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg-solid);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      padding: clamp(16px, 4vw, 32px) clamp(10px, 3vw, 20px) 56px;
-    }
+body {
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  min-height: 100vh;
+  display: flex;
+}
 
-    .wrap {
-      width: 100%;
-      max-width: 560px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
+/* ── Layout shell ────────────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  min-height: 100vh;
+  background: var(--sidebar-bg);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-right: 1px solid var(--divider);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 12px 24px;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 10;
+}
 
-    /* ── Page header ── */
-    .page-header { padding: 4px 2px 2px; }
-    .page-header-inner { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-    .logo {
-      width: 32px; height: 32px;
-      background: var(--accent);
-      border-radius: 9px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px; flex-shrink: 0;
-    }
-    .page-header h1 { font-size: clamp(18px, 5vw, 22px); font-weight: 800; letter-spacing: -0.025em; }
-    .page-header p  { font-size: 12px; color: var(--text-muted); line-height: 1.6; max-width: 480px; }
+.main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  padding: clamp(24px, 4vw, 40px) clamp(16px, 4vw, 40px) 60px;
+  max-width: 680px;
+}
 
-    /* ── Cards ── */
-    .card {
-      background: var(--surface);
-      backdrop-filter: blur(20px) saturate(150%);
-      -webkit-backdrop-filter: blur(20px) saturate(150%);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      box-shadow: var(--shadow);
-      padding: clamp(16px, 4vw, 24px);
-    }
+/* ── Sidebar brand ───────────────────────────────────────────────── */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 4px 20px;
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: 16px;
+}
+.brand-logo {
+  width: 30px; height: 30px;
+  background: var(--accent);
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+.brand-logo svg { display: block; }
+.brand-name {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  flex: 1;
+}
+.brand-ver {
+  font-size: 9px; font-weight: 700;
+  background: var(--accent-dim); color: var(--accent);
+  border-radius: 4px; padding: 2px 5px;
+  flex-shrink: 0;
+}
 
-    .card-title {
-      font-size: 11px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.08em;
-      color: var(--text-muted);
-      margin-bottom: 14px;
-      display: flex; align-items: center; gap: 6px;
-    }
+/* ── Sidebar nav ─────────────────────────────────────────────────── */
+.nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 
-    /* ── Form fields ── */
-    .field { margin-bottom: 12px; }
-    .field:last-of-type { margin-bottom: 0; }
-    label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 5px; font-weight: 500; }
+.nav-section-label {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--text3);
+  padding: 12px 8px 4px;
+}
 
-    input[type=text], input[type=password] {
-      width: 100%;
-      padding: 9px 12px;
-      background: var(--input-bg);
-      border: 1px solid var(--border-strong);
-      border-radius: 10px;
-      color: var(--text);
-      font-size: 13px;
-      font-family: inherit;
-      outline: none;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text2);
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--font);
+  text-align: left;
+  width: 100%;
+  transition: background var(--ease), color var(--ease);
+  text-decoration: none;
+}
+.nav-item svg { flex-shrink: 0; opacity: 0.7; }
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+}
+.nav-item.active svg { opacity: 1; }
 
-    .help { font-size: 11px; color: var(--text-muted); margin-top: 5px; line-height: 1.55; }
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
+/* Status dot in nav */
+.nav-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text3);
+  margin-left: auto;
+  flex-shrink: 0;
+  transition: background var(--ease);
+}
+.nav-dot.ok   { background: var(--ok); }
+.nav-dot.warn { background: var(--warn); }
+.nav-dot.err  { background: var(--danger); }
+.nav-dot.spin {
+  background: var(--accent);
+  animation: pulse 1.1s ease-in-out infinite;
+}
 
-    /* ── Status rows ── */
-    .status-grid { display: flex; flex-direction: column; gap: 0; }
-    .status-row {
-      display: flex; align-items: flex-start; gap: 11px;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--row-border);
-    }
-    .status-row:last-child { border-bottom: none; padding-bottom: 0; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+@keyframes spin  { to { transform: rotate(360deg); } }
 
-    .status-dot {
-      width: 9px; height: 9px; border-radius: 50%;
-      flex-shrink: 0; margin-top: 4px;
-      background: var(--text-muted);
-      transition: background 0.3s;
-    }
-    .status-dot.ok       { background: var(--ok); }
-    .status-dot.warn     { background: var(--warn); }
-    .status-dot.err      { background: var(--err); }
-    .status-dot.checking { background: var(--accent); animation: pulse 1.1s ease-in-out infinite; }
-    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+/* ── Panels ──────────────────────────────────────────────────────── */
+.panel { display: none; }
+.panel.active { display: block; }
 
-    .status-body    { flex: 1; min-width: 0; }
-    .status-label   { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
-    .status-msg     { font-size: 11px; color: var(--text-muted); line-height: 1.5; word-break: break-word; }
-    .status-msg.ok  { color: var(--ok); }
-    .status-msg.warn{ color: var(--warn); }
-    .status-msg.err { color: var(--err); }
+/* ── Page heading ────────────────────────────────────────────────── */
+.page-title {
+  font-size: clamp(18px,3vw,22px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 4px;
+}
+.page-sub {
+  font-size: 12px;
+  color: var(--text2);
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
 
-    /* ── Alert boxes ── */
-    .alert {
-      font-size: 12px; line-height: 1.65;
-      border-radius: 10px; padding: 11px 14px;
-      margin-top: 12px; display: none;
-    }
-    .alert code { font-size: 11px; background: rgba(0,0,0,0.08); border-radius: 4px; padding: 1px 4px; }
-    @media (prefers-color-scheme: dark) { .alert code { background: rgba(255,255,255,0.10); } }
-    .alert.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-border); }
-    .alert.err  { background: var(--err-bg);  color: var(--err);  border: 1px solid var(--err-border);  }
-    .alert.ok   { background: var(--ok-bg);   color: var(--ok);   border: 1px solid var(--ok-border);   }
-    .alert.show { display: block; }
+/* ── Card ────────────────────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
 
-    /* ── Actions ── */
-    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid var(--divider);
+}
+.card-icon {
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.card-icon.blue  { background: var(--accent-dim); }
+.card-icon.green { background: var(--ok-dim); }
+.card-icon.amber { background: var(--warn-dim); }
+.card-icon.red   { background: var(--danger-dim); }
 
-    button {
-      padding: 10px 22px; border-radius: 10px;
-      font-size: 13px; font-weight: 600;
-      cursor: pointer; border: none;
-      font-family: inherit;
-      transition: background 0.15s, transform 0.1s, opacity 0.15s;
-      line-height: 1;
-    }
-    button:active  { transform: scale(0.97); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
+.card-title-wrap { flex: 1; }
+.card-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.card-subtitle {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 1px;
+}
 
-    #saveBtn { background: var(--accent); color: #fff; flex: 1; min-width: 120px; }
-    #saveBtn:hover:not(:disabled) { background: var(--accent-hover); }
-    #clearBtn {
-      background: var(--surface-2);
-      color: var(--text-muted);
-      border: 1px solid var(--border-strong);
-    }
-    #clearBtn:hover { color: var(--text); }
+.card-body { padding: 16px 20px; }
+.card-body + .card-body {
+  padding-top: 0;
+}
 
-    .spinner {
-      display: inline-block; width: 11px; height: 11px;
-      border: 2px solid rgba(255,255,255,0.3);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin 0.6s linear infinite;
-      vertical-align: middle; margin-right: 6px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-  
-    /* ── Per-site rules ─────────────────────────────────────────── */
-    .site-rule-row {
-      display: flex; align-items: center; gap: 8px;
-      padding: 7px 10px; border-radius: var(--radius);
-      background: var(--surface-2); margin-bottom: 6px;
-      font-size: 12px;
-    }
-    .site-rule-domain { flex: 1; font-weight: 600; color: var(--text); }
-    .site-rule-mode   { color: var(--text-muted); font-size: 11px; }
-    .site-rule-del    {
-      all: unset; cursor: pointer; color: var(--text-muted);
-      font-size: 14px; line-height: 1; padding: 0 4px;
-    }
-    .site-rule-del:hover { color: #ef4444; }
+/* ── Field ───────────────────────────────────────────────────────── */
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+
+.field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+  margin-bottom: 5px;
+  letter-spacing: 0.01em;
+}
+.field-label span {
+  font-weight: 400;
+  opacity: 0.65;
+  margin-left: 4px;
+}
+
+input[type=text],
+input[type=password] {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+input[type=text]:focus,
+input[type=password]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+select {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--ease);
+}
+select:focus { border-color: var(--accent); }
+
+.help {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 5px;
+  line-height: 1.6;
+}
+.help a { color: var(--accent); text-decoration: none; }
+.help a:hover { text-decoration: underline; }
+
+/* ── Toggle row ──────────────────────────────────────────────────── */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--divider);
+}
+.toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+.toggle-row:first-child { padding-top: 0; }
+
+.toggle-info { flex: 1; }
+.toggle-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.toggle-desc {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 2px;
+}
+
+.toggle { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.slider {
+  position: absolute; inset: 0;
+  background: var(--toggle-off);
+  border-radius: 22px;
+  cursor: pointer;
+  transition: background var(--ease);
+}
+.slider::before {
+  content: '';
+  position: absolute;
+  width: 16px; height: 16px;
+  left: 3px; top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.22);
+  transition: transform var(--ease);
+}
+.toggle input:checked + .slider { background: var(--accent); }
+.toggle input:checked + .slider::before { transform: translateX(16px); }
+
+/* ── Status grid ─────────────────────────────────────────────────── */
+.status-grid { display: flex; flex-direction: column; }
+
+.status-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--divider);
+}
+.status-row:last-child { border-bottom: none; padding-bottom: 0; }
+.status-row:first-child { padding-top: 0; }
+
+.status-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+  background: var(--text3);
+  transition: background var(--ease), box-shadow var(--ease);
+}
+.status-dot.ok   { background: var(--ok);     box-shadow: 0 0 0 3px var(--ok-dim); }
+.status-dot.warn { background: var(--warn);   box-shadow: 0 0 0 3px var(--warn-dim); }
+.status-dot.err  { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-dim); }
+.status-dot.checking { background: var(--accent); animation: pulse 1.1s ease-in-out infinite; }
+
+.status-body { flex: 1; min-width: 0; }
+.status-label {
+  font-size: 13px; font-weight: 600;
+  margin-bottom: 2px;
+}
+.status-label .tag {
+  font-weight: 400; font-size: 11px; opacity: 0.6;
+  margin-left: 4px;
+}
+.status-msg {
+  font-size: 11px;
+  color: var(--text3);
+  line-height: 1.55;
+  word-break: break-word;
+}
+.status-msg.ok   { color: var(--ok); }
+.status-msg.warn { color: var(--warn); }
+.status-msg.err  { color: var(--danger); }
+
+/* ── Alert box ───────────────────────────────────────────────────── */
+.alert {
+  font-size: 12px; line-height: 1.65;
+  border-radius: var(--r-md);
+  padding: 11px 14px;
+  margin-top: 12px;
+  display: none;
+}
+.alert.show { display: block; }
+.alert code {
+  font-size: 11px;
+  background: rgba(0,0,0,0.08);
+  border-radius: 4px; padding: 1px 4px;
+}
+@media (prefers-color-scheme:dark) { .alert code { background: rgba(255,255,255,0.10); } }
+.alert.ok   { background: var(--ok-dim);   color: var(--ok);     border: 1px solid var(--ok-border); }
+.alert.warn { background: var(--warn-dim); color: var(--warn);   border: 1px solid var(--warn-border); }
+.alert.err  { background: var(--danger-dim); color: var(--danger); border: 1px solid var(--danger-border); }
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.btn-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+button {
+  padding: 10px 22px;
+  border-radius: var(--r-md);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; border: none;
+  font-family: var(--font);
+  transition: background var(--ease), transform var(--ease), opacity var(--ease);
+  line-height: 1;
+  white-space: nowrap;
+}
+button:active { transform: scale(0.97); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-primary { background: var(--accent); color: #fff; flex: 1; min-width: 120px; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-h); }
+
+.btn-ghost {
+  background: var(--surface);
+  color: var(--text2);
+  border: 1px solid var(--input-border);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+
+.btn-danger {
+  background: var(--danger-dim);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+}
+.btn-danger:hover:not(:disabled) { background: rgba(217,48,37,0.15); }
+
+.spinner {
+  display: inline-block;
+  width: 11px; height: 11px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+
+/* ── Skip mode chips ─────────────────────────────────────────────── */
+.mode-chips {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.mode-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1.5px solid var(--divider);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: border-color var(--ease), background var(--ease);
+  font-family: var(--font);
+  text-align: left;
+}
+.mode-chip:hover { border-color: var(--accent); background: var(--accent-dim); }
+.mode-chip.selected {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.mode-chip-name {
+  font-size: 12px; font-weight: 700;
+  color: var(--text);
+}
+.mode-chip-desc {
+  font-size: 10px;
+  color: var(--text3);
+  line-height: 1.4;
+}
+.mode-chip.selected .mode-chip-name { color: var(--accent); }
+
+/* ── Per-site rules ──────────────────────────────────────────────── */
+.site-rule-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--r-sm);
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.site-rule-domain { flex: 1; font-weight: 600; }
+.site-rule-mode   { color: var(--text3); font-size: 11px; }
+.site-rule-del {
+  all: unset; cursor: pointer;
+  color: var(--text3); font-size: 15px; line-height: 1;
+  padding: 0 4px; border-radius: 4px;
+  transition: color var(--ease);
+}
+.site-rule-del:hover { color: var(--danger); }
+
+.rule-add-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.rule-add-row input  { flex: 1; min-width: 130px; }
+.rule-add-row select { flex: 0 0 140px; }
+.rule-add-row button { padding: 9px 16px; }
+
+/* ── Stats grid ──────────────────────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+}
+.stat-val {
+  font-size: 26px; font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-lbl {
+  font-size: 11px; color: var(--text3); font-weight: 500;
+}
+
+/* ── History list ────────────────────────────────────────────────── */
+.hist-controls {
+  display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
+}
+.hist-input {
+  flex: 1; min-width: 150px;
+  padding: 8px 11px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--r-md);
+  font-family: var(--font); font-size: 12px; color: var(--text);
+  outline: none;
+  transition: border-color var(--ease);
+}
+.hist-input:focus { border-color: var(--accent); }
+.hist-select {
+  padding: 8px 10px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--r-md);
+  font-family: var(--font); font-size: 11px; color: var(--text2);
+  outline: none; cursor: pointer;
+}
+
+.source-pills {
+  display: flex; gap: 6px; margin-bottom: 10px; align-items: center;
+}
+.source-pill {
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  border: 1.5px solid var(--divider);
+  background: var(--surface); color: var(--text2);
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+}
+.source-pill.active {
+  background: var(--accent-dim); color: var(--accent); border-color: var(--accent);
+}
+
+#historyList {
+  display: flex; flex-direction: column; gap: 6px;
+  max-height: 500px; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: var(--divider) transparent;
+}
+
+.h-item {
+  display: block; text-decoration: none; color: inherit;
+  background: var(--surface); border: 1px solid var(--divider);
+  border-radius: var(--r-md); padding: 10px 12px;
+  transition: border-color var(--ease), background var(--ease);
+}
+.h-item:hover { border-color: var(--accent); background: var(--surface2); }
+.h-title {
+  font-size: 12px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-bottom: 3px;
+}
+.h-meta {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; color: var(--text3); flex-wrap: wrap;
+}
+.h-site {
+  background: var(--surface2); border-radius: 3px;
+  padding: 1px 5px; font-weight: 600; color: var(--text2);
+}
+.h-cloud {
+  color: var(--accent); font-size: 9px; font-weight: 700;
+  background: var(--accent-dim); border-radius: 3px; padding: 1px 4px;
+}
+.h-bar { width: 100%; height: 2px; background: var(--divider); border-radius: 1px; margin-top: 6px; overflow: hidden; }
+.h-fill { height: 100%; background: var(--accent); border-radius: 1px; transition: width 0.3s; }
+
+.h-empty { text-align: center; padding: 36px 16px; color: var(--text3); font-size: 12px; line-height: 1.7; }
+.h-loading { text-align: center; padding: 24px 0; color: var(--text3); font-size: 11px; }
+
+/* ── Sync row ────────────────────────────────────────────────────── */
+.sync-row {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text3);
+  padding: 6px 10px; background: var(--surface);
+  border-radius: var(--r-sm); margin-bottom: 10px;
+  justify-content: space-between;
+}
+.sync-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text3); }
+.sync-dot.ok { background: var(--ok); }
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  :root { --sidebar-w: 0px; }
+  .sidebar { display: none; }
+  .main { margin-left: 0; }
+}
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <div class="page-header">
-    <div class="page-header-inner">
-      <div class="logo">⏭</div>
-      <h1>SkipStream Settings</h1>
+<!-- ═══ Sidebar ════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-logo">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/>
+      </svg>
     </div>
-    <p>Connect your own Supabase project to sync watch progress across devices. API keys are stored locally in your browser - never sent to us.</p>
+    <span class="brand-name">SkipStream</span>
+    <span class="brand-ver" id="sidebarVer"></span>
   </div>
 
-  <!-- Connection status -->
-  <div class="card">
-    <div class="card-title">Connection Status</div>
-    <div class="status-grid">
-      <div class="status-row">
-        <div class="status-dot checking" id="dot-introdb"></div>
-        <div class="status-body">
-          <div class="status-label">IntroDB <span style="font-weight:400;font-size:11px;opacity:.7">(skip segments)</span></div>
-          <div class="status-msg" id="msg-introdb">—</div>
+  <nav class="nav">
+    <span class="nav-section-label">Configuration</span>
+
+    <button class="nav-item active" data-panel="connections">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.5 1.5"/></svg>
+      Connections
+      <span class="nav-dot spin" id="navDotConnections"></span>
+    </button>
+
+    <button class="nav-item" data-panel="introdb">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 8h6M5 11h4"/></svg>
+      IntroDB
+      <span class="nav-dot spin" id="navDotIntrodb"></span>
+    </button>
+
+    <button class="nav-item" data-panel="supabase">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2L2 8l6 6 6-6-6-6z"/></svg>
+      Supabase
+      <span class="nav-dot spin" id="navDotSupabase"></span>
+    </button>
+
+    <button class="nav-item" data-panel="tmdb">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M6 5.5l4 2.5-4 2.5V5.5z" fill="currentColor" stroke="none"/></svg>
+      TMDB
+      <span class="nav-dot spin" id="navDotTmdb"></span>
+    </button>
+
+    <button class="nav-item" data-panel="animeskip">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="2,2 10,8 2,14"/><polygon points="8,2 16,8 8,14"/></svg>
+      AnimeSkip
+      <span class="nav-dot" id="navDotAnimeskip"></span>
+    </button>
+
+    <span class="nav-section-label">Behavior</span>
+
+    <button class="nav-item" data-panel="skipbehavior">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/></svg>
+      Skip Behavior
+    </button>
+
+    <button class="nav-item" data-panel="siterules">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6M8 5v6"/></svg>
+      Per-Site Rules
+    </button>
+
+    <span class="nav-section-label">Data</span>
+
+    <button class="nav-item" data-panel="history">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg>
+      History
+    </button>
+
+    <button class="nav-item" data-panel="stats">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>
+      Stats
+    </button>
+
+    <button class="nav-item" data-panel="exportimport">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v3h10v-3"/><path d="M8 2v7M5 6l3-4 3 4"/></svg>
+      Export / Import
+    </button>
+  </nav>
+</aside>
+
+<!-- ═══ Main content ════════════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- ── Connections panel ──────────────────────────────────────── -->
+  <section id="panel-connections" class="panel active">
+    <h1 class="page-title">Connections</h1>
+    <p class="page-sub">Live status of all configured services. Click any service in the sidebar to configure its credentials.</p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.5 1.5"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">Service Status</div>
+          <div class="card-subtitle">Auto-verified on save</div>
+        </div>
+        <button class="btn-ghost" id="reVerifyBtn" style="padding:7px 14px;font-size:12px">Re-verify All</button>
+      </div>
+      <div class="card-body">
+        <div class="status-grid">
+
+          <div class="status-row">
+            <div class="status-dot checking" id="dot-introdb"></div>
+            <div class="status-body">
+              <div class="status-label">IntroDB <span class="tag">(skip segments)</span></div>
+              <div class="status-msg" id="msg-introdb">Checking…</div>
+            </div>
+          </div>
+
+          <div class="status-row">
+            <div class="status-dot checking" id="dot-supabase"></div>
+            <div class="status-body">
+              <div class="status-label">Supabase <span class="tag">(cloud sync)</span></div>
+              <div class="status-msg" id="msg-supabase">Checking…</div>
+            </div>
+          </div>
+
+          <div class="status-row">
+            <div class="status-dot checking" id="dot-tmdb"></div>
+            <div class="status-body">
+              <div class="status-label">TMDB <span class="tag">(metadata)</span></div>
+              <div class="status-msg" id="msg-tmdb">Checking…</div>
+            </div>
+          </div>
+
+          <div class="status-row">
+            <div class="status-dot" id="dot-animeskip"></div>
+            <div class="status-body">
+              <div class="status-label">AnimeSkip <span class="tag">(anime fallback)</span></div>
+              <div class="status-msg" id="msg-animeskip">Not configured</div>
+            </div>
+          </div>
+
+        </div>
+        <div class="alert warn" id="sqlAlert"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── IntroDB panel ──────────────────────────────────────────── -->
+  <section id="panel-introdb" class="panel">
+    <h1 class="page-title">IntroDB</h1>
+    <p class="page-sub">Required for intro, recap, and outro skip segment detection.</p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 8h6M5 11h4"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">API Key</div>
+          <div class="card-subtitle">Required for skipping</div>
+        </div>
+        <div class="status-dot checking" id="dot-introdb-card"></div>
+      </div>
+      <div class="card-body">
+        <div class="field">
+          <label class="field-label" for="introdbApiKey">API Key</label>
+          <input type="password" id="introdbApiKey" placeholder="Your IntroDB API key" autocomplete="off" spellcheck="false">
+          <p class="help">Get your free key at <a href="https://introdb.app" target="_blank" rel="noopener">introdb.app</a>. Without this, only resume playback works.</p>
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" id="saveIntrodb">Save &amp; Verify</button>
+        </div>
+        <div class="alert" id="alert-introdb"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Supabase panel ─────────────────────────────────────────── -->
+  <section id="panel-supabase" class="panel">
+    <h1 class="page-title">Supabase</h1>
+    <p class="page-sub">Optional cloud sync. Watch progress syncs to your own private Supabase project - nothing is sent to us.</p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--ok)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2L2 8l6 6 6-6-6-6z"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">Project Credentials</div>
+          <div class="card-subtitle">Stored locally, never shared</div>
+        </div>
+        <div class="status-dot checking" id="dot-supabase-card"></div>
+      </div>
+      <div class="card-body">
+        <div class="field">
+          <label class="field-label" for="supabaseUrl">Project URL</label>
+          <input type="text" id="supabaseUrl" placeholder="https://yourproject.supabase.co" autocomplete="off" spellcheck="false">
+          <p class="help">Supabase dashboard → Project Settings → API → Project URL.</p>
+        </div>
+        <div class="field">
+          <label class="field-label" for="supabaseAnonKey">Anon / Public Key</label>
+          <input type="password" id="supabaseAnonKey" placeholder="eyJhbGci…" autocomplete="off" spellcheck="false">
+          <p class="help">Project Settings → API → anon public. This key also derives your cross-device identity - same credentials = same sync account.</p>
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" id="saveSupabase">Save &amp; Verify</button>
+        </div>
+        <div class="alert" id="alert-supabase"></div>
+        <div class="alert warn" id="sqlAlert2"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TMDB panel ─────────────────────────────────────────────── -->
+  <section id="panel-tmdb" class="panel">
+    <h1 class="page-title">TMDB</h1>
+    <p class="page-sub">Optional. Converts TMDB IDs to IMDb IDs for more accurate skip segment lookup, especially for Plex.</p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon amber">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--warn)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M6 5.5l4 2.5-4 2.5V5.5z" fill="var(--warn)" stroke="none"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">API Key (v3)</div>
+          <div class="card-subtitle">Optional - improves Plex detection</div>
+        </div>
+        <div class="status-dot checking" id="dot-tmdb-card"></div>
+      </div>
+      <div class="card-body">
+        <div class="field">
+          <label class="field-label" for="tmdbApiKey">API Key</label>
+          <input type="password" id="tmdbApiKey" placeholder="Your TMDB v3 API key" autocomplete="off" spellcheck="false">
+          <p class="help">Free key at <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org/settings/api</a>.</p>
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" id="saveTmdb">Save &amp; Verify</button>
+        </div>
+        <div class="alert" id="alert-tmdb"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── AnimeSkip panel ────────────────────────────────────────── -->
+  <section id="panel-animeskip" class="panel">
+    <h1 class="page-title">AnimeSkip</h1>
+    <p class="page-sub">Optional anime fallback. Used when IntroDB has no data for a Crunchyroll or other anime title.</p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="2,2 10,8 2,14"/><polygon points="8,2 16,8 8,14"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">AnimeSkip Credentials</div>
+          <div class="card-subtitle">Anime intro fallback</div>
         </div>
       </div>
-      <div class="status-row">
-        <div class="status-dot checking" id="dot-supabase"></div>
-        <div class="status-body">
-          <div class="status-label">Supabase <span style="font-weight:400;font-size:11px;opacity:.7">(cloud sync)</span></div>
-          <div class="status-msg" id="msg-supabase">—</div>
+      <div class="card-body">
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-name">Enable AnimeSkip</div>
+            <div class="toggle-desc">Use anime-skip.com as fallback when IntroDB has no data</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="animeSkipEnabled">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div id="animeSkipFields" style="display:none; margin-top:14px">
+          <div class="field">
+            <label class="field-label" for="animeSkipClientId">Client ID <span>(required)</span></label>
+            <input type="password" id="animeSkipClientId" placeholder="Your AnimeSkip Client ID" autocomplete="off" spellcheck="false">
+            <p class="help">Get a free Client ID at <a href="https://anime-skip.com/account/api-clients" target="_blank" rel="noopener">anime-skip.com/account/api-clients</a>. Required to query the GraphQL API.</p>
+          </div>
+          <div class="field">
+            <label class="field-label" for="animeSkipAuthToken">Auth Token <span>(optional - for submitting timestamps)</span></label>
+            <input type="password" id="animeSkipAuthToken" placeholder="Your AnimeSkip auth token" autocomplete="off" spellcheck="false">
+            <p class="help">Only needed to submit segment timestamps to AnimeSkip. Leave blank for read-only.</p>
+          </div>
+        </div>
+
+        <div class="btn-row" style="margin-top:14px">
+          <button class="btn-primary" id="saveAnimeskip">Save &amp; Verify</button>
+        </div>
+        <div class="alert" id="alert-animeskip"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Skip Behavior panel ────────────────────────────────────── -->
+  <section id="panel-skipbehavior" class="panel">
+    <h1 class="page-title">Skip Behavior</h1>
+    <p class="page-sub">Control how and which segments are skipped globally. Per-domain overrides can be set in Per-Site Rules.</p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">Skip Mode</div>
+          <div class="card-subtitle">How detected segments are handled</div>
         </div>
       </div>
-      <div class="status-row">
-        <div class="status-dot checking" id="dot-tmdb"></div>
-        <div class="status-body">
-          <div class="status-label">TMDB <span style="font-weight:400;font-size:11px;opacity:.7">(metadata)</span></div>
-          <div class="status-msg" id="msg-tmdb">—</div>
+      <div class="card-body">
+        <div class="mode-chips">
+          <button class="mode-chip" data-mode="off">
+            <span class="mode-chip-name">Disabled</span>
+            <span class="mode-chip-desc">Extension paused globally</span>
+          </button>
+          <button class="mode-chip" data-mode="prompt">
+            <span class="mode-chip-name">Prompt Button</span>
+            <span class="mode-chip-desc">Show skip button overlay, you decide</span>
+          </button>
+          <button class="mode-chip" data-mode="auto-all">
+            <span class="mode-chip-name">Auto-skip All</span>
+            <span class="mode-chip-desc">Silently skip all segment types</span>
+          </button>
+          <button class="mode-chip" data-mode="auto-intro">
+            <span class="mode-chip-name">Auto-skip Intros</span>
+            <span class="mode-chip-desc">Only skip intro segments</span>
+          </button>
+          <button class="mode-chip" data-mode="auto-recap">
+            <span class="mode-chip-name">Auto-skip Recaps</span>
+            <span class="mode-chip-desc">Only skip recap segments</span>
+          </button>
+          <button class="mode-chip" data-mode="auto-outro">
+            <span class="mode-chip-name">Auto-skip Outros</span>
+            <span class="mode-chip-desc">Only skip outro segments</span>
+          </button>
         </div>
       </div>
     </div>
-    <div class="alert warn" id="sqlAlert"></div>
-  </div>
 
-  <!-- Supabase credentials -->
-  <div class="card">
-    <div class="card-title">Supabase</div>
-    <div class="field">
-      <label for="supabaseUrl">Project URL</label>
-      <input type="text" id="supabaseUrl" placeholder="https://yourproject.supabase.co" autocomplete="off" spellcheck="false">
-      <p class="help">Supabase dashboard → Project Settings → API → Project URL.</p>
-    </div>
-    <div class="field">
-      <label for="supabaseAnonKey">Anon / Public Key</label>
-      <input type="password" id="supabaseAnonKey" placeholder="eyJhbGci…" autocomplete="off" spellcheck="false">
-      <p class="help">Same page → Project API Keys → <em>anon public</em>. This key also derives your cross-device User ID — identical credentials = identical sync identity.</p>
-    </div>
-  </div>
-
-  <!-- IntroDB credentials -->
-  <div class="card">
-    <div class="card-title">IntroDB <span style="font-weight:400;font-size:10px;opacity:.65">(required for skipping)</span></div>
-    <div class="field">
-      <label for="introdbApiKey">API Key</label>
-      <input type="password" id="introdbApiKey" placeholder="Your IntroDB API key" autocomplete="off" spellcheck="false">
-      <p class="help">Get your personal key at <a href="https://introdb.app" target="_blank" rel="noopener">introdb.app</a>. Without this, intro/recap/outro skipping is disabled — only resume playback will work.</p>
-    </div>
-  </div>
-
-  <!-- TMDB credentials -->
-  <div class="card">
-    <div class="card-title">TMDB <span style="font-weight:400;font-size:10px;opacity:.65">(optional)</span></div>
-    <div class="field">
-      <label for="tmdbApiKey">API Key (v3 auth)</label>
-      <input type="password" id="tmdbApiKey" placeholder="Your TMDB v3 API key" autocomplete="off" spellcheck="false">
-      <p class="help">Free key at <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org/settings/api</a>. Used to convert TMDB IDs → IMDb IDs for skip segment lookup.</p>
-    </div>
-  </div>
-
-  <!-- AnimeSkip -->
-  <div class="card">
-    <div class="card-title">AnimeSkip <span style="font-weight:400;font-size:10px;opacity:.65">(optional — anime only)</span></div>
-    <div class="field">
-      <label for="animeSkipEnabled">
-        <input type="checkbox" id="animeSkipEnabled" style="margin-right:6px">
-        Enable AnimeSkip fallback for anime intro detection
-      </label>
-      <p class="help">Uses <a href="https://anime-skip.com" target="_blank" rel="noopener">anime-skip.com</a> as a fallback when IntroDB has no data. A Client ID is required.</p>
-    </div>
-    <div id="animeSkipFields" style="display:none">
-      <div class="field">
-        <label for="animeSkipClientId">Client ID <span style="font-weight:400;opacity:.7">(required)</span></label>
-        <input type="password" id="animeSkipClientId" placeholder="Your AnimeSkip Client ID" autocomplete="off" spellcheck="false">
-        <p class="help">Get a free Client ID at <a href="https://anime-skip.com/account/api-clients" target="_blank" rel="noopener">anime-skip.com/account/api-clients</a>. Required to query the GraphQL API.</p>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">Granular Toggles</div>
+          <div class="card-subtitle">Fine-tune which segment types are active</div>
+        </div>
       </div>
-      <div class="field">
-        <label for="animeSkipAuthToken">Auth Token <span style="font-weight:400;opacity:.7">(optional — for submitting timestamps)</span></label>
-        <input type="password" id="animeSkipAuthToken" placeholder="Your AnimeSkip auth token" autocomplete="off" spellcheck="false">
-        <p class="help">Only needed if you want the Report Segment tool to submit timestamps to AnimeSkip. Leave blank for read-only usage.</p>
+      <div class="card-body">
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-name">Skip Intros</div>
+            <div class="toggle-desc">Opening credits and title sequences</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="skipIntro">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-name">Skip Recaps</div>
+            <div class="toggle-desc">Previously on… episode summaries</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="skipRecap">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-name">Skip Outros</div>
+            <div class="toggle-desc">End credits and post-roll segments</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="skipOutro">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-name">Resume Playback</div>
+            <div class="toggle-desc">Continue where you left off</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="resumePlayback">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-name">Auto Next Episode</div>
+            <div class="toggle-desc">Jump to next episode near end</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="autoNextEpisode">
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="actions">
-    <button id="saveBtn">Save &amp; Verify</button>
-    <button id="clearBtn">Clear All</button>
-  </div>
-  <div class="actions" style="margin-top:8px">
-    <button id="exportBtn" style="background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border-strong);flex:1" title="Export credentials, preferences, watch history, stats, and site rules to a JSON file">Export All</button>
-    <button id="importBtn" style="background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border-strong);flex:1" title="Restore from a previous export - history is merged, stats are combined">Import &amp; Merge</button>
-    <input type="file" id="importFile" accept=".json" style="display:none">
-  </div>
-  <p class="hint" style="margin-top:6px">Export includes: credentials, preferences, watch history, stats, site rules, theme. Import merges history (keeps newer) and combines session counts.</p>
-  <div class="alert" id="globalAlert"></div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">Playback Speed</div>
+          <div class="card-subtitle">Default speed for all video</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mode-chip" data-rate="1"    style="flex:1;min-width:60px"><span class="mode-chip-name">1x</span><span class="mode-chip-desc">Normal</span></button>
+          <button class="mode-chip" data-rate="1.25" style="flex:1;min-width:60px"><span class="mode-chip-name">1.25x</span><span class="mode-chip-desc">Slightly faster</span></button>
+          <button class="mode-chip" data-rate="1.5"  style="flex:1;min-width:60px"><span class="mode-chip-name">1.5x</span><span class="mode-chip-desc">Fast</span></button>
+          <button class="mode-chip" data-rate="2"    style="flex:1;min-width:60px"><span class="mode-chip-name">2x</span><span class="mode-chip-desc">Very fast</span></button>
+        </div>
+      </div>
+    </div>
 
-</div>
+    <div class="btn-row">
+      <button class="btn-primary" id="saveBehavior">Save Behavior</button>
+    </div>
+    <div class="alert" id="alert-behavior"></div>
+  </section>
 
-<div class="card" id="siteRulesCard">
-  <h2>Per-Site Skip Rules</h2>
-  <p class="hint">Override global skip mode for a specific domain. Domain only, e.g. <code>crunchyroll.com</code></p>
-  <div id="siteRulesList"></div>
-  <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
-    <input id="siteRuleDomain" type="text" placeholder="e.g. crunchyroll.com" style="flex:1">
-    <select id="siteRuleMode">
-      <option value="off">Off</option>
-      <option value="prompt">Prompt</option>
-      <option value="auto-intro">Auto Intro</option>
-      <option value="auto-recap">Auto Recap</option>
-      <option value="auto-outro">Auto Outro</option>
-      <option value="auto-all" selected>Auto All</option>
-    </select>
-    <button id="siteRuleAddBtn">Add Rule</button>
-  </div>
-</div>
+  <!-- ── Per-Site Rules panel ───────────────────────────────────── -->
+  <section id="panel-siterules" class="panel">
+    <h1 class="page-title">Per-Site Rules</h1>
+    <p class="page-sub">Override the global skip mode for a specific domain. Domain only, e.g. <code style="font-size:11px;background:var(--surface2);padding:1px 5px;border-radius:4px">crunchyroll.com</code></p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6M8 5v6"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">Domain Overrides</div>
+          <div class="card-subtitle">Site-specific skip modes</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="siteRulesList"></div>
+        <div class="rule-add-row">
+          <input id="siteRuleDomain" type="text" placeholder="e.g. crunchyroll.com">
+          <select id="siteRuleMode">
+            <option value="off">Off</option>
+            <option value="prompt">Prompt</option>
+            <option value="auto-intro">Auto Intros</option>
+            <option value="auto-recap">Auto Recaps</option>
+            <option value="auto-outro">Auto Outros</option>
+            <option value="auto-all" selected>Auto All</option>
+          </select>
+          <button class="btn-primary" id="siteRuleAddBtn" style="flex:0 0 auto;padding:9px 16px">Add Rule</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── History panel ──────────────────────────────────────────── -->
+  <section id="panel-history" class="panel">
+    <h1 class="page-title">Watch History</h1>
+    <p class="page-sub">Local and cloud-synced watch history merged in one view.</p>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="hist-controls">
+          <input type="search" id="historySearch" class="hist-input" placeholder="Search title…" autocomplete="off">
+          <select id="historyFilter" class="hist-select">
+            <option value="">All sites</option>
+          </select>
+        </div>
+        <div class="source-pills">
+          <span>Source:</span>
+          <span class="source-pill active" data-source="local" id="srcLocal">Local</span>
+          <span class="source-pill" data-source="cloud" id="srcCloud">Cloud</span>
+          <span class="source-pill" data-source="merged" id="srcMerged">Merged</span>
+        </div>
+        <div class="sync-row" id="syncStatus">
+          <div style="display:flex;align-items:center;gap:5px">
+            <div class="sync-dot" id="syncDot"></div>
+            <span id="syncText">Loading history…</span>
+          </div>
+          <button id="syncNowBtn" style="all:unset;cursor:pointer;padding:3px 10px;border-radius:5px;border:1px solid var(--divider);color:var(--text3);font-size:10px;font-weight:600;font-family:var(--font);display:flex;align-items:center;gap:4px">
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 6A5.5 5.5 0 0 0 3 8"/><path d="M2.5 10A5.5 5.5 0 0 0 13 8"/><polyline points="13.5,3 13.5,6 10.5,6"/><polyline points="2.5,13 2.5,10 5.5,10"/></svg>
+            Sync
+          </button>
+        </div>
+        <div id="historyList"><div class="h-loading">Loading…</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Stats panel ────────────────────────────────────────────── -->
+  <section id="panel-stats" class="panel">
+    <h1 class="page-title">Statistics</h1>
+    <p class="page-sub">Tracked locally and never uploaded to any server.</p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">This Session</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="stats-grid" id="statsGrid"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon green">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--ok)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">All Time</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="stats-grid" id="statsAllGrid"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Export / Import panel ──────────────────────────────────── -->
+  <section id="panel-exportimport" class="panel">
+    <h1 class="page-title">Export / Import</h1>
+    <p class="page-sub">Back up your credentials, history, stats, and site rules to a JSON file. Import merges history and combines session counts.</p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v3h10v-3"/><path d="M8 2v7M5 6l3-4 3 4"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">Backup &amp; Restore</div>
+          <div class="card-subtitle">Includes credentials, history, stats, site rules, theme</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="btn-row">
+          <button class="btn-primary" id="exportBtn">Export All</button>
+          <button class="btn-ghost" id="importBtn">Import &amp; Merge</button>
+          <input type="file" id="importFile" accept=".json" style="display:none">
+        </div>
+        <div class="alert" id="alert-export"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--danger)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 3,14 13,14 13,4"/><path d="M1 4h14M6 4V2h4v2"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">Danger Zone</div>
+          <div class="card-subtitle">Irreversible actions</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="btn-row">
+          <button class="btn-danger" id="clearBtn">Clear All Data</button>
+        </div>
+        <p class="help" style="margin-top:8px">Removes all credentials, history, stats, and site rules from local storage. Cannot be undone.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
 
 <script src="options.js"></script>
 </body>
