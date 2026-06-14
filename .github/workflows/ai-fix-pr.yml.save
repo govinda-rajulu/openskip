@@ -1,0 +1,124 @@
+name: AI Fix → Pull Request
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+jobs:
+  # ── Triggered by 'ai-fix' label (owner only) ────────────────────────────────
+  create-fix-pr:
+    if: |
+      github.event_name == 'issues' &&
+      github.event.label.name == 'ai-fix' &&
+      github.event.sender.login == github.repository_owner
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build repo context
+        run: |
+          {
+            echo "=== CLAUDE.md (architecture rules) ==="
+            cat CLAUDE.md
+            echo ""
+            echo "=== manifest.json ==="
+            cat manifest.json
+            echo ""
+            for f in background.js content-scripts/content.js options.js popup.js; do
+              echo "=== $f ==="
+              cat "$f"
+              echo ""
+            done
+          } > /tmp/repo_context.txt
+          echo "Context: $(wc -c < /tmp/repo_context.txt) bytes"
+
+      - name: AI generate fix
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          ISSUE_NUMBER:      ${{ github.event.issue.number }}
+          ISSUE_TITLE:       ${{ github.event.issue.title }}
+          ISSUE_BODY:        ${{ github.event.issue.body }}
+        run: |
+          python3 << 'PYEOF'
+          import os, json, urllib.request, urllib.error, time
+
+          issue_num   = os.environ.get("ISSUE_NUMBER", "")
+          issue_title = os.environ.get("ISSUE_TITLE", "")
+          issue_body  = os.environ.get("ISSUE_BODY", "")
+          anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+          gemini_key    = os.environ.get("GEMINI_API_KEY", "")
+
+          if not anthropic_key and not gemini_key:
+              json.dump({"error": "NO_AI_KEY"}, open("/tmp/ai_fix.json", "w"))
+              exit(0)
+
+          repo_context = open("/tmp/repo_context.txt").read()
+
+          prompt = f"""You are fixing a bug or implementing a feature for SkipStream — a Firefox/Chrome browser extension.
+          
+          STRICT ARCHITECTURE RULES (CI enforces all — violations will fail):
+          1. NEVER use localStorage in content-scripts/content.js — only browser.storage.local via sendMessage
+          2. NEVER use fetch() in content-scripts/content.js — all network calls go through background.js
+          3. NEVER use innerHTML — use DOM API: createElement, textContent, replaceChildren
+          4. NEVER use console.log — only console.warn for diagnostics
+          5. userId = SHA-256("skipstream:uid:" + supabaseAnonKey) — never random, never stored as-is
+          6. SPA nav = intercept pushState/replaceState + popstate listener — no setInterval polling
+          7. Video detection: width >= 25% viewport, height >= 20% viewport, aspect ratio 1.2-3.0
+          
+          ISSUE #{issue_num}: {issue_title}
+          {issue_body}
+          
+          CURRENT CODEBASE:
+          {repo_context[:80000]}
+          
+          Respond with ONLY a JSON array (no markdown, no explanation, no code fences):
+          [
+            {{
+              "filename": "path/to/file.js",
+              "content": "COMPLETE file content — not a diff, not a snippet",
+              "description": "what changed and why (max 72 chars)"
+            }}
+          ]
+          
+          Rules:
+          - Only include files that actually change
+          - Write the COMPLETE file content for each changed file
+          - If this cannot be safely automated: [{{"filename":"","content":"","description":"CANNOT_FIX: reason"}}]"""
+
+          def call_claude(p):
+              data = json.dumps({"model":"claude-sonnet-4-6","max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode()
+              req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=data,
+                  headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"}, method="POST")
+              with urllib.request.urlopen(req, timeout=120) as r:
+                  return json.load(r)["content"][0]["text"].strip()
+
+          def call_gemini(p):
+              data = json.dumps({"contents":[{"parts":[{"text":p}]}],"generationConfig":{"temperature":0.1,"maxOutputTokens":8192}}).encode()
+              url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
+              for attempt in range(4):
+                  try:
+                      req = urllib.request.Request(url, data=data, headers={"Content-Type":"application/json"}, method="POST")
+                      with urllib.request.urlopen(req, timeout=90) as r:
+                          return json.load(r)["candidates"][0]["content"]["parts"][0]["text"].strip()
+                  except urllib.error.HTTPError as e:
+                      if e.code == 429: time.sleep(30 * (attempt+1))
+                      else: raise
+              raise RuntimeError("Gemini rate limit exceeded")
+
+          try:
+              text = call_claude(prompt) if anthropic_key else call_gemini(prompt)
+              print(f"AI response: {len(text)} chars")
+              if text.startswith("```"):
+                  text = text.split("\n",1)[1].rsplit("```",1)[0].strip()
+              json.loads(text)  # validate
+              open("/tmp/ai_fix.json","w").write(text)
+          except Exception as e:
+

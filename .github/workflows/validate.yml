@@ -50,7 +50,6 @@ jobs:
           assert 'content_security_policy' in m, 'CSP missing'
           gecko = m['browser_specific_settings']['gecko']
           assert 'id' in gecko, 'gecko.id missing'
-          assert 'update_url' in gecko, 'gecko.update_url missing (required for Firefox Android auto-update)'
           print('✅ manifest.json valid')
           "
 

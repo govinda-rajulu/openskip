@@ -39,3 +39,4 @@ npm-debug.log*
 .aider.input.history
 .aider.tags.cache.v4/
 audit-report.txt
+.env
