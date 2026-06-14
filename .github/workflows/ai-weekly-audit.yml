@@ -29,6 +29,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           SCOPE:             ${{ inputs.scope || 'full' }}
         run: |
           python3 << 'PYEOF'
@@ -36,9 +37,10 @@ jobs:
 
           anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
+          openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
           scope         = os.environ.get("SCOPE","full")
 
-          if not anthropic_key and not gemini_key:
+          if not openrouter_key and not gemini_key and not anthropic_key:
               open("/tmp/audit.json","w").write(json.dumps({"status":"NO_KEY"}))
               exit(0)
 

@@ -44,6 +44,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           PR_TITLE:          ${{ github.event.pull_request.title }}
           PR_BODY:           ${{ github.event.pull_request.body }}
         run: |
@@ -52,6 +53,7 @@ jobs:
 
           anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
+          openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
           pr_title      = os.environ.get("PR_TITLE","")
           pr_body       = os.environ.get("PR_BODY","")
 
@@ -161,6 +163,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           COMMENT_BODY:      ${{ github.event.comment.body }}
           DIFF_HUNK:         ${{ github.event.comment.diff_hunk }}
           PR_TITLE:          ${{ github.event.pull_request.title }}
@@ -171,6 +174,7 @@ jobs:
 
           anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
+          openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
           comment       = os.environ.get("COMMENT_BODY","")
           diff_hunk     = os.environ.get("DIFF_HUNK","")
           pr_title      = os.environ.get("PR_TITLE","")

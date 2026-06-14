@@ -46,6 +46,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ISSUE_NUMBER:      ${{ github.event.issue.number }}
           ISSUE_TITLE:       ${{ github.event.issue.title }}
           ISSUE_BODY:        ${{ github.event.issue.body }}
@@ -58,8 +59,9 @@ jobs:
           issue_body  = os.environ.get("ISSUE_BODY", "")
           anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
           gemini_key    = os.environ.get("GEMINI_API_KEY", "")
+          openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
 
-          if not anthropic_key and not gemini_key:
+          if not openrouter_key and not gemini_key and not anthropic_key:
               json.dump({"error": "NO_AI_KEY"}, open("/tmp/ai_fix.json", "w"))
               exit(0)
 
@@ -116,8 +118,17 @@ jobs:
                       else: raise
               raise RuntimeError("Gemini rate limit exceeded")
 
+          def call_openrouter(p, max_tokens=8192):
+              data = json.dumps({"model":"meta-llama/llama-3.3-70b-instruct:free","max_tokens":max_tokens,"messages":[{"role":"user","content":p}]}).encode()
+              req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=data,
+                  headers={"Content-Type":"application/json","Authorization":f"Bearer {openrouter_key}",
+                           "HTTP-Referer":"https://github.com/govinda-rajulu/openskip","X-Title":"openskip-agent"}, method="POST")
+              with urllib.request.urlopen(req, timeout=120) as r:
+                  return json.load(r)["choices"][0]["message"]["content"].strip()
+
+
           try:
-              text = call_claude(prompt) if anthropic_key else call_gemini(prompt)
+              text = call_claude(prompt) if anthropic_key else (call_openrouter(prompt) if openrouter_key else call_gemini(prompt))
               print(f"AI response: {len(text)} chars")
               if text.startswith("```"):
                   text = text.split("\n",1)[1].rsplit("```",1)[0].strip()
@@ -245,6 +256,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY:     ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY:  ${{ secrets.OPENROUTER_API_KEY }}
           CMD:                ${{ steps.cmd.outputs.command }}
           ARGS:               ${{ steps.cmd.outputs.args }}
           ISSUE_NUMBER:       ${{ github.event.issue.number }}
@@ -263,9 +275,10 @@ jobs:
           comment_body  = os.environ.get("COMMENT_BODY","")
           anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
+          openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
           repo_context  = open("/tmp/repo_context.txt").read()
 
-          if not anthropic_key and not gemini_key:
+          if not openrouter_key and not gemini_key and not anthropic_key:
               open("/tmp/ai_cmd_result.json","w").write(json.dumps({"type":"error","text":"No AI key configured."}))
               exit(0)
 
@@ -352,8 +365,17 @@ jobs:
                       else: raise
               raise RuntimeError("Gemini rate limit exceeded")
 
+          def call_openrouter(p, max_tokens=8192):
+              data = json.dumps({"model":"meta-llama/llama-3.3-70b-instruct:free","max_tokens":max_tokens,"messages":[{"role":"user","content":p}]}).encode()
+              req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=data,
+                  headers={"Content-Type":"application/json","Authorization":f"Bearer {openrouter_key}",
+                           "HTTP-Referer":"https://github.com/govinda-rajulu/openskip","X-Title":"openskip-agent"}, method="POST")
+              with urllib.request.urlopen(req, timeout=120) as r:
+                  return json.load(r)["choices"][0]["message"]["content"].strip()
+
+
           try:
-              text = call_claude(prompt) if anthropic_key else call_gemini(prompt)
+              text = call_claude(prompt) if anthropic_key else (call_openrouter(prompt) if openrouter_key else call_gemini(prompt))
               # Determine if response is JSON (code change) or markdown (explanation)
               stripped = text.strip()
               if stripped.startswith("```"): stripped = stripped.split("\n",1)[1].rsplit("```",1)[0].strip()

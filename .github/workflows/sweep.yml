@@ -42,6 +42,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ISSUE_NUMBER:      ${{ github.event.issue.number }}
           ISSUE_TITLE:       ${{ github.event.issue.title }}
           COMMENT_BODY:      ${{ github.event.comment.body }}
@@ -52,13 +53,14 @@ jobs:
 
           anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
+          openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
           issue_num     = os.environ.get("ISSUE_NUMBER","")
           issue_title   = os.environ.get("ISSUE_TITLE","")
           comment_body  = os.environ.get("COMMENT_BODY","")
           event_name    = os.environ.get("EVENT_NAME","")
           ctx           = open("/tmp/ctx.txt").read()
 
-          if not anthropic_key and not gemini_key:
+          if not openrouter_key and not gemini_key and not anthropic_key:
               open("/tmp/sweep.json","w").write(json.dumps({"error":"NO_KEY"}))
               exit(0)
 
@@ -93,6 +95,13 @@ jobs:
                       headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"},method="POST")
                   with urllib.request.urlopen(req,timeout=120) as r:
                       text = json.load(r)["content"][0]["text"].strip()
+              elif openrouter_key:
+                  p = json.dumps({"model":"meta-llama/llama-3.3-70b-instruct:free","max_tokens":8192,"messages":[{"role":"user","content":prompt}]}).encode()
+                  req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=p,
+                      headers={"Content-Type":"application/json","Authorization":f"Bearer {openrouter_key}",
+                               "HTTP-Referer":"https://github.com/govinda-rajulu/openskip","X-Title":"openskip-sweep"},method="POST")
+                  with urllib.request.urlopen(req,timeout=120) as r:
+                      text = json.load(r)["choices"][0]["message"]["content"].strip()
               else:
                   p = json.dumps({"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0.1,"maxOutputTokens":8192}}).encode()
                   url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"

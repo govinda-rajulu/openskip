@@ -77,6 +77,33 @@ jobs:
             fi
           fi
 
+      - name: Test OPENROUTER_API_KEY
+        if: inputs.checks == 'all' || inputs.checks == 'secrets'
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "::error::OPENROUTER_API_KEY is not set"
+            echo "missing" > /tmp/openrouter_status.txt
+          else
+            echo "Key present (${#OPENROUTER_API_KEY} chars), testing..."
+            HTTP=$(curl -s -o /tmp/or_resp.json -w "%{http_code}" \
+              -X POST https://openrouter.ai/api/v1/chat/completions \
+              -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+              -H "Content-Type: application/json" \
+              -H "HTTP-Referer: https://github.com/govinda-rajulu/openskip" \
+              -H "X-Title: openskip-diagnostics" \
+              -d '{"model":"meta-llama/llama-3.3-70b-instruct:free","messages":[{"role":"user","content":"ping"}],"max_tokens":8}')
+            if [ "$HTTP" = "200" ]; then
+              echo "::notice::OPENROUTER_API_KEY valid (HTTP 200)"
+              echo "ok" > /tmp/openrouter_status.txt
+            else
+              BODY=$(cat /tmp/or_resp.json)
+              echo "::error::OPENROUTER_API_KEY HTTP $HTTP -- $BODY"
+              echo "fail_$HTTP" > /tmp/openrouter_status.txt
+            fi
+          fi
+
       - name: Test AMO_API_KEY + AMO_API_SECRET
         if: inputs.checks == 'all' || inputs.checks == 'secrets' || inputs.checks == 'amo'
         env:
@@ -127,6 +154,33 @@ jobs:
             print(f"::error::AMO test error: {e}")
             open("/tmp/amo_status.txt","w").write("error")
           PYEOF
+
+      - name: Test OPENROUTER_API_KEY
+        if: inputs.checks == 'all' || inputs.checks == 'secrets'
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "::error::OPENROUTER_API_KEY is not set"
+            echo "missing" > /tmp/openrouter_status.txt
+          else
+            echo "Key present (${#OPENROUTER_API_KEY} chars), testing..."
+            HTTP=$(curl -s -o /tmp/or_resp.json -w "%{http_code}" \
+              -X POST https://openrouter.ai/api/v1/chat/completions \
+              -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+              -H "Content-Type: application/json" \
+              -H "HTTP-Referer: https://github.com/govinda-rajulu/openskip" \
+              -H "X-Title: openskip-diagnostics" \
+              -d '{"model":"meta-llama/llama-3.3-70b-instruct:free","messages":[{"role":"user","content":"ping"}],"max_tokens":8}')
+            if [ "$HTTP" = "200" ]; then
+              echo "::notice::OPENROUTER_API_KEY valid (HTTP 200)"
+              echo "ok" > /tmp/openrouter_status.txt
+            else
+              BODY=$(cat /tmp/or_resp.json)
+              echo "::error::OPENROUTER_API_KEY HTTP $HTTP -- $BODY"
+              echo "fail_$HTTP" > /tmp/openrouter_status.txt
+            fi
+          fi
 
       - name: Check recent workflow run health
         if: inputs.checks == 'all' || inputs.checks == 'workflows'
@@ -230,12 +284,28 @@ jobs:
                 *)        echo "| \`ANTHROPIC_API_KEY\` | FAIL ($A) |" ;;
               esac
 
+              OR=$(cat /tmp/openrouter_status.txt 2>/dev/null || echo "skipped")
+              case "$OR" in
+                ok)       echo "| \`OPENROUTER_API_KEY\` | OK - valid |" ;;
+                missing)  echo "| \`OPENROUTER_API_KEY\` | NOT SET |" ;;
+                skipped)  echo "| \`OPENROUTER_API_KEY\` | skipped |" ;;
+                *)        echo "| \`OPENROUTER_API_KEY\` | FAIL ($OR) |" ;;
+              esac
+
               G=$(cat /tmp/gemini_status.txt 2>/dev/null || echo "skipped")
               case "$G" in
                 ok)       echo "| \`GEMINI_API_KEY\` | OK - valid |" ;;
                 missing)  echo "| \`GEMINI_API_KEY\` | NOT SET |" ;;
                 skipped)  echo "| \`GEMINI_API_KEY\` | skipped |" ;;
                 *)        echo "| \`GEMINI_API_KEY\` | FAIL ($G) |" ;;
+              esac
+
+              OR_S=$(cat /tmp/openrouter_status.txt 2>/dev/null || echo "skipped")
+              case "$OR_S" in
+                ok)       echo "| \`OPENROUTER_API_KEY\` | OK - valid |" ;;
+                missing)  echo "| \`OPENROUTER_API_KEY\` | NOT SET |" ;;
+                skipped)  echo "| \`OPENROUTER_API_KEY\` | skipped |" ;;
+                *)        echo "| \`OPENROUTER_API_KEY\` | FAIL ($OR_S) |" ;;
               esac
 
               AMO_S=$(cat /tmp/amo_status.txt 2>/dev/null || echo "skipped")
@@ -292,11 +362,13 @@ jobs:
 
           a   = read("/tmp/anthropic_status.txt")
           g   = read("/tmp/gemini_status.txt")
+          or_s = read("/tmp/openrouter_status.txt")
           amo = read("/tmp/amo_status.txt")
 
           failing = []
           if a and a != "ok": failing.append(f"ANTHROPIC_API_KEY ({a})")
           if g and g != "ok": failing.append(f"GEMINI_API_KEY ({g})")
+          if or_s and or_s != "ok": failing.append(f"OPENROUTER_API_KEY ({or_s})")
           if amo and amo not in ("ok",""): failing.append(f"AMO keys ({amo})")
 
           if not failing:
