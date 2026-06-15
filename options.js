@@ -16,7 +16,7 @@ const S = {
   resumePlayback:     'resumePlayback',
   autoNextEpisode:    'autoNextEpisode',
   playbackRate:       'playbackRate',
-  siteRules:          'siteRules',
+  siteRules:          'skipstream_site_rules',
   statsSkipsToday:    'statsSkipsToday',
   statsDate:          'statsDate',
   statsTotalSkips:    'statsTotalSkips',
@@ -719,6 +719,11 @@ function migrateImportData(data) {
   if (data.autoSkip !== undefined && data.skipIntro === undefined) {
     data.skipIntro = data.autoSkip;
     delete data.autoSkip;
+  }
+  // 1.6.5 used 'siteRules' key; content.js expects 'skipstream_site_rules'
+  if (data.siteRules !== undefined && data.skipstream_site_rules === undefined) {
+    data.skipstream_site_rules = data.siteRules;
+    delete data.siteRules;
   }
   // 1.6.5 stat keys
   if (data.totalSkips !== undefined && data.statsTotalSkips === undefined) {
