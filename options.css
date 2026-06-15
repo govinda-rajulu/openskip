@@ -800,6 +800,31 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   background: var(--surface2);
 }
 
+.h-item-inner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.h-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.h-poster {
+  width: 36px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: var(--surface2);
+  display: none;
+}
+
+.h-poster[src]:not([src=""]) {
+  display: block;
+}
+
 .h-title {
   font-size: 12px; font-weight: 600;
   overflow: hidden;
