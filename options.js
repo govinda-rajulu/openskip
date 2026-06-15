@@ -1,6 +1,6 @@
 'use strict';
 
-// ── Storage keys (must match background.js + content.js) ─────────────
+// -- Storage keys (must match background.js + content.js) --
 const S = {
   supabaseUrl:        'supabaseUrl',
   supabaseAnonKey:    'supabaseAnonKey',
@@ -26,18 +26,17 @@ const S = {
 
 const $ = id => document.getElementById(id);
 
-// ── Version badge ─────────────────────────────────────────────────────
+// -- Version badge --
 const manifest = chrome.runtime.getManifest();
 $('sidebarVer').textContent = 'v' + manifest.version;
 
-// ── Sidebar nav ───────────────────────────────────────────────────────
+// -- Sidebar nav --
 const navItems = document.querySelectorAll('.nav-item[data-panel]');
 const panels   = document.querySelectorAll('.panel');
 
 function showPanel(id) {
   panels.forEach(p => p.classList.toggle('active', p.id === 'panel-' + id));
   navItems.forEach(n => n.classList.toggle('active', n.dataset.panel === id));
-  // Handle hash-based deep links from popup buttons
   history.replaceState(null, '', '#' + id);
 }
 
@@ -51,7 +50,7 @@ if (initialHash && document.getElementById('panel-' + initialHash)) {
   showPanel(initialHash);
 }
 
-// ── Alert helpers ─────────────────────────────────────────────────────
+// -- Alert helpers --
 function showAlert(el, type, msg) {
   if (!el) return;
   el.className = 'alert show ' + type;
@@ -63,7 +62,7 @@ function hideAlert(el) {
   el.textContent = '';
 }
 
-// ── Status dot helpers ────────────────────────────────────────────────
+// -- Status dot helpers --
 function setDot(dotEl, state, msg, msgEl) {
   if (!dotEl) return;
   dotEl.className = 'status-dot ' + state;
@@ -73,14 +72,13 @@ function setDot(dotEl, state, msg, msgEl) {
   }
 }
 
-// Sync nav sidebar dots
 function setNavDot(key, state) {
   const el = $('navDot' + key.charAt(0).toUpperCase() + key.slice(1));
   if (!el) return;
   el.className = 'nav-dot ' + (state === 'ok' ? 'ok' : state === 'err' ? 'err' : state === 'warn' ? 'warn' : state === 'checking' ? 'spin' : '');
 }
 
-// ── Verify: IntroDB ───────────────────────────────────────────────────
+// -- Verify: IntroDB --
 async function verifyIntrodb(key) {
   const dotMain  = $('dot-introdb');
   const msgMain  = $('msg-introdb');
@@ -88,7 +86,7 @@ async function verifyIntrodb(key) {
   const alertEl  = $('alert-introdb');
 
   [dotMain, dotCard].forEach(d => d && (d.className = 'status-dot checking'));
-  if (msgMain) { msgMain.className = 'status-msg'; msgMain.textContent = 'Checking…'; }
+  if (msgMain) { msgMain.className = 'status-msg'; msgMain.textContent = 'Checking...'; }
   setNavDot('introdb', 'checking');
 
   if (!key) {
@@ -124,7 +122,7 @@ async function verifyIntrodb(key) {
   }
 }
 
-// ── Verify: Supabase ──────────────────────────────────────────────────
+// -- Verify: Supabase --
 async function verifySupabase(url, key) {
   const dotMain = $('dot-supabase');
   const msgMain = $('msg-supabase');
@@ -134,7 +132,7 @@ async function verifySupabase(url, key) {
   const sqlEl2  = $('sqlAlert2');
 
   [dotMain, dotCard].forEach(d => d && (d.className = 'status-dot checking'));
-  if (msgMain) { msgMain.className = 'status-msg'; msgMain.textContent = 'Checking…'; }
+  if (msgMain) { msgMain.className = 'status-msg'; msgMain.textContent = 'Checking...'; }
   setNavDot('supabase', 'checking');
 
   if (!url || !key) {
@@ -164,7 +162,6 @@ async function verifySupabase(url, key) {
     }
 
     if (r.status === 404 || r.status === 406) {
-      // Table missing - needs SQL setup
       const sqlMsg = 'Table not found. Run supabase_setup.sql in your Supabase SQL Editor, then click Save & Verify again.';
       setDot(dotMain, 'warn', 'Connected but table missing', msgMain);
       setDot(dotCard, 'warn');
@@ -177,7 +174,7 @@ async function verifySupabase(url, key) {
       setDot(dotMain, 'err', 'Invalid anon key (401)', msgMain);
       setDot(dotCard, 'err');
       setNavDot('supabase', 'err');
-      if (alertEl) showAlert(alertEl, 'err', 'Invalid anon key. Check Project Settings → API.');
+      if (alertEl) showAlert(alertEl, 'err', 'Invalid anon key. Check Project Settings > API.');
       return false;
     }
 
@@ -194,7 +191,7 @@ async function verifySupabase(url, key) {
   }
 }
 
-// ── Verify: TMDB ──────────────────────────────────────────────────────
+// -- Verify: TMDB --
 async function verifyTmdb(key) {
   const dotMain = $('dot-tmdb');
   const msgMain = $('msg-tmdb');
@@ -202,7 +199,7 @@ async function verifyTmdb(key) {
   const alertEl = $('alert-tmdb');
 
   [dotMain, dotCard].forEach(d => d && (d.className = 'status-dot checking'));
-  if (msgMain) { msgMain.className = 'status-msg'; msgMain.textContent = 'Checking…'; }
+  if (msgMain) { msgMain.className = 'status-msg'; msgMain.textContent = 'Checking...'; }
   setNavDot('tmdb', 'checking');
 
   if (!key) {
@@ -235,7 +232,7 @@ async function verifyTmdb(key) {
   }
 }
 
-// ── Verify: AnimeSkip ─────────────────────────────────────────────────
+// -- Verify: AnimeSkip --
 async function verifyAnimeskip(enabled, clientId) {
   const dotMain = $('dot-animeskip');
   const msgMain = $('msg-animeskip');
@@ -254,7 +251,7 @@ async function verifyAnimeskip(enabled, clientId) {
   }
 
   if (dotMain) dotMain.className = 'status-dot checking';
-  if (msgMain) msgMain.textContent = 'Checking…';
+  if (msgMain) msgMain.textContent = 'Checking...';
   setNavDot('animeskip', 'checking');
 
   try {
@@ -277,7 +274,7 @@ async function verifyAnimeskip(enabled, clientId) {
   }
 }
 
-// ── Run all verifications ─────────────────────────────────────────────
+// -- Run all verifications --
 async function verifyAll() {
   const data = await chrome.storage.local.get([
     S.introdbApiKey, S.supabaseUrl, S.supabaseAnonKey,
@@ -291,18 +288,15 @@ async function verifyAll() {
   ]);
 }
 
-// ── Load credentials into inputs ──────────────────────────────────────
+// -- Load credentials into inputs --
 async function loadCredentials() {
   const data = await chrome.storage.local.get(Object.values(S));
 
-  // IntroDB
   if ($('introdbApiKey'))    $('introdbApiKey').value    = data[S.introdbApiKey]    || '';
-  // Supabase
   if ($('supabaseUrl'))      $('supabaseUrl').value      = data[S.supabaseUrl]      || '';
   if ($('supabaseAnonKey'))  $('supabaseAnonKey').value  = data[S.supabaseAnonKey]  || '';
-  // TMDB
   if ($('tmdbApiKey'))       $('tmdbApiKey').value       = data[S.tmdbApiKey]       || '';
-  // AnimeSkip
+
   const asEnabled = !!data[S.animeSkipEnabled];
   if ($('animeSkipEnabled')) {
     $('animeSkipEnabled').checked = asEnabled;
@@ -312,20 +306,13 @@ async function loadCredentials() {
   if ($('animeSkipClientId'))  $('animeSkipClientId').value  = data[S.animeSkipClientId]  || '';
   if ($('animeSkipAuthToken')) $('animeSkipAuthToken').value = data[S.animeSkipAuthToken] || '';
 
-  // Skip behavior
   loadSkipBehavior(data);
-
-  // Stats
   loadStats(data);
-
-  // Site rules
   loadSiteRules(data[S.siteRules] || {});
-
-  // History
   loadHistory(data);
 }
 
-// ── AnimeSkip toggle shows/hides fields ───────────────────────────────
+// -- AnimeSkip toggle shows/hides fields --
 const asToggle = $('animeSkipEnabled');
 if (asToggle) {
   asToggle.addEventListener('change', () => {
@@ -334,13 +321,13 @@ if (asToggle) {
   });
 }
 
-// ── Save: IntroDB ─────────────────────────────────────────────────────
+// -- Save: IntroDB --
 const saveIntrodbBtn = $('saveIntrodb');
 if (saveIntrodbBtn) {
   saveIntrodbBtn.addEventListener('click', async () => {
     const key = ($('introdbApiKey').value || '').trim();
     saveIntrodbBtn.disabled = true;
-    saveIntrodbBtn.innerHTML = '<span class="spinner"></span>Verifying…';
+    saveIntrodbBtn.innerHTML = '<span class="spinner"></span>Verifying...';
     await chrome.storage.local.set({ [S.introdbApiKey]: key });
     await verifyIntrodb(key);
     saveIntrodbBtn.disabled = false;
@@ -349,14 +336,14 @@ if (saveIntrodbBtn) {
   });
 }
 
-// ── Save: Supabase ────────────────────────────────────────────────────
+// -- Save: Supabase --
 const saveSupabaseBtn = $('saveSupabase');
 if (saveSupabaseBtn) {
   saveSupabaseBtn.addEventListener('click', async () => {
     const url = ($('supabaseUrl').value || '').trim();
     const key = ($('supabaseAnonKey').value || '').trim();
     saveSupabaseBtn.disabled = true;
-    saveSupabaseBtn.innerHTML = '<span class="spinner"></span>Verifying…';
+    saveSupabaseBtn.innerHTML = '<span class="spinner"></span>Verifying...';
     await chrome.storage.local.set({ [S.supabaseUrl]: url, [S.supabaseAnonKey]: key });
     await verifySupabase(url, key);
     saveSupabaseBtn.disabled = false;
@@ -364,13 +351,13 @@ if (saveSupabaseBtn) {
   });
 }
 
-// ── Save: TMDB ────────────────────────────────────────────────────────
+// -- Save: TMDB --
 const saveTmdbBtn = $('saveTmdb');
 if (saveTmdbBtn) {
   saveTmdbBtn.addEventListener('click', async () => {
     const key = ($('tmdbApiKey').value || '').trim();
     saveTmdbBtn.disabled = true;
-    saveTmdbBtn.innerHTML = '<span class="spinner"></span>Verifying…';
+    saveTmdbBtn.innerHTML = '<span class="spinner"></span>Verifying...';
     await chrome.storage.local.set({ [S.tmdbApiKey]: key });
     await verifyTmdb(key);
     saveTmdbBtn.disabled = false;
@@ -379,7 +366,7 @@ if (saveTmdbBtn) {
   });
 }
 
-// ── Save: AnimeSkip ───────────────────────────────────────────────────
+// -- Save: AnimeSkip --
 const saveAnimeskipBtn = $('saveAnimeskip');
 if (saveAnimeskipBtn) {
   saveAnimeskipBtn.addEventListener('click', async () => {
@@ -387,7 +374,7 @@ if (saveAnimeskipBtn) {
     const clientId  = $('animeSkipClientId') ? ($('animeSkipClientId').value  || '').trim() : '';
     const authToken = $('animeSkipAuthToken')? ($('animeSkipAuthToken').value || '').trim() : '';
     saveAnimeskipBtn.disabled = true;
-    saveAnimeskipBtn.innerHTML = '<span class="spinner"></span>Verifying…';
+    saveAnimeskipBtn.innerHTML = '<span class="spinner"></span>Verifying...';
     await chrome.storage.local.set({
       [S.animeSkipEnabled]:   enabled,
       [S.animeSkipClientId]:  clientId,
@@ -400,13 +387,13 @@ if (saveAnimeskipBtn) {
   });
 }
 
-// ── Re-verify all ─────────────────────────────────────────────────────
+// -- Re-verify all --
 const reVerifyBtn = $('reVerifyBtn');
 if (reVerifyBtn) {
   reVerifyBtn.addEventListener('click', () => verifyAll());
 }
 
-// ── Skip behavior: mode chips ─────────────────────────────────────────
+// -- Skip behavior: mode chips --
 let currentMode = 'auto-all';
 let currentRate = 1;
 
@@ -414,16 +401,13 @@ function loadSkipBehavior(data) {
   currentMode = data[S.skipMode] || 'auto-all';
   currentRate = parseFloat(data[S.playbackRate]) || 1;
 
-  // Mode chips
   document.querySelectorAll('.mode-chip[data-mode]').forEach(chip => {
     chip.classList.toggle('selected', chip.dataset.mode === currentMode);
   });
-  // Rate chips
   document.querySelectorAll('.mode-chip[data-rate]').forEach(chip => {
     chip.classList.toggle('selected', parseFloat(chip.dataset.rate) === currentRate);
   });
 
-  // Granular toggles
   const set = (id, val) => { const el = $(id); if (el) el.checked = val !== false; };
   set('skipIntro',       data[S.skipIntro]);
   set('skipRecap',       data[S.skipRecap]);
@@ -468,7 +452,7 @@ if (saveBehaviorBtn) {
   });
 }
 
-// ── Per-site rules ────────────────────────────────────────────────────
+// -- Per-site rules --
 let siteRules = {};
 
 function renderSiteRules() {
@@ -486,7 +470,7 @@ function renderSiteRules() {
     row.innerHTML = `
       <span class="site-rule-domain">${domain}</span>
       <span class="site-rule-mode">${siteRules[domain]}</span>
-      <button class="site-rule-del" data-domain="${domain}" title="Remove rule">✕</button>
+      <button class="site-rule-del" data-domain="${domain}" title="Remove rule">x</button>
     `;
     list.appendChild(row);
   });
@@ -519,7 +503,7 @@ if (siteRuleAddBtn) {
   });
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────
+// -- Stats --
 function fmtTime(sec) {
   if (!sec) return '0s';
   if (sec < 60) return sec + 's';
@@ -557,7 +541,7 @@ function loadStats(data) {
   }
 }
 
-// ── History ───────────────────────────────────────────────────────────
+// -- History --
 let historySource = 'local';
 let allHistory    = [];
 
@@ -584,14 +568,14 @@ function renderHistory(items) {
 
   list.innerHTML = '';
   filtered.slice(0, 100).forEach(item => {
-    const title    = item.title || item.videoTitle || 'Unknown';
-    const site     = item.site  || item.siteName  || '';
-    const pos      = item.position || item.currentTime || 0;
-    const dur      = item.duration || 0;
-    const pct      = dur > 0 ? Math.min(100, Math.round((pos / dur) * 100)) : 0;
-    const isCloud  = !!item.fromCloud;
-    const url      = item.url || item.pageUrl || '#';
-    const posStr   = pos > 0 ? fmtTime(Math.round(pos)) : '';
+    const title   = item.title || item.videoTitle || 'Unknown';
+    const site    = item.site  || item.siteName  || '';
+    const pos     = item.position || item.currentTime || 0;
+    const dur     = item.duration || 0;
+    const pct     = dur > 0 ? Math.min(100, Math.round((pos / dur) * 100)) : 0;
+    const isCloud = !!item.fromCloud;
+    const url     = item.url || item.pageUrl || '#';
+    const posStr  = pos > 0 ? fmtTime(Math.round(pos)) : '';
 
     const el = document.createElement('a');
     el.className = 'h-item';
@@ -602,7 +586,7 @@ function renderHistory(items) {
       <div class="h-title">${title}</div>
       <div class="h-meta">
         ${site ? `<span class="h-site">${site}</span>` : ''}
-        ${isCloud ? '<span class="h-cloud">☁ Cloud</span>' : ''}
+        ${isCloud ? '<span class="h-cloud">Cloud</span>' : ''}
         ${posStr ? `<span>${posStr}</span>` : ''}
         ${pct > 0 ? `<span>${pct}%</span>` : ''}
       </div>
@@ -616,7 +600,6 @@ async function loadHistory(data) {
   const list = $('historyList');
   if (!list) return;
 
-  // Pull local history from storage
   let localItems = [];
   try {
     const raw = await chrome.storage.local.get(null);
@@ -625,7 +608,6 @@ async function loadHistory(data) {
     );
   } catch (_) {}
 
-  // Try to sync with Supabase if configured
   let cloudItems = [];
   const url = data[S.supabaseUrl];
   const key = data[S.supabaseAnonKey];
@@ -652,7 +634,6 @@ async function loadHistory(data) {
     if (syncText) syncText.textContent = 'Local only - Supabase not configured';
   }
 
-  // Populate site filter
   const filterEl = $('historyFilter');
   if (filterEl) {
     const sites = [...new Set([...localItems, ...cloudItems].map(i => i.site || i.siteName).filter(Boolean))];
@@ -664,11 +645,9 @@ async function loadHistory(data) {
     });
   }
 
-  // Build merged set by source pill state
   function getItems() {
-    if (historySource === 'local')  return localItems;
-    if (historySource === 'cloud')  return cloudItems;
-    // merged: dedupe by url
+    if (historySource === 'local') return localItems;
+    if (historySource === 'cloud') return cloudItems;
     const seen = new Set();
     return [...cloudItems, ...localItems].filter(i => {
       const k = i.url || i.pageUrl || i.title || i.videoTitle;
@@ -680,7 +659,6 @@ async function loadHistory(data) {
   allHistory = getItems();
   renderHistory(allHistory);
 
-  // Source pill clicks
   document.querySelectorAll('.source-pill').forEach(pill => {
     pill.addEventListener('click', () => {
       historySource = pill.dataset.source;
@@ -690,27 +668,27 @@ async function loadHistory(data) {
     });
   });
 
-  // Search + filter
   const searchEl = $('historySearch');
   if (searchEl) searchEl.addEventListener('input', () => renderHistory(allHistory));
   if (filterEl) filterEl.addEventListener('change', () => renderHistory(allHistory));
 
-  // Sync now btn
   const syncBtn = $('syncNowBtn');
   if (syncBtn) {
     syncBtn.addEventListener('click', async () => {
-      syncBtn.textContent = 'Syncing…';
+      syncBtn.textContent = 'Syncing...';
       await loadHistory(data);
       syncBtn.textContent = 'Sync';
     });
   }
 }
 
-// ── Export ────────────────────────────────────────────────────────────
+// -- Export --
 const exportBtn = $('exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', async () => {
     const data = await chrome.storage.local.get(null);
+    // Tag export with version for future migration checks
+    data._exportVersion = chrome.runtime.getManifest().version;
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -721,7 +699,40 @@ if (exportBtn) {
   });
 }
 
-// ── Import ────────────────────────────────────────────────────────────
+// -- Import migration shim: handles schema changes from 1.6.5 and earlier --
+function migrateImportData(data) {
+  // 1.6.5 used 'apiKey' instead of 'introdbApiKey'
+  if (data.apiKey && !data.introdbApiKey) {
+    data.introdbApiKey = data.apiKey;
+    delete data.apiKey;
+  }
+  // 1.6.5 used 'supabaseKey' instead of 'supabaseAnonKey'
+  if (data.supabaseKey && !data.supabaseAnonKey) {
+    data.supabaseAnonKey = data.supabaseKey;
+    delete data.supabaseKey;
+  }
+  // 1.6.5 skipMode may have been boolean 'enabled' only
+  if (data.skipMode === undefined) {
+    data.skipMode = data.skipEnabled === false ? 'off' : 'auto-all';
+  }
+  // 1.6.5 used 'autoSkip' for skipIntro
+  if (data.autoSkip !== undefined && data.skipIntro === undefined) {
+    data.skipIntro = data.autoSkip;
+    delete data.autoSkip;
+  }
+  // 1.6.5 stat keys
+  if (data.totalSkips !== undefined && data.statsTotalSkips === undefined) {
+    data.statsTotalSkips = data.totalSkips;
+    delete data.totalSkips;
+  }
+  if (data.timeSaved !== undefined && data.statsTotalTimeSaved === undefined) {
+    data.statsTotalTimeSaved = data.timeSaved;
+    delete data.timeSaved;
+  }
+  return data;
+}
+
+// -- Import --
 const importBtn  = $('importBtn');
 const importFile = $('importFile');
 if (importBtn && importFile) {
@@ -731,24 +742,29 @@ if (importBtn && importFile) {
     if (!file) return;
     try {
       const text = await file.text();
-      const data = JSON.parse(text);
-      // Merge history - keep newer entries by url key
+      let parsed = JSON.parse(text);
+
+      // Run migration shim before merging
+      parsed = migrateImportData(parsed);
+
       const existing = await chrome.storage.local.get(null);
-      const merged = { ...data, ...existing };
-      // Combine numeric stats
+      const merged = { ...parsed, ...existing };
+
+      // Combine numeric stats additively
       for (const k of [S.statsTotalSkips, S.statsTotalTimeSaved, S.statsSessions]) {
-        merged[k] = (data[k] || 0) + (existing[k] || 0);
+        merged[k] = (parsed[k] || 0) + (existing[k] || 0);
       }
+
       await chrome.storage.local.set(merged);
       showAlert($('alert-export'), 'ok', 'Imported and merged successfully. Reload to see changes.');
       importFile.value = '';
     } catch (e) {
-      showAlert($('alert-export'), 'err', 'Import failed: invalid JSON file.');
+      showAlert($('alert-export'), 'err', 'Import failed: ' + e.message);
     }
   });
 }
 
-// ── Clear all ─────────────────────────────────────────────────────────
+// -- Clear all --
 const clearBtn = $('clearBtn');
 if (clearBtn) {
   clearBtn.addEventListener('click', async () => {
@@ -759,6 +775,6 @@ if (clearBtn) {
   });
 }
 
-// ── Init ──────────────────────────────────────────────────────────────
+// -- Init --
 loadCredentials();
 verifyAll();
