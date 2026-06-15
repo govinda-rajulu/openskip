@@ -1,10 +1,10 @@
 'use strict';
 
-// ── Storage key map (must match background.js + content.js exactly) ──
+// -- Storage key map (must match background.js + content.js exactly) --
 const KEYS = {
-  enabled:       'skipEnabled',        // master toggle
-  skipMode:      'skipMode',           // 'off'|'prompt'|'auto-intro'|'auto-recap'|'auto-outro'|'auto-all'
-  skipIntro:     'skipIntro',          // bool - granular
+  enabled:       'skipEnabled',
+  skipMode:      'skipMode',
+  skipIntro:     'skipIntro',
   skipRecap:     'skipRecap',
   skipOutro:     'skipOutro',
   resumePlay:    'resumePlayback',
@@ -18,7 +18,7 @@ const KEYS = {
 
 const $ = id => document.getElementById(id);
 
-// ── DOM refs ──────────────────────────────────────────────────────────
+// -- DOM refs --
 const masterToggle = $('masterToggle');
 const masterSub    = $('masterSub');
 const domainDot    = $('domainDot');
@@ -37,17 +37,17 @@ const historyBtn   = $('historyBtn');
 const statsBtn     = $('statsBtn');
 const settingsBtn  = $('settingsBtn');
 
-// ── Version badge ─────────────────────────────────────────────────────
+// -- Version badge --
 const manifest = chrome.runtime.getManifest();
 versionBadge.textContent = 'v' + manifest.version;
 
-// ── Active tab domain detection ───────────────────────────────────────
+// -- Active tab domain detection --
 async function detectDomain() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.url) return;
     const url = new URL(tab.url);
-    if (!url.hostname || url.protocol === 'chrome:' || url.protocol === 'about:') {
+    if (!url.hostname || url.protocol === 'chrome:' || url.protocol === 'about:' || url.protocol === 'moz-extension:') {
       domainLabel.textContent = 'No active video tab';
       domainDot.className = 'domain-dot';
       return;
@@ -60,7 +60,7 @@ async function detectDomain() {
   }
 }
 
-// ── Skip mode badge helper ────────────────────────────────────────────
+// -- Skip mode badge helper --
 const MODE_LABELS = {
   'off':        'Disabled',
   'prompt':     'Prompt',
@@ -80,19 +80,19 @@ function applyMode(mode, enabled) {
   }
 }
 
-// ── Child toggle disabled state ───────────────────────────────────────
+// -- Child toggle disabled state --
 function applyChildState(enabled) {
   [rowIntro, rowRecap, rowOutro].forEach(r => {
     r.classList.toggle('disabled', !enabled);
   });
 }
 
-// ── Master sub-label ──────────────────────────────────────────────────
+// -- Master sub-label --
 function applyMasterSub(enabled) {
   masterSub.textContent = enabled ? 'Extension is active' : 'Extension is paused';
 }
 
-// ── Stats display ─────────────────────────────────────────────────────
+// -- Stats display --
 function fmtTime(seconds) {
   if (!seconds || seconds < 60) return (seconds || 0) + 's';
   const m = Math.floor(seconds / 60);
@@ -100,23 +100,19 @@ function fmtTime(seconds) {
 }
 
 function applyStats(data) {
-  // Reset daily counter if date changed
   const today = new Date().toDateString();
   const skipsToday = data[KEYS.statsDate] === today
     ? (data[KEYS.statsSkips] || 0)
     : 0;
   statSkips.textContent = skipsToday;
-
-  // Time saved: derive from total skips * avg segment ~90s, or use stored value
   const totalTime = data[KEYS.statsTotalTime] || 0;
   statTime.textContent = fmtTime(totalTime);
 }
 
-// ── Load all state from storage ───────────────────────────────────────
+// -- Load all state from storage --
 async function loadState() {
   const data = await chrome.storage.local.get(Object.values(KEYS));
-
-  const enabled = data[KEYS.enabled] !== false; // default true
+  const enabled = data[KEYS.enabled] !== false;
   const mode    = data[KEYS.skipMode] || 'auto-all';
 
   masterToggle.checked = enabled;
@@ -130,35 +126,34 @@ async function loadState() {
   applyStats(data);
 }
 
-// ── Save helper ───────────────────────────────────────────────────────
+// -- Save helper --
 function save(obj) {
   chrome.storage.local.set(obj);
 }
 
-// ── Master toggle ─────────────────────────────────────────────────────
+// -- Master toggle --
 masterToggle.addEventListener('change', () => {
   const enabled = masterToggle.checked;
   save({ [KEYS.enabled]: enabled });
   applyMasterSub(enabled);
   applyChildState(enabled);
-  // Re-read mode to update badge correctly
   chrome.storage.local.get(KEYS.skipMode, d => {
     applyMode(d[KEYS.skipMode] || 'auto-all', enabled);
   });
 });
 
-// ── Granular segment toggles ──────────────────────────────────────────
+// -- Granular segment toggles --
 skipIntro.addEventListener('change', () => save({ [KEYS.skipIntro]: skipIntro.checked }));
 skipRecap.addEventListener('change', () => save({ [KEYS.skipRecap]: skipRecap.checked }));
 skipOutro.addEventListener('change', () => save({ [KEYS.skipOutro]: skipOutro.checked }));
 
-// ── Action bar buttons ────────────────────────────────────────────────
+// -- Action bar buttons --
+// FIX: use tabs.create instead of openOptionsPage to avoid about:addons in Firefox
 settingsBtn.addEventListener('click', () => {
-  chrome.runtime.openOptionsPage();
+  chrome.tabs.create({ url: chrome.runtime.getURL('options.html') });
 });
 
 historyBtn.addEventListener('click', () => {
-  // Open options page and signal history tab via URL hash
   chrome.tabs.create({ url: chrome.runtime.getURL('options.html') + '#history' });
 });
 
@@ -166,6 +161,6 @@ statsBtn.addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('options.html') + '#stats' });
 });
 
-// ── Init ──────────────────────────────────────────────────────────────
+// -- Init --
 detectDomain();
 loadState();
