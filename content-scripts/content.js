@@ -851,12 +851,12 @@
 
       // Respect per-site overrides for native skip buttons
       const ep = getSitePrefs(prefs);
-      if (ep.skipMaster) {
+      if (ep.skipEnabled) {
         clickFirst(SKIP_SELECTORS);
       }
 
       // Next episode: fire when within 10s of end
-      if (ep.skipMaster && prefs.autoNextEpisode &&
+      if (ep.skipEnabled && prefs.autoNextEpisode &&
           video.duration > 60 &&
           video.currentTime > 0 &&
           video.duration - video.currentTime < 10 &&
@@ -1083,7 +1083,7 @@
         // Per-site override: check if this domain has a custom skip mode
         const effectivePrefs = getSitePrefs(prefs);
         const prefKey = PREF_FOR_SEGMENT[active.key];
-        if (!effectivePrefs.skipMaster) {
+        if (!effectivePrefs.skipEnabled) {
           if (activeSegmentKey) { activeSegmentKey = ''; hideSkipBtn(); }
           return;
         }
