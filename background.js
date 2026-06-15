@@ -345,7 +345,7 @@ br.runtime.onInstalled.addListener(async ({ reason }) => {
   }
 
   if (reason === 'install') {
-    br.runtime.openOptionsPage();
+    br.tabs.create({ url: br.runtime.getURL('options.html') });
   }
   if (reason === 'install' || reason === 'update') {
     const { supabaseUrl, supabaseAnonKey } = await getConfig();
