@@ -559,6 +559,55 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === 'TMDB_SEARCH_POSTER') {
+    // Search TMDB for a title and return poster_path as full URL
+    // Tries TV search first, then movie search, returns first result
+    const posterCacheKey = `poster:${(msg.title || '').toLowerCase().trim()}`;
+    getTmdbCache().then(async (cache) => {
+      if (posterCacheKey in cache) {
+        sendResponse({ posterUrl: cache[posterCacheKey] });
+        return;
+      }
+      const { tmdbApiKey } = await getConfig();
+      if (!tmdbApiKey) {
+        await setTmdbCache(posterCacheKey, null);
+        sendResponse({ posterUrl: null });
+        return;
+      }
+      const q = encodeURIComponent((msg.title || '').replace(/S\d+\s*E\d+.*/i,'').trim());
+      try {
+        // Try TV first
+        let posterPath = null;
+        const tvRes = await fetchWithRetry(
+          `https://api.themoviedb.org/3/search/tv?api_key=${tmdbApiKey}&query=${q}&page=1`
+        );
+        if (tvRes.ok) {
+          const tvData = await tvRes.json();
+          posterPath = tvData.results?.[0]?.poster_path || null;
+        }
+        // Fallback to movie if no TV result
+        if (!posterPath) {
+          const mvRes = await fetchWithRetry(
+            `https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${q}&page=1`
+          );
+          if (mvRes.ok) {
+            const mvData = await mvRes.json();
+            posterPath = mvData.results?.[0]?.poster_path || null;
+          }
+        }
+        const posterUrl = posterPath
+          ? `https://image.tmdb.org/t/p/w92${posterPath}`
+          : null;
+        await setTmdbCache(posterCacheKey, posterUrl);
+        sendResponse({ posterUrl });
+      } catch {
+        await setTmdbCache(posterCacheKey, null);
+        sendResponse({ posterUrl: null });
+      }
+    });
+    return true;
+  }
+
   if (msg.type === 'SUPABASE_VERIFY_SETUP') {
     getConfig().then(async ({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ ok: false, err: 'not_configured' }); return; }
