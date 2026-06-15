@@ -616,16 +616,29 @@ async function loadHistory(data) {
 
   if (url && key) {
     try {
-      const r = await fetch(url.replace(/\/$/, '') + '/rest/v1/watch_history?order=updated_at.desc&limit=200', {
-        headers: { 'apikey': key, 'Authorization': 'Bearer ' + key }
+      const userId = await new Promise(res => {
+        chrome.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null));
       });
-      if (r.ok) {
-        const rows = await r.json();
-        cloudItems = rows.map(row => ({ ...row, fromCloud: true }));
-        if (syncDot)  syncDot.className  = 'sync-dot ok';
-        if (syncText) syncText.textContent = 'Synced with Supabase - ' + cloudItems.length + ' cloud entries';
+      if (userId) {
+        const result = await new Promise(res => {
+          chrome.runtime.sendMessage({ type: 'SUPABASE_GET_ALL', userId }, r => res(r));
+        });
+        if (result?.data && result.data.length > 0) {
+          cloudItems = result.data.map(row => ({
+            title: row.video_title || row.title,
+            site:  row.site_name  || row.site,
+            url:   row.media_id,
+            position: row.playback_time,
+            duration: row.duration,
+            fromCloud: true,
+          }));
+          if (syncDot)  syncDot.className  = 'sync-dot ok';
+          if (syncText) syncText.textContent = 'Synced with Supabase - ' + cloudItems.length + ' cloud entries';
+        } else {
+          if (syncText) syncText.textContent = 'Cloud connected - no history yet';
+        }
       } else {
-        if (syncText) syncText.textContent = 'Cloud sync unavailable (HTTP ' + r.status + ')';
+        if (syncText) syncText.textContent = 'Cloud sync unavailable - check credentials';
       }
     } catch (_) {
       if (syncText) syncText.textContent = 'Cloud sync offline';
