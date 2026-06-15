@@ -25,7 +25,7 @@
 
   // ── User prefs ─────────────────────────────────────────────────────────────
 
-  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipMaster: true, autoNextEpisode: false };
+  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipEnabled: true, autoNextEpisode: false };
   let prefs = { ...PREF_DEFAULTS };
 
   async function loadPrefs() {
@@ -69,8 +69,8 @@
     }
     if (!mode) return basePrefs;
     // Map mode string to pref flags
-    const override = { skipMaster: true, skipIntro: false, skipRecap: false, skipOutro: false };
-    if (mode === 'off')        return { ...basePrefs, skipMaster: false };
+    const override = { skipEnabled: true, skipIntro: false, skipRecap: false, skipOutro: false };
+    if (mode === 'off')        return { ...basePrefs, skipEnabled: false };
     if (mode === 'auto-intro') return { ...basePrefs, ...override, skipIntro: true };
     if (mode === 'auto-recap') return { ...basePrefs, ...override, skipRecap: true };
     if (mode === 'auto-outro') return { ...basePrefs, ...override, skipOutro: true };
