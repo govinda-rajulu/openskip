@@ -99,7 +99,7 @@ async function verifyIntrodb(key) {
 
   try {
     const r = await fetch('https://api.introdb.app/v1/shows?limit=1', {
-      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' }
+      headers: { 'x-api-key': key }
     });
     if (r.ok || r.status === 200) {
       setDot(dotMain, 'ok', 'Connected - IntroDB API active', msgMain);
@@ -144,7 +144,7 @@ async function verifySupabase(url, key) {
 
   try {
     const base = url.replace(/\/$/, '');
-    const r = await fetch(base + '/rest/v1/watch_history?limit=1', {
+    const r = await fetch(base + '/rest/v1/playback_states?limit=1', {
       headers: {
         'apikey': key,
         'Authorization': 'Bearer ' + key,
