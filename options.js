@@ -486,9 +486,14 @@ if (saveBehaviorBtn) {
           S.skipMode, S.skipIntro, S.skipRecap, S.skipOutro,
           S.resumePlayback, S.autoNextEpisode, S.playbackRate
         ]);
+        const currentSiteRules = await new Promise(res => {
+          chrome.storage.local.get('skipstream_site_rules', r =>
+            res(r.skipstream_site_rules || {})
+          );
+        });
         chrome.runtime.sendMessage({
           type: 'SUPABASE_SETTINGS_UPSERT',
-          body: { user_id: userId, prefs }
+          body: { user_id: userId, prefs, site_rules: currentSiteRules }
         });
       }
     } catch (_) {}
@@ -522,6 +527,15 @@ function renderSiteRules() {
       delete siteRules[btn.dataset.domain];
       await chrome.storage.local.set({ [S.siteRules]: siteRules });
       renderSiteRules();
+      try {
+        const uid = await new Promise(res =>
+          chrome.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
+        );
+        if (uid) chrome.runtime.sendMessage({
+          type: 'SUPABASE_SETTINGS_UPSERT',
+          body: { user_id: uid, site_rules: siteRules }
+        });
+      } catch (_) {}
     });
   });
 }
@@ -543,6 +557,16 @@ if (siteRuleAddBtn) {
     await chrome.storage.local.set({ [S.siteRules]: siteRules });
     domainInput.value = '';
     renderSiteRules();
+    // Push updated site rules to cloud
+    try {
+      const uid = await new Promise(res =>
+        chrome.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
+      );
+      if (uid) chrome.runtime.sendMessage({
+        type: 'SUPABASE_SETTINGS_UPSERT',
+        body: { user_id: uid, site_rules: siteRules }
+      });
+    } catch (_) {}
   });
 }
 
