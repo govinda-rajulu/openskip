@@ -308,7 +308,34 @@ async function loadCredentials() {
 
   loadSkipBehavior(data);
   loadStats(data);
-  loadSiteRules(data[S.siteRules] || {});
+  loadSiteRules(data[S.siteRules] || data['skipstream_site_rules'] || {});
+  // Pull cloud settings if Supabase configured and cloud is newer
+  try {
+    const userId = await new Promise(res =>
+      chrome.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
+    );
+    if (userId) {
+      const cloudResult = await new Promise(res =>
+        chrome.runtime.sendMessage({ type: 'SUPABASE_SETTINGS_GET', userId }, r => res(r))
+      );
+      if (cloudResult?.data?.prefs) {
+        // Only apply cloud prefs if local has no skipMode set (fresh install / new device)
+        const hasLocal = !!data[S.skipMode];
+        if (!hasLocal) {
+          await chrome.storage.local.set(cloudResult.data.prefs);
+          const merged = { ...data, ...cloudResult.data.prefs };
+          loadSkipBehavior(merged);
+        }
+      }
+      if (cloudResult?.data?.site_rules) {
+        const hasLocalRules = Object.keys(data['skipstream_site_rules'] || {}).length > 0;
+        if (!hasLocalRules) {
+          await chrome.storage.local.set({ skipstream_site_rules: cloudResult.data.site_rules });
+          loadSiteRules(cloudResult.data.site_rules);
+        }
+      }
+    }
+  } catch (_) {}
   loadHistory(data);
 }
 
@@ -449,6 +476,22 @@ if (saveBehaviorBtn) {
     });
     showAlert($('alert-behavior'), 'ok', 'Skip behavior saved.');
     setTimeout(() => hideAlert($('alert-behavior')), 2500);
+    // Push settings to cloud if Supabase configured
+    try {
+      const userId = await new Promise(res =>
+        chrome.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
+      );
+      if (userId) {
+        const prefs = await chrome.storage.local.get([
+          S.skipMode, S.skipIntro, S.skipRecap, S.skipOutro,
+          S.resumePlayback, S.autoNextEpisode, S.playbackRate
+        ]);
+        chrome.runtime.sendMessage({
+          type: 'SUPABASE_SETTINGS_UPSERT',
+          body: { user_id: userId, prefs }
+        });
+      }
+    } catch (_) {}
   });
 }
 
@@ -545,6 +588,30 @@ function loadStats(data) {
 let historySource = 'local';
 let allHistory    = [];
 
+// In-memory poster cache: title -> poster_url (null = not found)
+const _posterCache = {};
+
+async function fetchPoster(title, itemEl) {
+  if (!title) return;
+  const key = title.toLowerCase().trim();
+  if (key in _posterCache) {
+    if (_posterCache[key]) applyPoster(itemEl, _posterCache[key]);
+    return;
+  }
+  try {
+    const result = await new Promise(res =>
+      chrome.runtime.sendMessage({ type: 'TMDB_SEARCH_POSTER', title }, r => res(r))
+    );
+    _posterCache[key] = result?.posterUrl || null;
+    if (_posterCache[key]) applyPoster(itemEl, _posterCache[key]);
+  } catch { _posterCache[key] = null; }
+}
+
+function applyPoster(el, url) {
+  const img = el.querySelector('.h-poster');
+  if (img) { img.src = url; img.style.display = 'block'; }
+}
+
 function renderHistory(items) {
   const list = $('historyList');
   if (!list) return;
@@ -583,16 +650,23 @@ function renderHistory(items) {
     el.target = '_blank';
     el.rel = 'noopener';
     el.innerHTML = `
-      <div class="h-title">${title}</div>
-      <div class="h-meta">
-        ${site ? `<span class="h-site">${site}</span>` : ''}
-        ${isCloud ? '<span class="h-cloud">Cloud</span>' : ''}
-        ${posStr ? `<span>${posStr}</span>` : ''}
-        ${pct > 0 ? `<span>${pct}%</span>` : ''}
+      <div class="h-item-inner">
+        <img class="h-poster" src="" alt="" style="display:none;width:36px;height:54px;object-fit:cover;border-radius:4px;flex-shrink:0;">
+        <div class="h-item-body">
+          <div class="h-title">${title}</div>
+          <div class="h-meta">
+            ${site ? `<span class="h-site">${site}</span>` : ''}
+            ${isCloud ? '<span class="h-cloud">Cloud</span>' : ''}
+            ${posStr ? `<span>${posStr}</span>` : ''}
+            ${pct > 0 ? `<span>${pct}%</span>` : ''}
+          </div>
+          ${pct > 0 ? `<div class="h-bar"><div class="h-fill" style="width:${pct}%"></div></div>` : ''}
+        </div>
       </div>
-      ${pct > 0 ? `<div class="h-bar"><div class="h-fill" style="width:${pct}%"></div></div>` : ''}
     `;
     list.appendChild(el);
+    // Lazy-load poster (non-blocking)
+    if (title && title !== 'Unknown') fetchPoster(title, el);
   });
 }
 
@@ -602,10 +676,18 @@ async function loadHistory(data) {
 
   let localItems = [];
   try {
-    const raw = await chrome.storage.local.get(null);
-    localItems = Object.values(raw).filter(v =>
-      v && typeof v === 'object' && (v.title || v.videoTitle) && !Array.isArray(v)
-    );
+    const raw = await chrome.storage.local.get('skipstream_cache');
+    const cache = raw['skipstream_cache'] || {};
+    localItems = Object.entries(cache).map(([mediaId, entry]) => ({
+      title:    entry.title    || '',
+      site:     entry.site     || '',
+      siteName: entry.site_name || entry.site || '',
+      url:      entry.url      || mediaId,
+      position: entry.p        || 0,
+      duration: entry.d        || 0,
+      ts:       entry.t        || 0,
+      fromCloud: false,
+    })).filter(e => e.title).sort((a, b) => b.ts - a.ts);
   } catch (_) {}
 
   let cloudItems = [];
@@ -689,6 +771,35 @@ async function loadHistory(data) {
   if (syncBtn) {
     syncBtn.addEventListener('click', async () => {
       syncBtn.textContent = 'Syncing...';
+      // Push all local cache entries to cloud first (local->cloud)
+      try {
+        const userId = await new Promise(res =>
+          chrome.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
+        );
+        if (userId) {
+          const raw = await chrome.storage.local.get('skipstream_cache');
+          const cache = raw['skipstream_cache'] || {};
+          const entries = Object.entries(cache);
+          for (const [mediaId, entry] of entries) {
+            if (!entry.p || !entry.title) continue;
+            await new Promise(res => chrome.runtime.sendMessage({
+              type: 'SUPABASE_UPSERT',
+              body: {
+                user_id:      userId,
+                media_id:     mediaId,
+                playback_time: Math.floor(entry.p),
+                duration:     entry.d || 0,
+                site:         entry.site || '',
+                site_name:    entry.site_name || entry.site || '',
+                video_title:  entry.title || '',
+                device_name:  'SkipStream Options Sync',
+              }
+            }, res));
+          }
+          chrome.storage.local.set({ skipstream_last_sync: Date.now() });
+        }
+      } catch (_) {}
+      // Then pull from cloud (cloud->local already happens via SUPABASE_GET_ALL in loadHistory)
       await loadHistory(data);
       syncBtn.textContent = 'Sync';
     });
