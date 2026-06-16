@@ -1232,12 +1232,14 @@
         const mid = row.media_id;
         if (!mid) continue;
         const existing = cache[mid];
-        // Only overwrite if cloud is more recent or local missing
-        if (!existing || (row.playback_time > (existing.p || 0))) {
+        const cloudTs = new Date(row.updated_at || 0).getTime() || 0;
+        // Compare by recency (timestamp), not playback position - position alone
+        // can't tell "user rewound on purpose" apart from "stale data".
+        if (!existing || cloudTs > (existing.t || 0)) {
           cache[mid] = {
             p:         row.playback_time || 0,
             d:         row.duration      || 0,
-            t:         new Date(row.updated_at || 0).getTime() || Date.now(),
+            t:         cloudTs || Date.now(),
             url:       row.media_id,
             title:     row.video_title   || '',
             site:      row.site          || '',
