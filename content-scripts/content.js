@@ -1185,6 +1185,47 @@
   });
 
   // ── Boot ───────────────────────────────────────────────────────────────────
+  // Boot: load prefs + scan, then async bulk-pull cloud positions into local cache
   loadPrefs().then(scanVideos);
+
+  // Cloud->local background sync: pull all cloud positions into skipstream_cache
+  // Runs once per page load. Means resume works offline after first sync.
+  (async () => {
+    try {
+      const userId = await getUserId();
+      if (!userId) return;
+      // Throttle: only sync every 5 min per tab
+      const tsKey = '_ss_cloud_sync_ts';
+      const stored = await br.storage.local.get(tsKey);
+      if (stored[tsKey] && Date.now() - stored[tsKey] < 5 * 60 * 1000) return;
+      await br.storage.local.set({ [tsKey]: Date.now() });
+
+      const result = await br.runtime.sendMessage({ type: 'SUPABASE_GET_ALL', userId });
+      if (!result?.data?.length) return;
+
+      const cacheStored = await br.storage.local.get(CACHE_KEY);
+      const cache = cacheStored[CACHE_KEY] || {};
+      let updated = false;
+      for (const row of result.data) {
+        const mid = row.media_id;
+        if (!mid) continue;
+        const existing = cache[mid];
+        // Only overwrite if cloud is more recent or local missing
+        if (!existing || (row.playback_time > (existing.p || 0))) {
+          cache[mid] = {
+            p:         row.playback_time || 0,
+            d:         row.duration      || 0,
+            t:         new Date(row.updated_at || 0).getTime() || Date.now(),
+            url:       row.media_id,
+            title:     row.video_title   || '',
+            site:      row.site          || '',
+            site_name: row.site_name     || '',
+          };
+          updated = true;
+        }
+      }
+      if (updated) await br.storage.local.set({ [CACHE_KEY]: cache });
+    } catch { /* best-effort, never block */ }
+  })();
 
 })();
