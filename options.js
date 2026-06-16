@@ -26,6 +26,12 @@ const S = {
 
 const $ = id => document.getElementById(id);
 
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
 // -- Version badge --
 const manifest = chrome.runtime.getManifest();
 $('sidebarVer').textContent = 'v' + manifest.version;
@@ -516,9 +522,9 @@ function renderSiteRules() {
     const row = document.createElement('div');
     row.className = 'site-rule-row';
     row.innerHTML = `
-      <span class="site-rule-domain">${domain}</span>
-      <span class="site-rule-mode">${siteRules[domain]}</span>
-      <button class="site-rule-del" data-domain="${domain}" title="Remove rule">x</button>
+      <span class="site-rule-domain">${escapeHtml(domain)}</span>
+      <span class="site-rule-mode">${escapeHtml(siteRules[domain])}</span>
+      <button class="site-rule-del" data-domain="${escapeHtml(domain)}" title="Remove rule">x</button>
     `;
     list.appendChild(row);
   });
@@ -677,11 +683,11 @@ function renderHistory(items) {
       <div class="h-item-inner">
         <img class="h-poster" src="" alt="" style="display:none;width:36px;height:54px;object-fit:cover;border-radius:4px;flex-shrink:0;">
         <div class="h-item-body">
-          <div class="h-title">${title}</div>
+          <div class="h-title">${escapeHtml(title)}</div>
           <div class="h-meta">
-            ${site ? `<span class="h-site">${site}</span>` : ''}
+            ${site ? `<span class="h-site">${escapeHtml(site)}</span>` : ''}
             ${isCloud ? '<span class="h-cloud">Cloud</span>' : ''}
-            ${item.device ? `<span class="h-device">${item.device}</span>` : ''}
+            ${item.device ? `<span class="h-device">${escapeHtml(item.device)}</span>` : ''}
             ${posStr ? `<span>${posStr}</span>` : ''}
             ${pct > 0 ? `<span>${pct}%</span>` : ''}
           </div>
