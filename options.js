@@ -681,6 +681,7 @@ function renderHistory(items) {
           <div class="h-meta">
             ${site ? `<span class="h-site">${site}</span>` : ''}
             ${isCloud ? '<span class="h-cloud">Cloud</span>' : ''}
+            ${item.device ? `<span class="h-device">${item.device}</span>` : ''}
             ${posStr ? `<span>${posStr}</span>` : ''}
             ${pct > 0 ? `<span>${pct}%</span>` : ''}
           </div>
@@ -731,13 +732,16 @@ async function loadHistory(data) {
         });
         if (result?.data && result.data.length > 0) {
           cloudItems = result.data.map(row => ({
-            title: row.video_title || row.title,
-            site:  row.site_name  || row.site,
-            url:   row.media_id,
-            position: row.playback_time,
-            duration: row.duration,
+            title:    row.video_title || '',
+            site:     row.site_name   || row.site || '',
+            siteName: row.site_name   || '',
+            url:      row.media_id    || '',
+            position: row.playback_time || 0,
+            duration: row.duration    || 0,
+            device:   row.device_name || '',
+            updated:  row.updated_at  || '',
             fromCloud: true,
-          }));
+          })).filter(r => r.title);
           if (syncDot)  syncDot.className  = 'sync-dot ok';
           if (syncText) syncText.textContent = 'Synced with Supabase - ' + cloudItems.length + ' cloud entries';
         } else {
