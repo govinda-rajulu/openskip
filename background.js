@@ -216,11 +216,12 @@ if (br.tabs && br.tabs.onRemoved) {
 // ── Segment providers ─────────────────────────────────────────────────────────
 
 async function providerIntroDB(imdbId, season, episode, { introdbApiKey }) {
+  // /segments is a public read endpoint - no auth required or checked.
+  // introdbApiKey is intentionally not sent here; it's only used for POST /submit.
   if (!introdbApiKey) return null;
   try {
     const r = await fetchWithRetry(
-      `https://api.introdb.app/segments?imdb_id=${imdbId}&season=${season}&episode=${episode}`,
-      { headers: { 'x-api-key': introdbApiKey } }
+      `https://api.introdb.app/segments?imdb_id=${imdbId}&season=${season}&episode=${episode}`
     );
     if (!r.ok) return null;
     return await r.json();
@@ -320,13 +321,12 @@ async function checkTmdb(tmdbApiKey) {
 }
 
 async function checkIntroDB(introdbApiKey) {
+  // /intro is public and unauthenticated - this can only confirm the key is
+  // saved and the service is reachable, not that the key itself is valid.
   if (!introdbApiKey) return { ok: false, message: 'Not configured' };
   try {
-    const r = await fetch('https://api.introdb.app/intro?imdb_id=tt0944947&season=1&episode=1', {
-      headers: { 'x-api-key': introdbApiKey },
-    });
-    if (r.ok) return { ok: true, message: 'Connected' };
-    if (r.status === 401 || r.status === 403) return { ok: false, message: 'Invalid API key' };
+    const r = await fetch('https://api.introdb.app/intro?imdb_id=tt0944947&season=1&episode=1');
+    if (r.ok) return { ok: true, message: 'Configured (service reachable)' };
     return { ok: false, message: `Status ${r.status}` };
   } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
 }

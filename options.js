@@ -85,6 +85,10 @@ function setNavDot(key, state) {
 }
 
 // -- Verify: IntroDB --
+// NOTE: IntroDB's public API has no key-validation endpoint. /intro and /segments
+// are unauthenticated reads; only POST /submit requires X-API-Key. So this check
+// can only confirm (a) a key string is saved, and (b) the service is reachable.
+// It cannot confirm the key itself is valid - that's only provable on a real submit.
 async function verifyIntrodb(key) {
   const dotMain  = $('dot-introdb');
   const msgMain  = $('msg-introdb');
@@ -96,7 +100,7 @@ async function verifyIntrodb(key) {
   setNavDot('introdb', 'checking');
 
   if (!key) {
-    setDot(dotMain, 'err', 'No API key configured', msgMain);
+    setDot(dotMain, 'err', 'Not configured', msgMain);
     setDot(dotCard, 'err');
     setNavDot('introdb', 'err');
     if (alertEl) showAlert(alertEl, 'warn', 'Paste your IntroDB API key and click Save & Verify.');
@@ -104,24 +108,21 @@ async function verifyIntrodb(key) {
   }
 
   try {
-    const r = await fetch('https://api.introdb.app/v1/shows?limit=1', {
-      headers: { 'x-api-key': key }
-    });
-    if (r.ok || r.status === 200) {
-      setDot(dotMain, 'ok', 'Connected - IntroDB API active', msgMain);
+    // Reachability check only - this endpoint is public and ignores the key.
+    const r = await fetch('https://api.introdb.app/segments?imdb_id=tt0944947&season=1&episode=1');
+    if (r.ok) {
+      setDot(dotMain, 'ok', 'Configured - IntroDB service reachable', msgMain);
       setDot(dotCard, 'ok');
       setNavDot('introdb', 'ok');
       if (alertEl) hideAlert(alertEl);
       return true;
     }
-    const err = r.status === 401 ? 'Invalid API key (401 Unauthorized)' : 'HTTP ' + r.status;
-    setDot(dotMain, 'err', err, msgMain);
-    setDot(dotCard, 'err');
-    setNavDot('introdb', 'err');
-    if (alertEl) showAlert(alertEl, 'err', err);
+    setDot(dotMain, 'warn', 'Configured - service returned HTTP ' + r.status, msgMain);
+    setDot(dotCard, 'warn');
+    setNavDot('introdb', 'warn');
     return false;
   } catch (e) {
-    setDot(dotMain, 'warn', 'Network error - check connection', msgMain);
+    setDot(dotMain, 'warn', 'Configured - network error reaching service', msgMain);
     setDot(dotCard, 'warn');
     setNavDot('introdb', 'warn');
     return false;
