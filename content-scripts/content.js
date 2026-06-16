@@ -217,6 +217,24 @@
     } catch { /* storage unavailable */ }
   }
 
+  // Cloud->local sync: accepts explicit meta when DOM title not yet available
+  async function cacheWriteWithMeta(mediaId, position, duration, meta = {}) {
+    try {
+      const stored = await br.storage.local.get(CACHE_KEY);
+      const cache  = stored[CACHE_KEY] || {};
+      cache[mediaId] = {
+        p:         Math.round(position * 10) / 10,
+        d:         duration,
+        t:         Date.now(),
+        url:       location.href,
+        title:     meta.title     || getVideoTitle() || '',
+        site:      meta.site      || getSiteHostname(),
+        site_name: meta.site_name || getSiteName(),
+      };
+      await br.storage.local.set({ [CACHE_KEY]: cache });
+    } catch { /* storage unavailable */ }
+  }
+
   async function cacheRead(mediaId) {
     try {
       const stored = await br.storage.local.get(CACHE_KEY);
