@@ -321,13 +321,14 @@ async function checkTmdb(tmdbApiKey) {
 }
 
 async function checkIntroDB(introdbApiKey) {
-  // /intro is public and unauthenticated - this can only confirm the key is
-  // saved and the service is reachable, not that the key itself is valid.
+  // NOTE: IntroDB's public API has no key-validation endpoint. /intro and /segments
+  // are unauthenticated reads; only POST /submit checks X-API-Key. This can only
+  // confirm "configured + API reachable", never "key is valid".
   if (!introdbApiKey) return { ok: false, message: 'Not configured' };
   try {
     const r = await fetch('https://api.introdb.app/intro?imdb_id=tt0944947&season=1&episode=1');
-    if (r.ok) return { ok: true, message: 'Configured (service reachable)' };
-    return { ok: false, message: `Status ${r.status}` };
+    if (r.ok) return { ok: true, message: 'Configured (API reachable)' };
+    return { ok: false, message: `API unreachable: status ${r.status}` };
   } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
 }
 
