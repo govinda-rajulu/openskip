@@ -399,8 +399,12 @@
         const res = await br.runtime.sendMessage({ type: 'SUPABASE_GET', userId, mediaId });
         if (res.data) {
           saved = { p: res.data.playback_time, d: res.data.duration };
-          // Write cloud data back to local cache so other devices / next load don't need a cloud round-trip
-          await cacheWrite(mediaId, saved.p, saved.d);
+          // Write cloud data back to local cache - use cloud title/site if DOM not ready yet
+          await cacheWriteWithMeta(mediaId, saved.p, saved.d, {
+            title:     res.data.video_title || getVideoTitle(),
+            site:      res.data.site        || getSiteHostname(),
+            site_name: res.data.site_name   || getSiteName(),
+          });
         }
       } catch { /* fall through */ }
     }
