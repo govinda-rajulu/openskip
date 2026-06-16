@@ -574,7 +574,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ posterUrl: null });
         return;
       }
-      const q = encodeURIComponent((msg.title || '').replace(/S\d+\s*E\d+.*/i,'').trim());
+      const q = encodeURIComponent((msg.title || '').replace(/\s*S\d+\s*E\d+.*/i,'').trim());
       try {
         // Try TV first
         let posterPath = null;
