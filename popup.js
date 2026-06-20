@@ -1,6 +1,8 @@
 'use strict';
 
-// -- Storage key map (must match background.js + content.js exactly) --
+const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
+
+// -- Storage keys (must match background.js + content.js) --
 const KEYS = {
   enabled:       'skipEnabled',
   skipMode:      'skipMode',
@@ -38,13 +40,13 @@ const statsBtn     = $('statsBtn');
 const settingsBtn  = $('settingsBtn');
 
 // -- Version badge --
-const manifest = chrome.runtime.getManifest();
+const manifest = br.runtime.getManifest();
 versionBadge.textContent = 'v' + manifest.version;
 
 // -- Active tab domain detection --
 async function detectDomain() {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await br.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.url) return;
     const url = new URL(tab.url);
     if (!url.hostname || url.protocol === 'chrome:' || url.protocol === 'about:' || url.protocol === 'moz-extension:') {
@@ -111,7 +113,7 @@ function applyStats(data) {
 
 // -- Load all state from storage --
 async function loadState() {
-  const data = await chrome.storage.local.get(Object.values(KEYS));
+  const data = await br.storage.local.get(Object.values(KEYS));
   const enabled = data[KEYS.enabled] !== false;
   const mode    = data[KEYS.skipMode] || 'auto-all';
 
@@ -128,7 +130,7 @@ async function loadState() {
 
 // -- Save helper --
 function save(obj) {
-  chrome.storage.local.set(obj);
+  br.storage.local.set(obj);
 }
 
 // -- Master toggle --
@@ -137,7 +139,7 @@ masterToggle.addEventListener('change', () => {
   save({ [KEYS.enabled]: enabled });
   applyMasterSub(enabled);
   applyChildState(enabled);
-  chrome.storage.local.get(KEYS.skipMode, d => {
+  br.storage.local.get(KEYS.skipMode, d => {
     applyMode(d[KEYS.skipMode] || 'auto-all', enabled);
   });
 });
@@ -150,15 +152,15 @@ skipOutro.addEventListener('change', () => save({ [KEYS.skipOutro]: skipOutro.ch
 // -- Action bar buttons --
 // FIX: use tabs.create instead of openOptionsPage to avoid about:addons in Firefox
 settingsBtn.addEventListener('click', () => {
-  chrome.tabs.create({ url: chrome.runtime.getURL('options.html') });
+  br.tabs.create({ url: br.runtime.getURL('options.html') });
 });
 
 historyBtn.addEventListener('click', () => {
-  chrome.tabs.create({ url: chrome.runtime.getURL('options.html') + '#history' });
+  br.tabs.create({ url: br.runtime.getURL('options.html') + '#history' });
 });
 
 statsBtn.addEventListener('click', () => {
-  chrome.tabs.create({ url: chrome.runtime.getURL('options.html') + '#stats' });
+  br.tabs.create({ url: br.runtime.getURL('options.html') + '#stats' });
 });
 
 // -- Init --

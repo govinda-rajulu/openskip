@@ -1,5 +1,7 @@
 'use strict';
 
+const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
+
 // -- Storage keys (must match background.js + content.js) --
 const S = {
   supabaseUrl:        'supabaseUrl',
@@ -33,7 +35,7 @@ function escapeHtml(str) {
 }
 
 // -- Version badge --
-const manifest = chrome.runtime.getManifest();
+const manifest = br.runtime.getManifest();
 $('sidebarVer').textContent = 'v' + manifest.version;
 
 // -- Sidebar nav --
@@ -283,7 +285,7 @@ async function verifyAnimeskip(enabled, clientId) {
 
 // -- Run all verifications --
 async function verifyAll() {
-  const data = await chrome.storage.local.get([
+  const data = await br.storage.local.get([
     S.introdbApiKey, S.supabaseUrl, S.supabaseAnonKey,
     S.tmdbApiKey, S.animeSkipEnabled, S.animeSkipClientId
   ]);
@@ -297,7 +299,7 @@ async function verifyAll() {
 
 // -- Load credentials into inputs --
 async function loadCredentials() {
-  const data = await chrome.storage.local.get(Object.values(S));
+  const data = await br.storage.local.get(Object.values(S));
 
   if ($('introdbApiKey'))    $('introdbApiKey').value    = data[S.introdbApiKey]    || '';
   if ($('supabaseUrl'))      $('supabaseUrl').value      = data[S.supabaseUrl]      || '';
@@ -319,17 +321,17 @@ async function loadCredentials() {
   // Pull cloud settings if Supabase configured and cloud is newer
   try {
     const userId = await new Promise(res =>
-      chrome.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
+      br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
     );
     if (userId) {
       const cloudResult = await new Promise(res =>
-        chrome.runtime.sendMessage({ type: 'SUPABASE_SETTINGS_GET', userId }, r => res(r))
+        br.runtime.sendMessage({ type: 'SUPABASE_SETTINGS_GET', userId }, r => res(r))
       );
       if (cloudResult?.data?.prefs) {
         // Only apply cloud prefs if local has no skipMode set (fresh install / new device)
         const hasLocal = !!data[S.skipMode];
         if (!hasLocal) {
-          await chrome.storage.local.set(cloudResult.data.prefs);
+          await br.storage.local.set(cloudResult.data.prefs);
           const merged = { ...data, ...cloudResult.data.prefs };
           loadSkipBehavior(merged);
         }
@@ -337,7 +339,7 @@ async function loadCredentials() {
       if (cloudResult?.data?.site_rules) {
         const hasLocalRules = Object.keys(data['skipstream_site_rules'] || {}).length > 0;
         if (!hasLocalRules) {
-          await chrome.storage.local.set({ skipstream_site_rules: cloudResult.data.site_rules });
+          await br.storage.local.set({ skipstream_site_rules: cloudResult.data.site_rules });
           loadSiteRules(cloudResult.data.site_rules);
         }
       }
@@ -362,7 +364,7 @@ if (saveIntrodbBtn) {
     const key = ($('introdbApiKey').value || '').trim();
     saveIntrodbBtn.disabled = true;
     saveIntrodbBtn.innerHTML = '<span class="spinner"></span>Verifying...';
-    await chrome.storage.local.set({ [S.introdbApiKey]: key });
+    await br.storage.local.set({ [S.introdbApiKey]: key });
     await verifyIntrodb(key);
     saveIntrodbBtn.disabled = false;
     saveIntrodbBtn.textContent = 'Save & Verify';
@@ -378,7 +380,7 @@ if (saveSupabaseBtn) {
     const key = ($('supabaseAnonKey').value || '').trim();
     saveSupabaseBtn.disabled = true;
     saveSupabaseBtn.innerHTML = '<span class="spinner"></span>Verifying...';
-    await chrome.storage.local.set({ [S.supabaseUrl]: url, [S.supabaseAnonKey]: key });
+    await br.storage.local.set({ [S.supabaseUrl]: url, [S.supabaseAnonKey]: key });
     await verifySupabase(url, key);
     saveSupabaseBtn.disabled = false;
     saveSupabaseBtn.textContent = 'Save & Verify';
@@ -392,7 +394,7 @@ if (saveTmdbBtn) {
     const key = ($('tmdbApiKey').value || '').trim();
     saveTmdbBtn.disabled = true;
     saveTmdbBtn.innerHTML = '<span class="spinner"></span>Verifying...';
-    await chrome.storage.local.set({ [S.tmdbApiKey]: key });
+    await br.storage.local.set({ [S.tmdbApiKey]: key });
     await verifyTmdb(key);
     saveTmdbBtn.disabled = false;
     saveTmdbBtn.textContent = 'Save & Verify';
@@ -409,7 +411,7 @@ if (saveAnimeskipBtn) {
     const authToken = $('animeSkipAuthToken')? ($('animeSkipAuthToken').value || '').trim() : '';
     saveAnimeskipBtn.disabled = true;
     saveAnimeskipBtn.innerHTML = '<span class="spinner"></span>Verifying...';
-    await chrome.storage.local.set({
+    await br.storage.local.set({
       [S.animeSkipEnabled]:   enabled,
       [S.animeSkipClientId]:  clientId,
       [S.animeSkipAuthToken]: authToken,
@@ -472,7 +474,7 @@ const saveBehaviorBtn = $('saveBehavior');
 if (saveBehaviorBtn) {
   saveBehaviorBtn.addEventListener('click', async () => {
     const get = id => { const el = $(id); return el ? el.checked : true; };
-    await chrome.storage.local.set({
+    await br.storage.local.set({
       [S.skipMode]:        currentMode,
       [S.playbackRate]:    currentRate,
       [S.skipIntro]:       get('skipIntro'),
@@ -486,19 +488,19 @@ if (saveBehaviorBtn) {
     // Push settings to cloud if Supabase configured
     try {
       const userId = await new Promise(res =>
-        chrome.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
+        br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
       );
       if (userId) {
-        const prefs = await chrome.storage.local.get([
+        const prefs = await br.storage.local.get([
           S.skipMode, S.skipIntro, S.skipRecap, S.skipOutro,
           S.resumePlayback, S.autoNextEpisode, S.playbackRate
         ]);
         const currentSiteRules = await new Promise(res => {
-          chrome.storage.local.get('skipstream_site_rules', r =>
+          br.storage.local.get('skipstream_site_rules', r =>
             res(r.skipstream_site_rules || {})
           );
         });
-        chrome.runtime.sendMessage({
+        br.runtime.sendMessage({
           type: 'SUPABASE_SETTINGS_UPSERT',
           body: { user_id: userId, prefs, site_rules: currentSiteRules }
         });
@@ -532,13 +534,13 @@ function renderSiteRules() {
   list.querySelectorAll('.site-rule-del').forEach(btn => {
     btn.addEventListener('click', async () => {
       delete siteRules[btn.dataset.domain];
-      await chrome.storage.local.set({ [S.siteRules]: siteRules });
+      await br.storage.local.set({ [S.siteRules]: siteRules });
       renderSiteRules();
       try {
         const uid = await new Promise(res =>
-          chrome.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
+          br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
         );
-        if (uid) chrome.runtime.sendMessage({
+        if (uid) br.runtime.sendMessage({
           type: 'SUPABASE_SETTINGS_UPSERT',
           body: { user_id: uid, site_rules: siteRules }
         });
@@ -561,15 +563,15 @@ if (siteRuleAddBtn) {
     const domain = domainInput.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
     if (!domain) return;
     siteRules[domain] = modeSelect.value;
-    await chrome.storage.local.set({ [S.siteRules]: siteRules });
+    await br.storage.local.set({ [S.siteRules]: siteRules });
     domainInput.value = '';
     renderSiteRules();
     // Push updated site rules to cloud
     try {
       const uid = await new Promise(res =>
-        chrome.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
+        br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
       );
-      if (uid) chrome.runtime.sendMessage({
+      if (uid) br.runtime.sendMessage({
         type: 'SUPABASE_SETTINGS_UPSERT',
         body: { user_id: uid, site_rules: siteRules }
       });
@@ -631,7 +633,7 @@ async function fetchPoster(title, itemEl) {
   }
   try {
     const result = await new Promise(res =>
-      chrome.runtime.sendMessage({ type: 'TMDB_SEARCH_POSTER', title }, r => res(r))
+      br.runtime.sendMessage({ type: 'TMDB_SEARCH_POSTER', title }, r => res(r))
     );
     _posterCache[key] = result?.posterUrl || null;
     if (_posterCache[key]) applyPoster(itemEl, _posterCache[key]);
@@ -708,7 +710,7 @@ async function loadHistory(data) {
 
   let localItems = [];
   try {
-    const raw = await chrome.storage.local.get('skipstream_cache');
+    const raw = await br.storage.local.get('skipstream_cache');
     const cache = raw['skipstream_cache'] || {};
     localItems = Object.entries(cache).map(([mediaId, entry]) => ({
       title:    entry.title    || '',
@@ -731,11 +733,11 @@ async function loadHistory(data) {
   if (url && key) {
     try {
       const userId = await new Promise(res => {
-        chrome.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null));
+        br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null));
       });
       if (userId) {
         const result = await new Promise(res => {
-          chrome.runtime.sendMessage({ type: 'SUPABASE_GET_ALL', userId }, r => res(r));
+          br.runtime.sendMessage({ type: 'SUPABASE_GET_ALL', userId }, r => res(r));
         });
         if (result?.data && result.data.length > 0) {
           cloudItems = result.data.map(row => ({
@@ -809,15 +811,15 @@ async function loadHistory(data) {
       // Push all local cache entries to cloud first (local->cloud)
       try {
         const userId = await new Promise(res =>
-          chrome.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
+          br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
         );
         if (userId) {
-          const raw = await chrome.storage.local.get('skipstream_cache');
+          const raw = await br.storage.local.get('skipstream_cache');
           const cache = raw['skipstream_cache'] || {};
           const entries = Object.entries(cache);
           for (const [mediaId, entry] of entries) {
             if (!entry.p || !entry.title) continue;
-            await new Promise(res => chrome.runtime.sendMessage({
+            await new Promise(res => br.runtime.sendMessage({
               type: 'SUPABASE_UPSERT',
               body: {
                 user_id:      userId,
@@ -831,7 +833,7 @@ async function loadHistory(data) {
               }
             }, res));
           }
-          chrome.storage.local.set({ skipstream_last_sync: Date.now() });
+          br.storage.local.set({ skipstream_last_sync: Date.now() });
         }
       } catch (_) {}
       // Then pull from cloud (cloud->local already happens via SUPABASE_GET_ALL in loadHistory)
@@ -845,9 +847,9 @@ async function loadHistory(data) {
 const exportBtn = $('exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', async () => {
-    const data = await chrome.storage.local.get(null);
+    const data = await br.storage.local.get(null);
     // Tag export with version for future migration checks
-    data._exportVersion = chrome.runtime.getManifest().version;
+    data._exportVersion = br.runtime.getManifest().version;
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -911,7 +913,7 @@ if (importBtn && importFile) {
       // Run migration shim before merging
       parsed = migrateImportData(parsed);
 
-      const existing = await chrome.storage.local.get(null);
+      const existing = await br.storage.local.get(null);
       const merged = { ...parsed, ...existing };
 
       // Combine numeric stats additively
@@ -919,7 +921,7 @@ if (importBtn && importFile) {
         merged[k] = (parsed[k] || 0) + (existing[k] || 0);
       }
 
-      await chrome.storage.local.set(merged);
+      await br.storage.local.set(merged);
       showAlert($('alert-export'), 'ok', 'Imported and merged successfully. Reload to see changes.');
       importFile.value = '';
     } catch (e) {
@@ -933,7 +935,7 @@ const clearBtn = $('clearBtn');
 if (clearBtn) {
   clearBtn.addEventListener('click', async () => {
     if (!confirm('Clear all SkipStream data? This cannot be undone.')) return;
-    await chrome.storage.local.clear();
+    await br.storage.local.clear();
     showAlert($('alert-export'), 'warn', 'All data cleared. Reload the extension to start fresh.');
     loadCredentials();
   });
