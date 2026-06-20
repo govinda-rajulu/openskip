@@ -24,6 +24,7 @@ const S = {
   statsTotalSkips:    'statsTotalSkips',
   statsTotalTimeSaved:'statsTotalTimeSaved',
   statsSessions:      'statsSessions',
+  stats:              'skipstream_stats',
 };
 
 const $ = id => document.getElementById(id);
@@ -381,11 +382,11 @@ if (saveSupabaseBtn) {
     saveSupabaseBtn.disabled = true;
     saveSupabaseBtn.innerHTML = '<span class="spinner"></span>Verifying...';
     await br.storage.local.set({ [S.supabaseUrl]: url, [S.supabaseAnonKey]: key });
-    await verifySupabase(url, key);
+    const ok = await verifySupabase(url, key);
     saveSupabaseBtn.disabled = false;
     saveSupabaseBtn.textContent = 'Save & Verify';
+    if (ok) showAlert($('alert-supabase'), 'ok', 'Supabase credentials saved.');
   });
-}
 
 // -- Save: TMDB --
 const saveTmdbBtn = $('saveTmdb');
@@ -595,11 +596,12 @@ function makeStatCard(val, lbl) {
 }
 
 function loadStats(data) {
+  const stats = data[S.stats] || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0, skipsToday: 0, statsDate: '' };
   const today = new Date().toDateString();
-  const skipsToday = data[S.statsDate] === today ? (data[S.statsSkipsToday] || 0) : 0;
-  const totalSkips = data[S.statsTotalSkips] || 0;
-  const totalTime  = data[S.statsTotalTimeSaved] || 0;
-  const sessions   = data[S.statsSessions] || 0;
+  const skipsToday = stats.statsDate === today ? (stats.skipsToday || 0) : 0;
+  const totalSkips = stats.skipsTotal    || 0;
+  const totalTime  = stats.timeSavedSec  || 0;
+  const sessions   = stats.sessionsTotal || 0;
 
   const sessionGrid = $('statsGrid');
   const allGrid     = $('statsAllGrid');
@@ -620,6 +622,7 @@ function loadStats(data) {
 // -- History --
 let historySource = 'local';
 let allHistory    = [];
+let historyListenersAttached = false;
 
 // In-memory poster cache: title -> poster_url (null = not found)
 const _posterCache = {};
@@ -791,6 +794,8 @@ async function loadHistory(data) {
   allHistory = getItems();
   renderHistory(allHistory);
 
+  if (!historyListenersAttached) {
+  historyListenersAttached = true;
   document.querySelectorAll('.source-pill').forEach(pill => {
     pill.addEventListener('click', () => {
       historySource = pill.dataset.source;
@@ -841,6 +846,7 @@ async function loadHistory(data) {
       syncBtn.textContent = 'Sync';
     });
   }
+  }
 }
 
 // -- Export --
@@ -851,10 +857,14 @@ if (exportBtn) {
     // Tag export with version for future migration checks
     data._exportVersion = br.runtime.getManifest().version;
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const objUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    a.href = objUrl;
     a.download = 'skipstream-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
     a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
     showAlert($('alert-export'), 'ok', 'Exported successfully.');
     setTimeout(() => hideAlert($('alert-export')), 3000);
   });
@@ -916,10 +926,16 @@ if (importBtn && importFile) {
       const existing = await br.storage.local.get(null);
       const merged = { ...parsed, ...existing };
 
-      // Combine numeric stats additively
-      for (const k of [S.statsTotalSkips, S.statsTotalTimeSaved, S.statsSessions]) {
-        merged[k] = (parsed[k] || 0) + (existing[k] || 0);
-      }
+      // Combine stats additively (skipstream_stats blob)
+      const pStats = parsed[S.stats]   || {};
+      const eStats = existing[S.stats] || {};
+      merged[S.stats] = {
+        skipsTotal:    (pStats.skipsTotal    || 0) + (eStats.skipsTotal    || 0),
+        timeSavedSec:  (pStats.timeSavedSec  || 0) + (eStats.timeSavedSec  || 0),
+        sessionsTotal: (pStats.sessionsTotal || 0) + (eStats.sessionsTotal || 0),
+        skipsToday:    eStats.skipsToday || 0,
+        statsDate:     eStats.statsDate || '',
+      };
 
       await br.storage.local.set(merged);
       showAlert($('alert-export'), 'ok', 'Imported and merged successfully. Reload to see changes.');

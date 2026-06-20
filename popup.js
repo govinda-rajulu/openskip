@@ -16,6 +16,7 @@ const KEYS = {
   statsDate:     'statsDate',
   statsTotalSkips: 'statsTotalSkips',
   statsTotalTime:  'statsTotalTimeSaved',
+  stats:         'skipstream_stats',
 };
 
 const $ = id => document.getElementById(id);
@@ -102,12 +103,11 @@ function fmtTime(seconds) {
 }
 
 function applyStats(data) {
+  const stats = data[KEYS.stats] || {};
   const today = new Date().toDateString();
-  const skipsToday = data[KEYS.statsDate] === today
-    ? (data[KEYS.statsSkips] || 0)
-    : 0;
+  const skipsToday = stats.statsDate === today ? (stats.skipsToday || 0) : 0;
   statSkips.textContent = skipsToday;
-  const totalTime = data[KEYS.statsTotalTime] || 0;
+  const totalTime = stats.timeSavedSec || 0;
   statTime.textContent = fmtTime(totalTime);
 }
 

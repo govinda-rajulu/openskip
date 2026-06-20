@@ -668,6 +668,18 @@
   const COUNTDOWN_ID = 'skipstream-countdown';
   let _countdownTimer = null;
 
+  function recordSkipStat(timeSavedSec) {
+    br.storage.local.get('skipstream_stats').then(s => {
+      const st = s.skipstream_stats || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0, skipsToday: 0, statsDate: '' };
+      const today = new Date().toDateString();
+      if (st.statsDate !== today) { st.statsDate = today; st.skipsToday = 0; }
+      st.skipsTotal++;
+      st.skipsToday = (st.skipsToday || 0) + 1;
+      st.timeSavedSec += Math.max(0, Math.round(timeSavedSec));
+      br.storage.local.set({ skipstream_stats: st });
+    }).catch(() => {});
+  }
+
   function showSkipCountdown(segKey, segment, video, onDone) {
     // Clear any existing countdown
     clearInterval(_countdownTimer);
@@ -712,13 +724,7 @@
       if (toast.isConnected) toast.remove();
       const prevTime = video.currentTime;
       video.currentTime = segment.end_sec;
-      // Track skip stat
-      br.storage.local.get('skipstream_stats').then(s => {
-        const st = s.skipstream_stats || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0 };
-        st.skipsTotal++;
-        st.timeSavedSec += Math.max(0, Math.round(segment.end_sec - prevTime));
-        br.storage.local.set({ skipstream_stats: st });
-      }).catch(() => {});
+      recordSkipStat(segment.end_sec - prevTime);
       onDone();
     };
 
@@ -1129,7 +1135,9 @@
           } else {
             // pref OFF = show manual skip button so user can choose
             showSkipBtn(segmentLabel(active.key, active.segment), () => {
+              const prevTime = video.currentTime;
               video.currentTime = active.segment.end_sec;
+              recordSkipStat(active.segment.end_sec - prevTime);
               activeSegmentKey = '';
               hideSkipBtn();
             });
