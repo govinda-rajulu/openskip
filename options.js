@@ -621,7 +621,7 @@ function loadStats(data) {
 }
 
 // -- History --
-let historySource = 'local';
+let historySource = 'merged';
 let allHistory    = [];
 let historyListenersAttached = false;
 
@@ -647,6 +647,12 @@ async function fetchPoster(title, itemEl) {
 function applyPoster(el, url) {
   const img = el.querySelector('.h-poster');
   if (img) { img.src = url; img.style.display = 'block'; }
+}
+
+function getYoutubeThumb(url) {
+  if (!url) return null;
+  const m = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  return m ? `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` : null;
 }
 
 function renderHistory(items) {
@@ -703,8 +709,12 @@ function renderHistory(items) {
       </div>
     `;
     list.appendChild(el);
-    // Lazy-load poster (non-blocking)
-    if (title && title !== 'Unknown') fetchPoster(title, el);
+    const ytThumb = getYoutubeThumb(url);
+    if (ytThumb) {
+      applyPoster(el, ytThumb);
+    } else if (title && title !== 'Unknown') {
+      fetchPoster(title, el);
+    }
   });
 }
 
@@ -814,7 +824,7 @@ async function loadHistory(data) {
   if (syncBtn) {
     syncBtn.addEventListener('click', async () => {
       syncBtn.textContent = 'Syncing...';
-      // Push all local cache entries to cloud first (local->cloud)
+      let pushed = 0, failed = 0, pushErr = null;
       try {
         const userId = await new Promise(res =>
           br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
@@ -825,7 +835,7 @@ async function loadHistory(data) {
           const entries = Object.entries(cache);
           for (const [mediaId, entry] of entries) {
             if (!entry.p || !entry.title) continue;
-            await new Promise(res => br.runtime.sendMessage({
+            const r = await new Promise(res => br.runtime.sendMessage({
               type: 'SUPABASE_UPSERT',
               body: {
                 user_id:      userId,
@@ -838,13 +848,19 @@ async function loadHistory(data) {
                 device_name:  'SkipStream Options Sync',
               }
             }, res));
+            if (r && r.ok) pushed++; else { failed++; pushErr = r?.err || pushErr; }
           }
           br.storage.local.set({ skipstream_last_sync: Date.now() });
+        } else {
+          pushErr = 'no_user_id';
         }
-      } catch (_) {}
-      // Then pull from cloud (cloud->local already happens via SUPABASE_GET_ALL in loadHistory)
+      } catch (e) { pushErr = String(e); }
       await loadHistory(data);
       syncBtn.textContent = 'Sync';
+      if (failed > 0) {
+        const syncText = $('syncText');
+        if (syncText) syncText.textContent = `Sync: ${pushed} pushed, ${failed} failed (${pushErr || 'unknown error'})`;
+      }
     });
   }
   }

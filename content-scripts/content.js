@@ -724,6 +724,7 @@
       if (toast.isConnected) toast.remove();
       const prevTime = video.currentTime;
       video.currentTime = segment.end_sec;
+      video._ssCooldownUntil = Date.now() + 1500;
       recordSkipStat(segment.end_sec - prevTime);
       onDone();
     };
@@ -1113,6 +1114,7 @@
     _videoPollInterval = setInterval(() => {
       if (!video.isConnected) { clearInterval(_videoPollInterval); return; }
       if (video.paused || !segments) return;
+      if (video._ssCooldownUntil && Date.now() < video._ssCooldownUntil) return;
 
       const active = findActiveSegment(segments, video.currentTime);
 
@@ -1137,6 +1139,7 @@
             showSkipBtn(segmentLabel(active.key, active.segment), () => {
               const prevTime = video.currentTime;
               video.currentTime = active.segment.end_sec;
+              video._ssCooldownUntil = Date.now() + 1500;
               recordSkipStat(active.segment.end_sec - prevTime);
               activeSegmentKey = '';
               hideSkipBtn();
