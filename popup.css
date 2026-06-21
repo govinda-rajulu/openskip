@@ -19,6 +19,8 @@
   --accent-dim:     #4d8a32;
   --accent-glow:    rgba(103, 179, 70, 0.18);
   --danger:         #e05c5c;
+  --warn:           #639dde;
+  --ok:             #de8250;
   --text-primary:   #e8eaf0;
   --text-secondary: #8b93a8;
   --text-muted:     #555e72;
@@ -73,8 +75,15 @@ body {
   width: 28px;
   height: 28px;
   flex-shrink: 0;
-  border-radius: 6px;
+  border-radius: 8px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
+
+.logo svg { display: block; }
 
 .header-title {
   flex: 1;
@@ -345,6 +354,11 @@ body {
 
 .seg-row:hover {
   background: rgba(255, 255, 255, 0.025);
+}
+
+.seg-row.disabled {
+  opacity: 0.42;
+  pointer-events: none;
 }
 
 .seg-icon {
