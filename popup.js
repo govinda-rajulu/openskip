@@ -11,7 +11,7 @@ const KEYS = {
   skipOutro:     'skipOutro',
   resumePlay:    'resumePlayback',
   autoNext:      'autoNextEpisode',
-  playRate:      'playbackRate',
+  playRate:      'playbackSpeed',
   statsSkips:    'statsSkipsToday',
   statsDate:     'statsDate',
   statsTotalSkips: 'statsTotalSkips',

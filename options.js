@@ -17,7 +17,7 @@ const S = {
   skipOutro:          'skipOutro',
   resumePlayback:     'resumePlayback',
   autoNextEpisode:    'autoNextEpisode',
-  playbackRate:       'playbackRate',
+  playbackRate:       'playbackSpeed',
   siteRules:          'skipstream_site_rules',
   statsSkipsToday:    'statsSkipsToday',
   statsDate:          'statsDate',
@@ -870,6 +870,7 @@ async function loadHistory(data) {
 const exportBtn = $('exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', async () => {
+    if (!confirm('This file will contain your API keys and Supabase credentials in plain text. Keep it private. Continue?')) return;
     const data = await br.storage.local.get(null);
     // Tag export with version for future migration checks
     data._exportVersion = br.runtime.getManifest().version;
@@ -898,6 +899,11 @@ function migrateImportData(data) {
   if (data.supabaseKey && !data.supabaseAnonKey) {
     data.supabaseAnonKey = data.supabaseKey;
     delete data.supabaseKey;
+  }
+  // 1.6.5 used 'skipMaster' instead of 'skipEnabled'
+  if (data.skipMaster !== undefined && data.skipEnabled === undefined) {
+    data.skipEnabled = data.skipMaster;
+    delete data.skipMaster;
   }
   // 1.6.5 skipMode may have been boolean 'enabled' only
   if (data.skipMode === undefined) {
@@ -937,10 +943,24 @@ if (importBtn && importFile) {
       const text = await file.text();
       let parsed = JSON.parse(text);
 
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        showAlert($('alert-export'), 'err', 'Import failed: not a valid backup file.');
+        importFile.value = '';
+        return;
+      }
+
       // Run migration shim before merging
       parsed = migrateImportData(parsed);
 
       const existing = await br.storage.local.get(null);
+
+      if (parsed.supabaseUrl && parsed.supabaseUrl !== existing.supabaseUrl) {
+        const msg = existing.supabaseUrl
+          ? `Backup has a different Supabase project (${parsed.supabaseUrl}). Your current one (${existing.supabaseUrl}) stays active, this won't override it. Continue importing the rest?`
+          : `This backup will set your Supabase project to ${parsed.supabaseUrl}. Only continue if you trust this file. Continue?`;
+        if (!confirm(msg)) { delete parsed.supabaseUrl; delete parsed.supabaseAnonKey; }
+      }
+
       const merged = { ...parsed, ...existing };
 
       // Combine stats additively (skipstream_stats blob)
