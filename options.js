@@ -665,6 +665,18 @@ async function fetchPoster(title, itemEl) {
   } catch { _posterCache[key] = null; }
 }
 
+function fmtDate(updated) {
+  if (!updated) return '';
+  const ms = typeof updated === 'number' ? updated : Date.parse(updated);
+  if (!ms || isNaN(ms)) return '';
+  const d = new Date(ms), now = new Date();
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return 'Today ' + time;
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (d.toDateString() === yest.toDateString()) return 'Yesterday ' + time;
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + time;
+}
+
 function applyPoster(el, url) {
   const img = el.querySelector('.h-poster');
   if (img) { img.src = url; img.style.display = 'block'; }
@@ -709,6 +721,7 @@ function renderHistory(items) {
     const isCloud = !!item.fromCloud;
     const url     = item.url || item.pageUrl || '#';
     const posStr  = pos > 0 ? fmtTime(Math.round(pos)) : '';
+    const dateStr = fmtDate(item.updated);
 
     const el = document.createElement('a');
     el.className = 'h-item';
@@ -726,6 +739,7 @@ function renderHistory(items) {
             ${item.device ? `<span class="h-device">${escapeHtml(item.device)}</span>` : ''}
             ${posStr ? `<span>${posStr}</span>` : ''}
             ${pct > 0 ? `<span>${pct}%</span>` : ''}
+            ${dateStr ? `<span>${escapeHtml(dateStr)}</span>` : ''}
           </div>
           ${pct > 0 ? `<div class="h-bar"><div class="h-fill" style="width:${pct}%"></div></div>` : ''}
         </div>
@@ -760,6 +774,7 @@ async function loadHistory(data) {
       ts:       entry.t        || 0,
       fromCloud: false,
     })).filter(e => e.title).sort((a, b) => b.ts - a.ts);
+    localItems.forEach(e => { e.updated = e.ts; });
   } catch (_) {}
 
   let cloudItems = [];
@@ -895,19 +910,22 @@ const exportBtn = $('exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', async () => {
     if (!confirm('This file will contain your API keys and Supabase credentials in plain text. Keep it private. Continue?')) return;
-    const data = await br.storage.local.get(null);
-    // Tag export with version for future migration checks
-    data._exportVersion = br.runtime.getManifest().version;
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const objUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = objUrl;
-    a.download = 'skipstream-backup-' + new Date().toISOString().slice(0, 10) + '.json';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
-    showAlert($('alert-export'), 'ok', 'Exported successfully.');
+    try {
+      const data = await br.storage.local.get(null);
+      data._exportVersion = br.runtime.getManifest().version;
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = 'skipstream-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+      showAlert($('alert-export'), 'ok', 'Download triggered - check your Downloads folder.');
+    } catch (e) {
+      showAlert($('alert-export'), 'err', 'Export failed: ' + e.message);
+    }
     setTimeout(() => hideAlert($('alert-export')), 3000);
   });
 }
