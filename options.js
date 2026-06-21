@@ -387,6 +387,7 @@ if (saveSupabaseBtn) {
     saveSupabaseBtn.textContent = 'Save & Verify';
     if (ok) showAlert($('alert-supabase'), 'ok', 'Supabase credentials saved.');
   });
+}
 
 // -- Save: TMDB --
 const saveTmdbBtn = $('saveTmdb');
@@ -952,6 +953,7 @@ if (clearBtn) {
   clearBtn.addEventListener('click', async () => {
     if (!confirm('Clear all SkipStream data? This cannot be undone.')) return;
     await br.storage.local.clear();
+    try { await new Promise(res => br.runtime.sendMessage({ type: 'INVALIDATE_USER_ID' }, res)); } catch (_) {}
     showAlert($('alert-export'), 'warn', 'All data cleared. Reload the extension to start fresh.');
     loadCredentials();
   });
