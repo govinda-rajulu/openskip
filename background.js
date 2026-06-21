@@ -113,7 +113,7 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url, options);
-      if ([401, 403, 404].includes(res.status)) return res;
+      if ([400, 401, 403, 404, 409, 422].includes(res.status)) return res;
       if (res.ok) return res;
       lastErr = new Error(`Status ${res.status}`);
     } catch (e) { lastErr = e; }
@@ -162,7 +162,10 @@ async function supabaseUpsert(body, { keepalive = false } = {}) {
         body: JSON.stringify(body),
       }
     );
-    return res.ok ? { ok: true } : { ok: false, err: `HTTP ${res.status}` };
+    if (res.ok) return { ok: true };
+    let detail = '';
+    try { detail = await res.text(); } catch (_) {}
+    return { ok: false, err: `HTTP ${res.status}${detail ? ' - ' + detail.slice(0, 200) : ''}` };
   } catch (e) {
     // Network failure - queue for retry
     const QUEUE_KEY = 'skipstream_offline_queue';

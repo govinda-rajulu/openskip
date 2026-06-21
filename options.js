@@ -672,7 +672,9 @@ function applyPoster(el, url) {
 
 function getYoutubeThumb(url) {
   if (!url) return null;
-  const m = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  let m = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+  if (!m) m = url.match(/^yt\/([a-zA-Z0-9_-]{11})/);
+  if (!m) m = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
   return m ? `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` : null;
 }
 
@@ -731,9 +733,10 @@ function renderHistory(items) {
     `;
     list.appendChild(el);
     const ytThumb = getYoutubeThumb(url);
+    const isYoutubeish = /youtube|youtu\.be/i.test(site || '');
     if (ytThumb) {
       applyPoster(el, ytThumb);
-    } else if (title && title !== 'Unknown') {
+    } else if (!isYoutubeish && title && title !== 'Unknown') {
       scheduleFetchPoster(title, el);
     }
   });
