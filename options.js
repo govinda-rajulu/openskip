@@ -628,6 +628,27 @@ let historyListenersAttached = false;
 // In-memory poster cache: title -> poster_url (null = not found)
 const _posterCache = {};
 
+// Concurrency-limited queue - avoids firing 50-100 TMDB calls at once on large history
+let _posterInFlight = 0;
+const _posterQueue = [];
+const POSTER_MAX_CONCURRENT = 4;
+
+function scheduleFetchPoster(title, itemEl) {
+  _posterQueue.push([title, itemEl]);
+  drainPosterQueue();
+}
+
+function drainPosterQueue() {
+  while (_posterInFlight < POSTER_MAX_CONCURRENT && _posterQueue.length) {
+    const [title, itemEl] = _posterQueue.shift();
+    _posterInFlight++;
+    fetchPoster(title, itemEl).finally(() => {
+      _posterInFlight--;
+      drainPosterQueue();
+    });
+  }
+}
+
 async function fetchPoster(title, itemEl) {
   if (!title) return;
   const key = title.toLowerCase().trim();
@@ -713,7 +734,7 @@ function renderHistory(items) {
     if (ytThumb) {
       applyPoster(el, ytThumb);
     } else if (title && title !== 'Unknown') {
-      fetchPoster(title, el);
+      scheduleFetchPoster(title, el);
     }
   });
 }
