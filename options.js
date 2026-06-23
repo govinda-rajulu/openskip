@@ -690,6 +690,34 @@ function getYoutubeThumb(url) {
   return m ? `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` : null;
 }
 
+function getOembedSite(site) {
+  const s = (site || '').toLowerCase();
+  if (s.includes('spotify')) return 'spotify';
+  if (s.includes('soundcloud')) return 'soundcloud';
+  return null;
+}
+
+const _oembedCache = {};
+
+async function fetchOembedThumb(pageUrl, platform, itemEl) {
+  if (!pageUrl) return;
+  const key = platform + ':' + pageUrl;
+  if (key in _oembedCache) {
+    if (_oembedCache[key]) applyPoster(itemEl, _oembedCache[key]);
+    return;
+  }
+  try {
+    const endpoint = platform === 'spotify'
+      ? `https://open.spotify.com/oembed?url=${encodeURIComponent(pageUrl)}`
+      : `https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(pageUrl)}`;
+    const r = await fetch(endpoint);
+    if (!r.ok) { _oembedCache[key] = null; return; }
+    const data = await r.json();
+    _oembedCache[key] = data.thumbnail_url || null;
+    if (_oembedCache[key]) applyPoster(itemEl, _oembedCache[key]);
+  } catch (_) { _oembedCache[key] = null; }
+}
+
 function renderHistory(items) {
   const list = $('historyList');
   if (!list) return;
@@ -748,8 +776,12 @@ function renderHistory(items) {
     list.appendChild(el);
     const ytThumb = getYoutubeThumb(url);
     const isYoutubeish = /youtube|youtu\.be/i.test(site || '');
+    const oembedPlatform = getOembedSite(site);
     if (ytThumb) {
       applyPoster(el, ytThumb);
+    } else if (oembedPlatform) {
+      const pageUrl = url && url.startsWith('http') ? url : (url ? 'https://' + url : '');
+      fetchOembedThumb(pageUrl, oembedPlatform, el);
     } else if (!isYoutubeish && title && title !== 'Unknown') {
       scheduleFetchPoster(title, el);
     }
@@ -1037,6 +1069,32 @@ if (clearBtn) {
   });
 }
 
+function showWelcomeToast(returningUser) {
+  const msg = returningUser
+    ? 'Welcome back! Your SkipStream services are connected.'
+    : 'Welcome to SkipStream — set up your services below to get started.';
+  const toast = document.createElement('div');
+  toast.textContent = msg;
+  Object.assign(toast.style, {
+    position: 'fixed', top: '18px', right: '18px', zIndex: '9999',
+    background: returningUser ? 'var(--ok-dim)' : 'var(--accent-dim)',
+    color: returningUser ? 'var(--ok)' : 'var(--accent)',
+    border: '1px solid ' + (returningUser ? 'var(--ok-border)' : 'var(--accent)'),
+    borderRadius: '10px', padding: '11px 18px', fontSize: '12px', fontWeight: '600',
+    fontFamily: 'var(--font)', boxShadow: 'var(--shadow)', maxWidth: '320px',
+    opacity: '0', transition: 'opacity 220ms ease',
+  });
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => { toast.style.opacity = '1'; });
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
+}
+
 // -- Init --
 loadCredentials();
-verifyAll();
+verifyAll().then(() => {
+  const supaOk = $('dot-supabase')?.classList.contains('ok');
+  showWelcomeToast(supaOk);
+});

@@ -139,6 +139,8 @@
       'fmovies.to': 'FMovies',
       'soap2day.ac': 'Soap2Day',
       'goojara.to': 'Goojara',
+      'spotify.com': 'Spotify', 'open.spotify.com': 'Spotify',
+      'soundcloud.com': 'SoundCloud',
     };
     for (const [key, name] of Object.entries(KNOWN)) {
       if (h === key || h.endsWith('.' + key)) return name;
