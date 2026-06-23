@@ -290,12 +290,16 @@ async function verifyAll() {
     S.introdbApiKey, S.supabaseUrl, S.supabaseAnonKey,
     S.tmdbApiKey, S.animeSkipEnabled, S.animeSkipClientId
   ]);
+  setNavDot('connections', 'checking');
   await Promise.all([
     verifyIntrodb(data[S.introdbApiKey]),
     verifySupabase(data[S.supabaseUrl], data[S.supabaseAnonKey]),
     verifyTmdb(data[S.tmdbApiKey]),
     verifyAnimeskip(data[S.animeSkipEnabled], data[S.animeSkipClientId]),
   ]);
+  const d = $('dot-introdb');
+  const overall = d?.classList.contains('ok') ? 'ok' : d?.classList.contains('warn') ? 'warn' : 'err';
+  setNavDot('connections', overall);
 }
 
 // -- Load credentials into inputs --
@@ -624,6 +628,19 @@ function loadStats(data) {
 let historySource = 'merged';
 let allHistory    = [];
 let historyListenersAttached = false;
+let _histLocal = [];
+let _histCloud = [];
+
+function getHistoryItems() {
+  if (historySource === 'local') return _histLocal;
+  if (historySource === 'cloud') return _histCloud;
+  const seen = new Set();
+  return [..._histCloud, ..._histLocal].filter(i => {
+    const k = i.url || i.title;
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+}
 
 // In-memory poster cache: title -> poster_url (null = not found)
 const _posterCache = {};
@@ -792,11 +809,11 @@ async function loadHistory(data) {
   const list = $('historyList');
   if (!list) return;
 
-  let localItems = [];
+  _histLocal = [];
   try {
     const raw = await br.storage.local.get('skipstream_cache');
     const cache = raw['skipstream_cache'] || {};
-    localItems = Object.entries(cache).map(([mediaId, entry]) => ({
+    _histLocal = Object.entries(cache).map(([mediaId, entry]) => ({
       title:    entry.title    || '',
       site:     entry.site     || '',
       siteName: entry.site_name || entry.site || '',
@@ -806,7 +823,7 @@ async function loadHistory(data) {
       ts:       entry.t        || 0,
       fromCloud: false,
     })).filter(e => e.title).sort((a, b) => b.ts - a.ts);
-    localItems.forEach(e => { e.updated = e.ts; });
+    _histLocal.forEach(e => { e.updated = e.ts; });
   } catch (_) {}
 
   let cloudItems = [];
@@ -825,11 +842,11 @@ async function loadHistory(data) {
           br.runtime.sendMessage({ type: 'SUPABASE_GET_ALL', userId }, r => res(r));
         });
         if (result?.data && result.data.length > 0) {
-          cloudItems = result.data.map(row => ({
+          _histCloud = result.data.map(row => ({
             title:    row.video_title || '',
             site:     row.site_name   || row.site || '',
             siteName: row.site_name   || '',
-            url:      row.media_id    || '',
+            url:      row.page_url    || '',
             position: row.playback_time || 0,
             duration: row.duration    || 0,
             device:   row.device_name || '',
@@ -853,7 +870,7 @@ async function loadHistory(data) {
 
   const filterEl = $('historyFilter');
   if (filterEl) {
-    const sites = [...new Set([...localItems, ...cloudItems].map(i => i.site || i.siteName).filter(Boolean))];
+    const sites = [...new Set([..._histLocal, ..._histCloud].map(i => i.site || i.siteName).filter(Boolean))];
     filterEl.innerHTML = '<option value="">All sites</option>';
     sites.forEach(s => {
       const opt = document.createElement('option');
@@ -862,18 +879,7 @@ async function loadHistory(data) {
     });
   }
 
-  function getItems() {
-    if (historySource === 'local') return localItems;
-    if (historySource === 'cloud') return cloudItems;
-    const seen = new Set();
-    return [...cloudItems, ...localItems].filter(i => {
-      const k = i.url || i.pageUrl || i.title || i.videoTitle;
-      if (seen.has(k)) return false;
-      seen.add(k); return true;
-    });
-  }
-
-  allHistory = getItems();
+  allHistory = getHistoryItems();
   renderHistory(allHistory);
 
   if (!historyListenersAttached) {
@@ -882,7 +888,7 @@ async function loadHistory(data) {
     pill.addEventListener('click', () => {
       historySource = pill.dataset.source;
       document.querySelectorAll('.source-pill').forEach(p => p.classList.toggle('active', p === pill));
-      allHistory = getItems();
+      allHistory = getHistoryItems();
       renderHistory(allHistory);
     });
   });
@@ -916,6 +922,7 @@ async function loadHistory(data) {
                 site:         entry.site || '',
                 site_name:    entry.site_name || entry.site || '',
                 video_title:  entry.title || '',
+                page_url:     entry.url   || '',
                 device_name:  'SkipStream Options Sync',
               }
             }, res));

@@ -14,6 +14,7 @@ create table if not exists public.playback_states (
   site_name     text,
   video_title   text,
   device_name   text,
+  page_url      text,
   updated_at    timestamptz  not null default now(),
   constraint playback_states_user_media_key unique (user_id, media_id)
 );
@@ -31,6 +32,10 @@ do $$ begin
   if not exists (select 1 from information_schema.columns
     where table_schema='public' and table_name='playback_states' and column_name='device_name') then
     alter table public.playback_states add column device_name text;
+  end if;
+  if not exists (select 1 from information_schema.columns
+    where table_schema='public' and table_name='playback_states' and column_name='page_url') then
+    alter table public.playback_states add column page_url text;
   end if;
 end $$;
 
