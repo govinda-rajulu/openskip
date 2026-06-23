@@ -964,6 +964,15 @@ if (exportBtn) {
 
 // -- Import migration shim: handles schema changes from 1.6.5 and earlier --
 function migrateImportData(data) {
+  // Guard: legacy string fields must actually be strings before being trusted
+  // downstream as e.g. HTTP header values. Drops anything malformed instead
+  // of passing it through.
+  const STR_FIELDS = ['apiKey', 'supabaseKey', 'autoSkip', 'siteRules'];
+  for (const f of STR_FIELDS) {
+    if (f in data && typeof data[f] !== 'string' && typeof data[f] !== 'boolean' && typeof data[f] !== 'object') {
+      delete data[f];
+    }
+  }
   // 1.6.5 used 'apiKey' instead of 'introdbApiKey'
   if (data.apiKey && !data.introdbApiKey) {
     data.introdbApiKey = data.apiKey;
