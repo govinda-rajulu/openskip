@@ -25,6 +25,7 @@ const S = {
   statsTotalTimeSaved:'statsTotalTimeSaved',
   statsSessions:      'statsSessions',
   stats:              'skipstream_stats',
+  deviceName:         'deviceName',
 };
 
 const $ = id => document.getElementById(id);
@@ -319,6 +320,7 @@ async function loadCredentials() {
   }
   if ($('animeSkipClientId'))  $('animeSkipClientId').value  = data[S.animeSkipClientId]  || '';
   if ($('animeSkipAuthToken')) $('animeSkipAuthToken').value = data[S.animeSkipAuthToken] || '';
+  if ($('deviceName'))         $('deviceName').value         = data[S.deviceName]         || '';
 
   loadSkipBehavior(data);
   loadStats(data);
@@ -853,6 +855,7 @@ async function loadHistory(data) {
             updated:  row.updated_at  || '',
             fromCloud: true,
           })).filter(r => r.title);
+          cloudItems = _histCloud;
           if (syncDot)  syncDot.className  = 'sync-dot ok';
           if (syncText) syncText.textContent = 'Synced with Supabase - ' + cloudItems.length + ' cloud entries';
         } else {
@@ -1107,6 +1110,58 @@ function showWelcomeToast(returningUser) {
     setTimeout(() => toast.remove(), 300);
   }, 3500);
 }
+
+// -- Advanced: save device name --
+const saveAdvancedBtn = $('saveAdvanced');
+if (saveAdvancedBtn) {
+  saveAdvancedBtn.addEventListener('click', async () => {
+    const name = ($('deviceName')?.value || '').trim();
+    await br.storage.local.set({ [S.deviceName]: name });
+    showAlert($('alert-advanced'), 'ok', 'Saved.');
+    setTimeout(() => hideAlert($('alert-advanced')), 2500);
+  });
+}
+
+// -- Advanced: clear cloud history --
+const clearCloudHistoryBtn = $('clearCloudHistoryBtn');
+if (clearCloudHistoryBtn) {
+  clearCloudHistoryBtn.addEventListener('click', async () => {
+    if (!confirm('Delete all watch history from Supabase cloud? Cannot be undone. Local history unaffected. Affects all devices sharing these credentials.')) return;
+    clearCloudHistoryBtn.disabled = true;
+    clearCloudHistoryBtn.textContent = 'Clearing...';
+    try {
+      const userId = await new Promise(res =>
+        br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
+      );
+      if (!userId) { showAlert($('alert-advanced'), 'err', 'No user ID — check Supabase credentials.'); return; }
+      const creds = await br.storage.local.get([S.supabaseUrl, S.supabaseAnonKey]);
+      const sbUrl = (creds[S.supabaseUrl] || '').replace(/\/$/, '');
+      const sbKey = creds[S.supabaseAnonKey];
+      if (!sbUrl || !sbKey) { showAlert($('alert-advanced'), 'warn', 'Supabase not configured.'); return; }
+      const r = await fetch(`${sbUrl}/rest/v1/playback_states?user_id=eq.${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+        headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey, 'Content-Type': 'application/json', Prefer: 'return=minimal' }
+      });
+      if (r.ok) {
+        showAlert($('alert-advanced'), 'ok', 'Cloud history cleared.');
+        await loadHistory(await br.storage.local.get(Object.values(S)));
+      } else {
+        const txt = await r.text().catch(() => '');
+        showAlert($('alert-advanced'), 'err', `HTTP ${r.status}${txt ? ' - ' + txt.slice(0, 120) : ''}`);
+      }
+    } catch (e) { showAlert($('alert-advanced'), 'err', 'Error: ' + e.message); }
+    finally { clearCloudHistoryBtn.disabled = false; clearCloudHistoryBtn.textContent = 'Clear Cloud History'; }
+  });
+}
+
+// -- Mobile sidebar toggle --
+const sidebarToggle = $('sidebarToggle');
+const sidebarOverlay = $('sidebarOverlay');
+if (sidebarToggle) sidebarToggle.addEventListener('click', () => document.body.classList.toggle('nav-open'));
+if (sidebarOverlay) sidebarOverlay.addEventListener('click', () => document.body.classList.remove('nav-open'));
+document.querySelectorAll('.nav-item[data-panel]').forEach(item =>
+  item.addEventListener('click', () => document.body.classList.remove('nav-open'))
+);
 
 // -- Init --
 loadCredentials();

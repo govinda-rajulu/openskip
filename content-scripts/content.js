@@ -25,7 +25,7 @@
 
   // ── User prefs ─────────────────────────────────────────────────────────────
 
-  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipEnabled: true, autoNextEpisode: false };
+  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipEnabled: true, autoNextEpisode: false, deviceName: '' };
   let prefs = { ...PREF_DEFAULTS };
 
   async function loadPrefs() {
@@ -270,7 +270,7 @@
             site_name:   getSiteName(),
             video_title: getVideoTitle(),
             page_url:    location.href,
-            device_name: navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Edg/') ? 'Edge' : 'Chrome',
+            device_name: prefs.deviceName || (navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Edg/') ? 'Edge' : 'Chrome'),
             updated_at:  new Date().toISOString(),
           },
         });
@@ -306,7 +306,7 @@
           site_name:   getSiteName(),
           video_title: getVideoTitle(),
           page_url:    location.href,
-          device_name: navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Edg/') ? 'Edge' : 'Chrome',
+          device_name: prefs.deviceName || (navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Edg/') ? 'Edge' : 'Chrome'),
           updated_at:  new Date().toISOString(),
         },
       }).catch(() => { /* page is unloading */ });

@@ -9,6 +9,10 @@
 <body>
 
 <!-- ═══ Sidebar ════════════════════════════════════════════════════ -->
+<button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/></svg>
+</button>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
 <aside class="sidebar">
   <div class="brand">
     <div class="brand-logo">
@@ -80,6 +84,13 @@
     <button class="nav-item" data-panel="exportimport">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v3h10v-3"/><path d="M8 2v7M5 6l3-4 3 4"/></svg>
       Export / Import
+    </button>
+
+    <span class="nav-section-label">Advanced</span>
+
+    <button class="nav-item" data-panel="advanced">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.76 3.76l1.06 1.06M11.18 11.18l1.06 1.06M3.76 12.24l1.06-1.06M11.18 4.82l1.06-1.06"/></svg>
+      Advanced
     </button>
   </nav>
 </aside>
@@ -564,6 +575,53 @@
           <button class="btn-danger" id="clearBtn">Clear All Data</button>
         </div>
         <p class="help" style="margin-top:8px">Removes all credentials, history, stats, and site rules from local storage. Cannot be undone.</p>
+      </div>
+    </div>
+  </section>
+
+<!-- ── Advanced panel ────────────────────────────────────────── -->
+  <section id="panel-advanced" class="panel">
+    <h1 class="page-title">Advanced</h1>
+    <p class="page-sub">Device identity and cloud data management.</p>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 7h6M5 10h4"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">Device Identity</div>
+          <div class="card-subtitle">Name shown in cross-device history</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="field">
+          <label class="field-label" for="deviceName">Device Name</label>
+          <input type="text" id="deviceName" placeholder="e.g. Living Room TV, Work Laptop" autocomplete="off" spellcheck="false">
+          <p class="help">Identifies this device in synced history. Auto-detected from browser if blank.</p>
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" id="saveAdvanced">Save</button>
+        </div>
+        <div class="alert" id="alert-advanced"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--danger)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2L2 8l6 6 6-6-6-6z"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">Cloud Data</div>
+          <div class="card-subtitle">Manage Supabase history</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="btn-row">
+          <button class="btn-danger" id="clearCloudHistoryBtn">Clear Cloud History</button>
+        </div>
+        <p class="help" style="margin-top:8px">Deletes all watch history from your Supabase cloud for this account only. Local history is unaffected. All synced devices sharing these credentials are affected.</p>
       </div>
     </div>
   </section>
