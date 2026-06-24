@@ -67,12 +67,7 @@ do $$ begin
   end if;
 end $$;
 
--- ── 5. Table grants ───────────────────────────────────────────────────────────
-grant select, insert, update, delete on public.playback_states to anon, authenticated;
-grant select, insert, update, delete on public.user_settings to anon, authenticated;
-grant usage on all sequences in schema public to anon, authenticated;
-
--- ── 6. Auto-update updated_at trigger ────────────────────────────────────────
+-- ── 5. Auto-update updated_at trigger ────────────────────────────────────────
 create or replace function public.ss_set_updated_at()
   returns trigger language plpgsql as $$
 begin
@@ -137,7 +132,12 @@ do $$ begin
   end if;
 end $$;
 
--- ── 8. Setup verification function ───────────────────────────────────────────
+-- ── 8. Table grants (must run after both tables exist) ───────────────────────
+grant select, insert, update, delete on public.playback_states to anon, authenticated;
+grant select, insert, update, delete on public.user_settings to anon, authenticated;
+grant usage on all sequences in schema public to anon, authenticated;
+
+-- ── 9. Setup verification function ───────────────────────────────────────────
 -- Call select public.ss_verify_setup() after running this script to confirm.
 create or replace function public.ss_verify_setup()
   returns jsonb language plpgsql as $$
