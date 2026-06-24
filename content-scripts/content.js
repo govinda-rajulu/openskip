@@ -151,10 +151,27 @@
   // ── Video title ────────────────────────────────────────────────────────────
 
   function getVideoTitle() {
-    // Try OG title first, then document.title, strip site suffix
+    const host = _siteHost();
+
+    // YouTube: og:title is set on initial server render and never updated during
+    // SPA navigation - stale across song/video changes in the same tab.
+    // Read from YouTube's own live DOM title element instead.
+    if (host.includes('youtube.com') || host.includes('youtu.be')) {
+      const ytEl = document.querySelector(
+        'h1.title yt-formatted-string, ' +
+        'ytd-watch-metadata h1 yt-formatted-string, ' +
+        '#title h1 yt-formatted-string, ' +
+        'ytmusic-player-bar .title'
+      );
+      const ytTitle = ytEl?.textContent?.trim();
+      if (ytTitle) return ytTitle.slice(0, 120);
+      // Fallback to document.title (updates correctly on YT SPA nav unlike og:title)
+      return (document.title || '').replace(/\s+[-|]\s+YouTube.*$/i, '').trim().slice(0, 120);
+    }
+
+    // All other sites: og:title is reliable, prefer it
     const og = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
     const raw = og || document.title || '';
-    // Strip common " - SiteName" / " | SiteName" suffixes (require 2+ char site name)
     return raw.replace(/\s+[-|]\s+\S.{2,}$/, '').trim().slice(0, 120) || raw.slice(0, 120);
   }
 
