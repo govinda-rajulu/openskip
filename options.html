@@ -603,7 +603,7 @@
         <div class="btn-row">
           <button class="btn-primary" id="saveAdvanced">Save</button>
         </div>
-        <div class="alert" id="alert-advanced"></div>
+        <div class="alert" id="alert-device"></div>
       </div>
     </div>
 
@@ -613,15 +613,35 @@
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--danger)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2L2 8l6 6 6-6-6-6z"/></svg>
         </div>
         <div class="card-title-wrap">
-          <div class="card-title">Cloud Data</div>
-          <div class="card-subtitle">Manage Supabase history</div>
+          <div class="card-title">Local History</div>
+          <div class="card-subtitle">Manage on-device watch cache</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="btn-row">
+          <button class="btn-danger" id="clearLocalHistoryBtn">Clear Local History</button>
+        </div>
+        <p class="help" style="margin-top:8px">Removes all watch history stored locally on this device. Cloud history and credentials are unaffected.</p>
+        <div class="alert" id="alert-local"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon red">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--danger)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2L2 8l6 6 6-6-6-6z"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">Cloud History</div>
+          <div class="card-subtitle">Manage Supabase watch history</div>
         </div>
       </div>
       <div class="card-body">
         <div class="btn-row">
           <button class="btn-danger" id="clearCloudHistoryBtn">Clear Cloud History</button>
         </div>
-        <p class="help" style="margin-top:8px">Deletes all watch history from your Supabase cloud for this account only. Local history is unaffected. All synced devices sharing these credentials are affected.</p>
+        <p class="help" style="margin-top:8px">Deletes all watch history from your Supabase cloud for this account. Local history unaffected. All devices sharing these credentials are affected.</p>
+        <div class="alert" id="alert-cloud"></div>
       </div>
     </div>
   </section>

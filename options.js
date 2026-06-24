@@ -1117,8 +1117,31 @@ if (saveAdvancedBtn) {
   saveAdvancedBtn.addEventListener('click', async () => {
     const name = ($('deviceName')?.value || '').trim();
     await br.storage.local.set({ [S.deviceName]: name });
-    showAlert($('alert-advanced'), 'ok', 'Saved.');
-    setTimeout(() => hideAlert($('alert-advanced')), 2500);
+    showAlert($('alert-device'), 'ok', 'Device name saved.');
+    setTimeout(() => hideAlert($('alert-device')), 2500);
+  });
+}
+
+// -- Advanced: clear cloud history --
+// -- Advanced: clear local history --
+const clearLocalHistoryBtn = $('clearLocalHistoryBtn');
+if (clearLocalHistoryBtn) {
+  clearLocalHistoryBtn.addEventListener('click', async () => {
+    if (!confirm('Remove all local watch history from this device? Cloud history and credentials are unaffected.')) return;
+    clearLocalHistoryBtn.disabled = true;
+    clearLocalHistoryBtn.textContent = 'Clearing...';
+    try {
+      await br.storage.local.remove('skipstream_cache');
+      _histLocal = [];
+      allHistory = getHistoryItems();
+      renderHistory(allHistory);
+      showAlert($('alert-local'), 'ok', 'Local history cleared.');
+    } catch (e) {
+      showAlert($('alert-local'), 'err', 'Error: ' + e.message);
+    } finally {
+      clearLocalHistoryBtn.disabled = false;
+      clearLocalHistoryBtn.textContent = 'Clear Local History';
+    }
   });
 }
 
@@ -1133,27 +1156,28 @@ if (clearCloudHistoryBtn) {
       const userId = await new Promise(res =>
         br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
       );
-      if (!userId) { showAlert($('alert-advanced'), 'err', 'No user ID — check Supabase credentials.'); return; }
+      if (!userId) { showAlert($('alert-cloud'), 'err', 'No user ID — check Supabase credentials.'); return; }
       const creds = await br.storage.local.get([S.supabaseUrl, S.supabaseAnonKey]);
       const sbUrl = (creds[S.supabaseUrl] || '').replace(/\/$/, '');
       const sbKey = creds[S.supabaseAnonKey];
-      if (!sbUrl || !sbKey) { showAlert($('alert-advanced'), 'warn', 'Supabase not configured.'); return; }
+      if (!sbUrl || !sbKey) { showAlert($('alert-cloud'), 'warn', 'Supabase not configured.'); return; }
       const r = await fetch(`${sbUrl}/rest/v1/playback_states?user_id=eq.${encodeURIComponent(userId)}`, {
         method: 'DELETE',
         headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey, 'Content-Type': 'application/json' }
       });
       if (r.ok) {
-        showAlert($('alert-advanced'), 'ok', 'Cloud history cleared. Switch to Cloud or Merged tab to confirm.');
         _histCloud = [];
         historySource = 'cloud';
         document.querySelectorAll('.source-pill').forEach(p =>
           p.classList.toggle('active', p.dataset.source === 'cloud'));
-        await loadHistory(await br.storage.local.get(Object.values(S)));
+        allHistory = getHistoryItems();
+        renderHistory(allHistory);
+        showAlert($('alert-cloud'), 'ok', 'Cloud history cleared.');
       } else {
         const txt = await r.text().catch(() => '');
-        showAlert($('alert-advanced'), 'err', `HTTP ${r.status}${txt ? ' - ' + txt.slice(0, 120) : ''}`);
+        showAlert($('alert-cloud'), 'err', `HTTP ${r.status}${txt ? ' - ' + txt.slice(0, 120) : ''}`);
       }
-    } catch (e) { showAlert($('alert-advanced'), 'err', 'Error: ' + e.message); }
+    } catch (e) { showAlert($('alert-cloud'), 'err', 'Error: ' + e.message); }
     finally { clearCloudHistoryBtn.disabled = false; clearCloudHistoryBtn.textContent = 'Clear Cloud History'; }
   });
 }
