@@ -1140,10 +1140,14 @@ if (clearCloudHistoryBtn) {
       if (!sbUrl || !sbKey) { showAlert($('alert-advanced'), 'warn', 'Supabase not configured.'); return; }
       const r = await fetch(`${sbUrl}/rest/v1/playback_states?user_id=eq.${encodeURIComponent(userId)}`, {
         method: 'DELETE',
-        headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey, 'Content-Type': 'application/json', Prefer: 'return=minimal' }
+        headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey, 'Content-Type': 'application/json' }
       });
       if (r.ok) {
-        showAlert($('alert-advanced'), 'ok', 'Cloud history cleared.');
+        showAlert($('alert-advanced'), 'ok', 'Cloud history cleared. Switch to Cloud or Merged tab to confirm.');
+        _histCloud = [];
+        historySource = 'cloud';
+        document.querySelectorAll('.source-pill').forEach(p =>
+          p.classList.toggle('active', p.dataset.source === 'cloud'));
         await loadHistory(await br.storage.local.get(Object.values(S)));
       } else {
         const txt = await r.text().catch(() => '');

@@ -67,7 +67,12 @@ do $$ begin
   end if;
 end $$;
 
--- ── 5. Auto-update updated_at trigger ────────────────────────────────────────
+-- ── 5. Table grants (anon role needs explicit DELETE) ─────────────────────────
+grant select, insert, update, delete on public.playback_states to anon, authenticated;
+grant select, insert, update, delete on public.user_settings to anon, authenticated;
+grant usage on sequence public.playback_states_id_seq to anon, authenticated;
+
+-- ── 6. Auto-update updated_at trigger ────────────────────────────────────────
 create or replace function public.ss_set_updated_at()
   returns trigger language plpgsql as $$
 begin
