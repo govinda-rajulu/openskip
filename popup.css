@@ -795,6 +795,71 @@ body.theme-dark {
 .save-btn:hover { background: var(--accent-dim); box-shadow: 0 0 0 3px var(--accent-glow); }
 .save-btn:active { transform: scale(0.98); }
 
+/* ---------- Subtitle row in popup ---------- */
+.sub-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.sub-upload-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.sub-upload-btn:hover { border-color: var(--accent); background: var(--bg-hover); color: var(--text-primary); }
+
+.sub-clear-btn {
+  width: 24px; height: 24px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  font-family: var(--font-ui);
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.sub-clear-btn:hover { color: var(--danger); border-color: var(--danger); }
+
+.sub-status {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex: 1;
+}
+
+.sub-lang-select {
+  width: 100%;
+  margin-top: 5px;
+  padding: 7px 10px;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-strong);
+  border-radius: 7px;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.sub-lang-select:focus { border-color: var(--accent); }
+
 /* ---------- Reduced Motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

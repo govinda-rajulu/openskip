@@ -26,6 +26,11 @@ const S = {
   statsSessions:      'statsSessions',
   stats:              'skipstream_stats',
   deviceName:         'deviceName',
+  osobUsername:       'osub_username',
+  osobPassword:       'osub_password',
+  subLanguage:        'subtitle_language',
+  subFontSize:        'subtitle_font_size',
+  subEnabled:         'subtitle_enabled',
 };
 
 const $ = id => document.getElementById(id);
@@ -324,6 +329,23 @@ async function loadCredentials() {
   if ($('animeSkipClientId'))  $('animeSkipClientId').value  = data[S.animeSkipClientId]  || '';
   if ($('animeSkipAuthToken')) $('animeSkipAuthToken').value = data[S.animeSkipAuthToken] || '';
   if ($('deviceName'))         $('deviceName').value         = data[S.deviceName]         || '';
+  if ($('osobUsername'))       $('osobUsername').value       = data[S.osobUsername]       || '';
+  if ($('osobPassword'))       $('osobPassword').value       = data[S.osobPassword]       || '';
+  if ($('subLanguage'))        $('subLanguage').value        = data[S.subLanguage]        || 'en';
+  if ($('subFontSize'))        $('subFontSize').value        = data[S.subFontSize]        || 18;
+
+  // Show OpenSubtitles login status
+  br.runtime.sendMessage({ type: 'OSUB_STATUS' }, res => {
+    const dotOsub = $('dot-osub');
+    if (!dotOsub) return;
+    if (res?.loggedIn) {
+      setDot(dotOsub, 'ok');
+      const msg = res.downloads_remaining != null ? `Logged in — ${res.downloads_remaining} downloads remaining today` : 'Logged in';
+      showAlert($('alert-osub'), 'ok', msg);
+    } else {
+      setDot(dotOsub, '');
+    }
+  });
 
   loadStats(data);
   loadSiteRules(data[S.siteRules] || data['skipstream_site_rules'] || {});
@@ -1101,6 +1123,83 @@ if (clearCloudHistoryBtn) {
       }
     } catch (e) { showAlert($('alert-cloud'), 'err', 'Error: ' + e.message); }
     finally { clearCloudHistoryBtn.disabled = false; clearCloudHistoryBtn.textContent = 'Clear Cloud History'; }
+  });
+}
+
+// -- OpenSubtitles login --
+const saveOsubBtn = $('saveOsub');
+if (saveOsubBtn) {
+  saveOsubBtn.addEventListener('click', async () => {
+    const user = ($('osobUsername')?.value || '').trim();
+    const pass = ($('osobPassword')?.value || '').trim();
+    if (!user || !pass) { showAlert($('alert-osub'), 'warn', 'Enter username and password.'); return; }
+    saveOsubBtn.disabled = true;
+    saveOsubBtn.innerHTML = '<span class="spinner"></span>Logging in…';
+    await br.storage.local.set({ [S.osobUsername]: user, [S.osobPassword]: pass });
+    const res = await new Promise(resolve => br.runtime.sendMessage({ type: 'OSUB_LOGIN', username: user, password: pass }, resolve));
+    saveOsubBtn.disabled = false;
+    saveOsubBtn.textContent = 'Save & Login';
+    const dotOsub = $('dot-osub');
+    if (res?.ok) {
+      setDot(dotOsub, 'ok');
+      const msg = res.downloads_remaining != null ? `Logged in — ${res.downloads_remaining} downloads remaining today` : 'Logged in successfully.';
+      showAlert($('alert-osub'), 'ok', msg);
+    } else {
+      setDot(dotOsub, 'err');
+      showAlert($('alert-osub'), 'err', 'Login failed: ' + (res?.err || 'unknown error'));
+    }
+  });
+}
+
+const logoutOsubBtn = $('logoutOsub');
+if (logoutOsubBtn) {
+  logoutOsubBtn.addEventListener('click', async () => {
+    await new Promise(resolve => br.runtime.sendMessage({ type: 'OSUB_LOGOUT' }, resolve));
+    await br.storage.local.remove([S.osobUsername, S.osobPassword]);
+    if ($('osobUsername')) $('osobUsername').value = '';
+    if ($('osobPassword')) $('osobPassword').value = '';
+    setDot($('dot-osub'), '');
+    showAlert($('alert-osub'), 'warn', 'Logged out.');
+  });
+}
+
+// -- Subtitle preferences --
+const saveSubPrefsBtn = $('saveSubPrefs');
+if (saveSubPrefsBtn) {
+  saveSubPrefsBtn.addEventListener('click', async () => {
+    const lang = $('subLanguage')?.value || 'en';
+    const size = parseInt($('subFontSize')?.value) || 18;
+    await br.storage.local.set({ [S.subLanguage]: lang, [S.subFontSize]: size });
+    showAlert($('alert-subprefs'), 'ok', 'Subtitle preferences saved.');
+    setTimeout(() => hideAlert($('alert-subprefs')), 2500);
+  });
+}
+
+// -- Offline subtitle file --
+const subFileUploadBtnOpt = $('subFileUploadBtn');
+const subFileInputOpt     = $('subFileInputOpt');
+const subFileClearBtn     = $('subFileClearBtn');
+
+if (subFileUploadBtnOpt && subFileInputOpt) {
+  subFileUploadBtnOpt.addEventListener('click', () => { subFileInputOpt.value = ''; subFileInputOpt.click(); });
+  subFileInputOpt.addEventListener('change', async () => {
+    const file = subFileInputOpt.files?.[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['srt','vtt'].includes(ext)) { showAlert($('alert-subfile'), 'err', 'Only .srt or .vtt files.'); return; }
+    try {
+      const text = await file.text();
+      await br.storage.local.set({ subtitle_override_srt: text });
+      showAlert($('alert-subfile'), 'ok', `Loaded: ${file.name}`);
+    } catch (e) { showAlert($('alert-subfile'), 'err', 'Failed to read file: ' + e.message); }
+  });
+}
+
+if (subFileClearBtn) {
+  subFileClearBtn.addEventListener('click', async () => {
+    await br.storage.local.remove('subtitle_override_srt');
+    showAlert($('alert-subfile'), 'warn', 'Offline subtitle cleared.');
+    setTimeout(() => hideAlert($('alert-subfile')), 2500);
   });
 }
 

@@ -185,6 +185,56 @@ $('settingsBtn').addEventListener('click', () => br.tabs.create({ url: br.runtim
 $('historyBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') + '#history' }));
 $('statsBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') + '#stats' }));
 
+// -- Subtitle file upload --
+async function loadSubtitlePageState() {
+  const s = await br.storage.local.get(['subtitle_override_srt', 'subtitle_language']);
+  const hasFile = !!s.subtitle_override_srt;
+  const subStatus = $('subStatus');
+  if (subStatus) subStatus.textContent = hasFile ? 'Subtitle loaded ✓' : 'No subtitle loaded';
+  const langSel = $('subLangSelect');
+  if (langSel && s.subtitle_language) langSel.value = s.subtitle_language;
+}
+
+const subUploadBtn = $('subUploadBtn');
+const subFileInput = $('subFileInput');
+const subClearBtn  = $('subClearBtn');
+const subLangSel   = $('subLangSelect');
+
+if (subUploadBtn && subFileInput) {
+  subUploadBtn.addEventListener('click', () => { subFileInput.value = ''; subFileInput.click(); });
+  subFileInput.addEventListener('change', async () => {
+    const file = subFileInput.files?.[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['srt','vtt'].includes(ext)) { alert('Only .srt or .vtt files supported.'); return; }
+    const text = await file.text();
+    await br.storage.local.set({ subtitle_override_srt: text });
+    const subStatus = $('subStatus');
+    if (subStatus) subStatus.textContent = '✓ ' + file.name;
+  });
+}
+
+if (subClearBtn) {
+  subClearBtn.addEventListener('click', async () => {
+    await br.storage.local.remove('subtitle_override_srt');
+    const subStatus = $('subStatus');
+    if (subStatus) subStatus.textContent = 'No subtitle loaded';
+  });
+}
+
+if (subLangSel) {
+  subLangSel.addEventListener('change', async () => {
+    await br.storage.local.set({ subtitle_language: subLangSel.value });
+  });
+}
+
+// Extend loadSkipPage to also init subtitle state
+const _origLoadSkipPage = loadSkipPage;
+async function loadSkipPage() {
+  await _origLoadSkipPage();
+  await loadSubtitlePageState();
+}
+
 // -- Live stats --
 br.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || !changes[KEYS.stats]) return;

@@ -1053,6 +1053,189 @@
     });
   }
 
+  // ── Subtitle system ────────────────────────────────────────────────────────
+
+  let _subState = { enabled: true, language: 'en', fontSize: 18, position: 12, sync: 0, subs: [], loading: false };
+  let _subOverlay = null;
+  let _subCCBtn   = null;
+
+  async function loadSubPrefs() {
+    try {
+      const s = await br.storage.local.get(['subtitle_enabled','subtitle_language','subtitle_font_size','subtitle_position','subtitle_sync']);
+      if (s.subtitle_enabled !== undefined) _subState.enabled  = !!s.subtitle_enabled;
+      if (s.subtitle_language)              _subState.language  = s.subtitle_language;
+      if (s.subtitle_font_size)             _subState.fontSize  = parseInt(s.subtitle_font_size) || 18;
+      if (s.subtitle_position !== undefined) _subState.position = parseFloat(s.subtitle_position) ?? 12;
+      if (s.subtitle_sync     !== undefined) _subState.sync     = parseFloat(s.subtitle_sync) || 0;
+    } catch { /* defaults ok */ }
+  }
+
+  function parseSubs(raw) {
+    if (!raw) return [];
+    raw = raw.replace(/^\uFEFF/, '');
+    const result = [];
+    for (const blk of raw.split(/\n{2,}/)) {
+      const lines = blk.trim().split(/\r?\n/);
+      const arrow = lines.findIndex(l => l.includes('-->'));
+      if (arrow < 0) continue;
+      const [sStr, eStr] = lines[arrow].split('-->').map(s => s.trim());
+      const ts = str => { const m = str.match(/(\d+):(\d{2}):(\d{2})[.,](\d{3})/); return m ? +m[1]*3600 + +m[2]*60 + +m[3] + +m[4]/1000 : NaN; };
+      const start = ts(sStr), end = ts(eStr);
+      if (isNaN(start) || isNaN(end) || start >= end) continue;
+      const text = lines.slice(arrow + 1).join('\n').replace(/<[^>]+>/g, '').replace(/\{[^}]+\}/g, '').trim();
+      if (text) result.push({ start, end, text });
+    }
+    return result;
+  }
+
+  function subContainer(video) {
+    return document.fullscreenElement || document.webkitFullscreenElement || document.body;
+  }
+
+  function positionSub(el, video) {
+    if (!video.isConnected) return;
+    const r    = video.getBoundingClientRect();
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    el.style.position  = fsEl ? 'absolute' : 'fixed';
+    el.style.left      = (r.left + r.width * 0.5) + 'px';
+    el.style.bottom    = (window.innerHeight - r.bottom + r.height * _subState.position / 100) + 'px';
+    el.style.transform = 'translateX(-50%)';
+    const scale = Math.max(0.6, Math.min(1.8, r.width / 640));
+    el.style.fontSize  = Math.max(12, Math.min(42, _subState.fontSize * scale)) + 'px';
+  }
+
+  function ensureSubOverlay(video) {
+    if (_subOverlay?.isConnected) return _subOverlay;
+    if (_subOverlay) _subOverlay.remove();
+    const el = document.createElement('div');
+    el.id = 'skipstream-subs';
+    Object.assign(el.style, {
+      zIndex:'2147483645', fontFamily:'system-ui,-apple-system,sans-serif', fontWeight:'700',
+      color:'#fff', textShadow:'0 2px 6px rgba(0,0,0,0.95),0 0 2px #000', textAlign:'center',
+      pointerEvents:'auto', userSelect:'none', maxWidth:'80%', lineHeight:'1.4',
+      cursor:'grab', whiteSpace:'pre-wrap', display:'none',
+      padding:'3px 10px', borderRadius:'4px', background:'rgba(0,0,0,0.38)',
+    });
+    subContainer(video).appendChild(el);
+    _subOverlay = el;
+
+    // Drag
+    let drag = false, sx = 0, sy = 0, sp = 0;
+    el.addEventListener('pointerdown', e => { drag=true; sx=e.clientX; sy=e.clientY; sp=_subState.position; el.style.cursor='grabbing'; el.setPointerCapture(e.pointerId); e.preventDefault(); });
+    el.addEventListener('pointermove', e => { if (!drag) return; const r=video.getBoundingClientRect(); _subState.position=Math.max(2,Math.min(60,sp-(e.clientY-sy)/r.height*100)); positionSub(el,video); });
+    el.addEventListener('pointerup',   e => { drag=false; el.style.cursor='grab'; el.releasePointerCapture(e.pointerId); br.storage.local.set({subtitle_position:_subState.position}).catch(()=>{}); });
+
+    const onFs = () => { if (!_subOverlay?.isConnected) return; _subOverlay.style.position=(document.fullscreenElement||document.webkitFullscreenElement)?'absolute':'fixed'; subContainer(video).appendChild(_subOverlay); positionSub(_subOverlay,video); };
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('webkitfullscreenchange', onFs);
+    return el;
+  }
+
+  function renderSubFrame(video) {
+    if (!_subOverlay || !_subState.enabled || !_subState.subs.length) {
+      if (_subOverlay) _subOverlay.style.display = 'none';
+      return;
+    }
+    const t = video.currentTime + _subState.sync;
+    const sub = _subState.subs.find(s => t >= s.start && t <= s.end);
+    _subOverlay.textContent = sub?.text || '';
+    _subOverlay.style.display = sub?.text ? 'block' : 'none';
+    if (sub) positionSub(_subOverlay, video);
+  }
+
+  function syncCCBtn() {
+    if (!_subCCBtn) return;
+    const hasText = _subState.subs.length > 0;
+    const loading = _subState.loading;
+    _subCCBtn.querySelector('.cc-lbl').textContent = loading ? '…' : 'CC';
+    _subCCBtn.style.opacity = (hasText && _subState.enabled) ? '1' : '0.5';
+  }
+
+  function ensureCCBtn(video) {
+    if (_subCCBtn?.isConnected) return _subCCBtn;
+    if (_subCCBtn) _subCCBtn.remove();
+    const btn = document.createElement('button');
+    btn.id = 'skipstream-cc-btn';
+    btn.innerHTML = `<svg width="13" height="10" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="1" y="1" width="14" height="9" rx="1.5"/><path d="M4 7h3M9 7h3"/></svg><span class="cc-lbl">CC</span>`;
+    Object.assign(btn.style, {
+      all:'unset', position:(document.fullscreenElement||document.webkitFullscreenElement)?'absolute':'fixed',
+      bottom:'10%', left:'3%', zIndex:'2147483646',
+      display:'flex', alignItems:'center', gap:'5px', padding:'7px 12px',
+      background:'rgba(10,10,18,0.88)', color:'#fff',
+      border:'1.5px solid rgba(255,255,255,0.18)', borderRadius:'10px',
+      cursor:'pointer', fontSize:'12px', fontWeight:'700',
+      fontFamily:'system-ui,-apple-system,sans-serif',
+      backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)',
+      transition:'background 0.15s, opacity 0.15s', pointerEvents:'auto',
+    });
+    btn.addEventListener('click', e => {
+      e.preventDefault(); e.stopPropagation();
+      _subState.enabled = !_subState.enabled;
+      br.storage.local.set({ subtitle_enabled: _subState.enabled }).catch(() => {});
+      renderSubFrame(video); syncCCBtn();
+    });
+    btn.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      const v = prompt('Subtitle sync offset (seconds, e.g. -1.5):', String(_subState.sync));
+      if (v !== null && !isNaN(parseFloat(v))) { _subState.sync = parseFloat(v); br.storage.local.set({ subtitle_sync: _subState.sync }).catch(() => {}); }
+    });
+    subContainer(video).appendChild(btn);
+    _subCCBtn = btn;
+    const onFs = () => { if (!_subCCBtn?.isConnected) return; _subCCBtn.style.position=(document.fullscreenElement||document.webkitFullscreenElement)?'absolute':'fixed'; subContainer(video).appendChild(_subCCBtn); };
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('webkitfullscreenchange', onFs);
+    return btn;
+  }
+
+  async function initSubtitles(video, info) {
+    await loadSubPrefs();
+    ensureCCBtn(video);
+    ensureSubOverlay(video);
+
+    // Offline override: user-uploaded .srt takes priority
+    try {
+      const s = await br.storage.local.get('subtitle_override_srt');
+      if (s.subtitle_override_srt) {
+        _subState.subs = parseSubs(s.subtitle_override_srt);
+        syncCCBtn();
+        return;
+      }
+    } catch { /* ok */ }
+
+    if (!info?.imdbId) { syncCCBtn(); return; }
+
+    _subState.loading = true; syncCCBtn();
+    try {
+      const result = await br.runtime.sendMessage({
+        type: 'OSUB_SEARCH_AND_FETCH',
+        imdbId: info.imdbId, season: info.season || null,
+        episode: info.episode || null, language: _subState.language,
+      });
+      if (result?.ok && result.text) _subState.subs = parseSubs(result.text);
+    } catch { /* subtitle fetch failed, extension still works */ }
+    _subState.loading = false; syncCCBtn();
+  }
+
+  // Listen for subtitle file uploaded from popup/options
+  br.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if ('subtitle_override_srt' in changes) {
+      const raw = changes.subtitle_override_srt.newValue;
+      _subState.subs = raw ? parseSubs(raw) : [];
+      syncCCBtn();
+      if (_subVideo) renderSubFrame(_subVideo);
+    }
+    if ('subtitle_enabled' in changes) {
+      _subState.enabled = !!changes.subtitle_enabled.newValue;
+      syncCCBtn();
+    }
+    if ('subtitle_language' in changes) {
+      _subState.language = changes.subtitle_language.newValue || 'en';
+    }
+  });
+
+  let _subVideo = null;
+
   // ── Video attachment ───────────────────────────────────────────────────────
 
   const attachedVideos = new WeakSet();
@@ -1096,6 +1279,7 @@
     const throttledSave = throttle(() => savePlayback(video, saveTimer), 2500);
     video.addEventListener('timeupdate', () => {
       if (!video.paused && video.currentTime > 5) throttledSave();
+      renderSubFrame(video);
     });
 
     // Event-based saves for pause / seek / unload
@@ -1132,6 +1316,13 @@
     async function resolveSegments() {
       if (resolved) return;
       const info = await resolveShowInfo();
+
+      // Init subtitles for any identified content (movies + TV), not just skippable episodes
+      if (info.imdbId && !_subState.subs.length && !_subState.loading) {
+        _subVideo = video;
+        initSubtitles(video, info).catch(() => {});
+      }
+
       if (!info.imdbId || !info.season || !info.episode) {
         if (!/\/movie\/\d+/.test(location.pathname)) {
           console.warn('[SkipStream] Could not identify episode - skip segments unavailable.');
