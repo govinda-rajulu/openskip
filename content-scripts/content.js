@@ -8,6 +8,9 @@
 
   const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
+  // ── Module state ───────────────────────────────────────────────────────────
+  let _masterJustEnabled = false;
+
   // ── Utilities ──────────────────────────────────────────────────────────────
 
   function debounce(fn, ms) {
@@ -41,7 +44,19 @@
   br.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     for (const key of Object.keys(PREF_DEFAULTS)) {
-      if (key in changes) prefs[key] = changes[key].newValue;
+      if (key in changes) {
+        prefs[key] = changes[key].newValue;
+        if (key === 'skipEnabled' && changes[key].newValue === true) {
+          _masterJustEnabled = true;
+          setTimeout(() => { _masterJustEnabled = false; }, 3000);
+        }
+      }
+    }
+    if ('playbackSpeed' in changes) {
+      const rate = parseFloat(changes.playbackSpeed.newValue) || 1;
+      document.querySelectorAll('video').forEach(v => {
+        if (v.isConnected) v.playbackRate = rate;
+      });
     }
   });
 
@@ -413,6 +428,8 @@
 
   async function restorePlayback(video) {
     if (!prefs.resumePlayback) return;
+    if (_masterJustEnabled) return;
+    if (!getSitePrefs(prefs).skipEnabled) return;
     const mediaId = getMediaId();
 
     // Check if this tab was opened via history click (pending resume)
@@ -1137,26 +1154,24 @@
       if (video.paused || !segments) return;
       if (video._ssCooldownUntil && Date.now() < video._ssCooldownUntil) return;
 
+      const effectivePrefs = getSitePrefs(prefs);
+      if (!effectivePrefs.skipEnabled) {
+        if (activeSegmentKey) { activeSegmentKey = ''; hideSkipBtn(); }
+        return;
+      }
+
       const active = findActiveSegment(segments, video.currentTime);
 
       if (active) {
-        // Per-site override: check if this domain has a custom skip mode
-        const effectivePrefs = getSitePrefs(prefs);
         const prefKey = PREF_FOR_SEGMENT[active.key];
-        if (!effectivePrefs.skipEnabled) {
-          if (activeSegmentKey) { activeSegmentKey = ''; hideSkipBtn(); }
-          return;
-        }
         if (active.key !== activeSegmentKey) {
           activeSegmentKey = active.key;
           if (effectivePrefs[prefKey]) {
-            // pref ON = auto-skip with 3s countdown + undo
             showSkipCountdown(active.key, active.segment, video, () => {
               activeSegmentKey = '';
               hideSkipBtn();
             });
           } else {
-            // pref OFF = show manual skip button so user can choose
             showSkipBtn(segmentLabel(active.key, active.segment), () => {
               const prevTime = video.currentTime;
               video.currentTime = active.segment.end_sec;

@@ -163,6 +163,12 @@ statsBtn.addEventListener('click', () => {
   br.tabs.create({ url: br.runtime.getURL('options.html') + '#stats' });
 });
 
+// -- Live stats update --
+br.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes[KEYS.stats]) return;
+  br.storage.local.get([KEYS.stats]).then(d => applyStats(d)).catch(() => {});
+});
+
 // -- Init --
 detectDomain();
 loadState();

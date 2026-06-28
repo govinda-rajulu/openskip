@@ -48,6 +48,9 @@ function showPanel(id) {
   panels.forEach(p => p.classList.toggle('active', p.id === 'panel-' + id));
   navItems.forEach(n => n.classList.toggle('active', n.dataset.panel === id));
   history.replaceState(null, '', '#' + id);
+  if (id === 'stats') {
+    br.storage.local.get([S.stats]).then(d => loadStats(d)).catch(() => {});
+  }
 }
 
 navItems.forEach(item => {
@@ -1190,6 +1193,15 @@ if (sidebarOverlay) sidebarOverlay.addEventListener('click', () => document.body
 document.querySelectorAll('.nav-item[data-panel]').forEach(item =>
   item.addEventListener('click', () => document.body.classList.remove('nav-open'))
 );
+
+// -- Live stats update --
+br.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes[S.stats]) return;
+  const statsPanel = $('panel-stats');
+  if (statsPanel?.classList.contains('active')) {
+    br.storage.local.get([S.stats]).then(d => loadStats(d)).catch(() => {});
+  }
+});
 
 // -- Init --
 loadCredentials();

@@ -31,19 +31,19 @@
   --radius-pill:    999px;
   --radius-sm:      8px;
   --font-ui:        'Inter', 'Segoe UI', system-ui, sans-serif;
-  --transition:     150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition:     200ms ease-out;
 }
 
 body {
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: clamp(12px, 3.5vw, 14px);
   background: var(--bg-base);
   color: var(--text-primary);
   min-width: 320px;
-  max-width: 360px;
+  max-width: 380px;
+  width: 100%;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 /* ---------- Outer Card ---------- */
@@ -548,6 +548,28 @@ footer a:hover {
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
   border-radius: 4px;
+}
+
+/* ---------- Light Mode ---------- */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-base:        #f4f6fb;
+    --bg-card:        #ffffff;
+    --bg-surface:     #eef1f7;
+    --bg-hover:       #e6eaf3;
+    --accent:         #4a9e2f;
+    --accent-dim:     #3a7e24;
+    --accent-glow:    rgba(74,158,47,0.15);
+    --danger:         #cc3333;
+    --text-primary:   #111318;
+    --text-secondary: #50596a;
+    --text-muted:     #8a95a8;
+    --border:         rgba(0,0,0,0.08);
+    --border-strong:  rgba(0,0,0,0.14);
+    --shadow-card:    0 4px 24px rgba(0,0,0,0.10);
+    --warn:           #4a7fb5;
+    --ok:             #b85c28;
+  }
 }
 
 /* ---------- Reduced Motion ---------- */

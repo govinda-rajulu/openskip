@@ -313,27 +313,6 @@ async function checkSupabase(supabaseUrl, supabaseAnonKey) {
   } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
 }
 
-async function checkTmdb(tmdbApiKey) {
-  if (!tmdbApiKey) return { ok: false, message: 'Not configured' };
-  try {
-    const r = await fetch(`https://api.themoviedb.org/3/configuration?api_key=${tmdbApiKey}`);
-    if (r.ok) return { ok: true, message: 'Connected' };
-    if (r.status === 401) return { ok: false, message: 'Invalid API key' };
-    return { ok: false, message: `Status ${r.status}` };
-  } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
-}
-
-async function checkIntroDB(introdbApiKey) {
-  // NOTE: IntroDB's public API has no key-validation endpoint. /intro and /segments
-  // are unauthenticated reads; only POST /submit checks X-API-Key. This can only
-  // confirm "configured + API reachable", never "key is valid".
-  if (!introdbApiKey) return { ok: false, message: 'Not configured' };
-  try {
-    const r = await fetch('https://api.introdb.app/intro?imdb_id=tt0944947&season=1&episode=1');
-    if (r.ok) return { ok: true, message: 'Configured (API reachable)' };
-    return { ok: false, message: `API unreachable: status ${r.status}` };
-  } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
-}
 
 // ── First install / update handler ───────────────────────────────────────────
 
@@ -371,18 +350,7 @@ br.runtime.onInstalled.addListener(async ({ reason }) => {
 br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const msg = message;
 
-  if (msg.type === 'CHECK_CONFIG') {
-    getConfig().then(async ({ supabaseUrl, supabaseAnonKey, tmdbApiKey, introdbApiKey }) => {
-      const [supabase, tmdb, introdb] = await Promise.all([
-        checkSupabase(supabaseUrl, supabaseAnonKey),
-        checkTmdb(tmdbApiKey),
-        checkIntroDB(introdbApiKey),
-      ]);
-      sendResponse({ supabase, tmdb, introdb });
-    });
-    return true;
-  }
-
+  
   if (msg.type === 'INVALIDATE_USER_ID') {
     _cachedUserId = null;
     br.storage.local.remove(USERID_CACHE_KEY).catch(() => {});
