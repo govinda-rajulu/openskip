@@ -325,7 +325,6 @@ async function loadCredentials() {
   if ($('animeSkipAuthToken')) $('animeSkipAuthToken').value = data[S.animeSkipAuthToken] || '';
   if ($('deviceName'))         $('deviceName').value         = data[S.deviceName]         || '';
 
-  loadSkipBehavior(data);
   loadStats(data);
   loadSiteRules(data[S.siteRules] || data['skipstream_site_rules'] || {});
   // Pull cloud settings if Supabase configured and cloud is newer
@@ -438,86 +437,6 @@ if (saveAnimeskipBtn) {
 const reVerifyBtn = $('reVerifyBtn');
 if (reVerifyBtn) {
   reVerifyBtn.addEventListener('click', () => verifyAll());
-}
-
-// -- Skip behavior: mode chips --
-let currentMode = 'auto-all';
-let currentRate = 1;
-
-function loadSkipBehavior(data) {
-  currentMode = data[S.skipMode] || 'auto-all';
-  currentRate = parseFloat(data[S.playbackRate]) || 1;
-
-  document.querySelectorAll('.mode-chip[data-mode]').forEach(chip => {
-    chip.classList.toggle('selected', chip.dataset.mode === currentMode);
-  });
-  document.querySelectorAll('.mode-chip[data-rate]').forEach(chip => {
-    chip.classList.toggle('selected', parseFloat(chip.dataset.rate) === currentRate);
-  });
-
-  const set = (id, val) => { const el = $(id); if (el) el.checked = val !== false; };
-  set('skipIntro',       data[S.skipIntro]);
-  set('skipRecap',       data[S.skipRecap]);
-  set('skipOutro',       data[S.skipOutro]);
-  set('resumePlayback',  data[S.resumePlayback]);
-  set('autoNextEpisode', data[S.autoNextEpisode]);
-}
-
-document.querySelectorAll('.mode-chip[data-mode]').forEach(chip => {
-  chip.addEventListener('click', () => {
-    currentMode = chip.dataset.mode;
-    document.querySelectorAll('.mode-chip[data-mode]').forEach(c =>
-      c.classList.toggle('selected', c.dataset.mode === currentMode)
-    );
-  });
-});
-
-document.querySelectorAll('.mode-chip[data-rate]').forEach(chip => {
-  chip.addEventListener('click', () => {
-    currentRate = parseFloat(chip.dataset.rate);
-    document.querySelectorAll('.mode-chip[data-rate]').forEach(c =>
-      c.classList.toggle('selected', parseFloat(c.dataset.rate) === currentRate)
-    );
-  });
-});
-
-const saveBehaviorBtn = $('saveBehavior');
-if (saveBehaviorBtn) {
-  saveBehaviorBtn.addEventListener('click', async () => {
-    const get = id => { const el = $(id); return el ? el.checked : true; };
-    await br.storage.local.set({
-      [S.skipMode]:        currentMode,
-      [S.playbackRate]:    currentRate,
-      [S.skipIntro]:       get('skipIntro'),
-      [S.skipRecap]:       get('skipRecap'),
-      [S.skipOutro]:       get('skipOutro'),
-      [S.resumePlayback]:  get('resumePlayback'),
-      [S.autoNextEpisode]: get('autoNextEpisode'),
-    });
-    showAlert($('alert-behavior'), 'ok', 'Skip behavior saved.');
-    setTimeout(() => hideAlert($('alert-behavior')), 2500);
-    // Push settings to cloud if Supabase configured
-    try {
-      const userId = await new Promise(res =>
-        br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
-      );
-      if (userId) {
-        const prefs = await br.storage.local.get([
-          S.skipMode, S.skipIntro, S.skipRecap, S.skipOutro,
-          S.resumePlayback, S.autoNextEpisode, S.playbackRate
-        ]);
-        const currentSiteRules = await new Promise(res => {
-          br.storage.local.get('skipstream_site_rules', r =>
-            res(r.skipstream_site_rules || {})
-          );
-        });
-        br.runtime.sendMessage({
-          type: 'SUPABASE_SETTINGS_UPSERT',
-          body: { user_id: userId, prefs, site_rules: currentSiteRules }
-        });
-      }
-    } catch (_) {}
-  });
 }
 
 // -- Per-site rules --

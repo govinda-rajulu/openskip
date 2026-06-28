@@ -2,168 +2,190 @@
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
-// -- Storage keys (must match background.js + content.js) --
 const KEYS = {
-  enabled:       'skipEnabled',
-  skipMode:      'skipMode',
-  skipIntro:     'skipIntro',
-  skipRecap:     'skipRecap',
-  skipOutro:     'skipOutro',
-  resumePlay:    'resumePlayback',
-  autoNext:      'autoNextEpisode',
-  playRate:      'playbackSpeed',
-  statsSkips:    'statsSkipsToday',
-  statsDate:     'statsDate',
-  statsTotalSkips: 'statsTotalSkips',
-  statsTotalTime:  'statsTotalTimeSaved',
-  stats:         'skipstream_stats',
+  enabled:    'skipEnabled',
+  skipMode:   'skipMode',
+  skipIntro:  'skipIntro',
+  skipRecap:  'skipRecap',
+  skipOutro:  'skipOutro',
+  resumePlay: 'resumePlayback',
+  autoNext:   'autoNextEpisode',
+  playRate:   'playbackSpeed',
+  stats:      'skipstream_stats',
+  theme:      'skipstream_theme',
 };
 
 const $ = id => document.getElementById(id);
 
-// -- DOM refs --
-const masterToggle = $('masterToggle');
-const masterSub    = $('masterSub');
-const domainDot    = $('domainDot');
-const domainLabel  = $('domainLabel');
-const versionBadge = $('versionBadge');
-const modeBadge    = $('modeBadge');
-const statSkips    = $('statSkips');
-const statTime     = $('statTime');
-const skipIntro    = $('skipIntro');
-const skipRecap    = $('skipRecap');
-const skipOutro    = $('skipOutro');
-const rowIntro     = $('rowIntro');
-const rowRecap     = $('rowRecap');
-const rowOutro     = $('rowOutro');
-const historyBtn   = $('historyBtn');
-const statsBtn     = $('statsBtn');
-const settingsBtn  = $('settingsBtn');
+// -- Version --
+$('versionBadge').textContent = 'v' + br.runtime.getManifest().version;
 
-// -- Version badge --
-const manifest = br.runtime.getManifest();
-versionBadge.textContent = 'v' + manifest.version;
+// -- Theme --
+let currentTheme = '';
 
-// -- Active tab domain detection --
+function applyTheme(t) {
+  document.body.classList.remove('theme-light', 'theme-dark');
+  if (t === 'light') document.body.classList.add('theme-light');
+  if (t === 'dark')  document.body.classList.add('theme-dark');
+  const isDark = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const sun  = document.querySelector('.icon-sun');
+  const moon = document.querySelector('.icon-moon');
+  if (sun)  sun.style.display  = isDark ? 'block' : 'none';
+  if (moon) moon.style.display = isDark ? 'none'  : 'block';
+}
+
+$('themeBtn').addEventListener('click', () => {
+  currentTheme = currentTheme === '' ? 'light' : currentTheme === 'light' ? 'dark' : '';
+  applyTheme(currentTheme);
+  br.storage.local.set({ [KEYS.theme]: currentTheme });
+});
+
+// -- Tabs --
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('.page').forEach(p => p.classList.toggle('page-hidden', p.id !== 'page-' + tab.dataset.tab));
+    if (tab.dataset.tab === 'skip') loadSkipPage();
+  });
+});
+
+// -- Domain --
 async function detectDomain() {
   try {
     const [tab] = await br.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !tab.url) return;
+    if (!tab?.url) return;
     const url = new URL(tab.url);
-    if (!url.hostname || url.protocol === 'chrome:' || url.protocol === 'about:' || url.protocol === 'moz-extension:') {
-      domainLabel.textContent = 'No active video tab';
-      domainDot.className = 'domain-dot';
-      return;
+    if (!url.hostname || ['chrome:', 'about:', 'moz-extension:'].includes(url.protocol)) {
+      $('domainLabel').textContent = 'No active video tab'; return;
     }
-    const host = url.hostname.replace(/^www\./, '');
-    domainLabel.textContent = 'Active on: ' + host;
-    domainDot.classList.add('active');
-  } catch (_) {
-    domainLabel.textContent = 'No active video tab';
-  }
+    $('domainLabel').textContent = 'Active on: ' + url.hostname.replace(/^www\./, '');
+    $('domainDot').classList.add('active');
+  } catch (_) { $('domainLabel').textContent = 'No active video tab'; }
 }
 
-// -- Skip mode badge helper --
-const MODE_LABELS = {
-  'off':        'Disabled',
-  'prompt':     'Prompt',
-  'auto-intro': 'Auto Intros',
-  'auto-recap': 'Auto Recaps',
-  'auto-outro': 'Auto Outros',
-  'auto-all':   'Auto All',
-};
+// -- Mode badge --
+const MODE_LABELS = { off:'Disabled', prompt:'Prompt', 'auto-intro':'Auto Intros', 'auto-recap':'Auto Recaps', 'auto-outro':'Auto Outros', 'auto-all':'Auto All' };
 
 function applyMode(mode, enabled) {
-  const label = MODE_LABELS[mode] || 'Disabled';
-  modeBadge.textContent = label;
-  if (!enabled || mode === 'off') {
-    modeBadge.className = 'mode-badge off';
-  } else {
-    modeBadge.className = 'mode-badge';
-  }
+  $('modeBadge').textContent = MODE_LABELS[mode] || 'Disabled';
+  $('modeBadge').className = (!enabled || mode === 'off') ? 'mode-badge off' : 'mode-badge';
 }
 
-// -- Child toggle disabled state --
 function applyChildState(enabled) {
-  [rowIntro, rowRecap, rowOutro].forEach(r => {
-    r.classList.toggle('disabled', !enabled);
-  });
+  ['rowIntro','rowRecap','rowOutro'].forEach(id => $(id)?.classList.toggle('disabled', !enabled));
 }
 
-// -- Master sub-label --
-function applyMasterSub(enabled) {
-  masterSub.textContent = enabled ? 'Extension is active' : 'Extension is paused';
-}
-
-// -- Stats display --
-function fmtTime(seconds) {
-  if (!seconds || seconds < 60) return (seconds || 0) + 's';
-  const m = Math.floor(seconds / 60);
-  return m + 'm';
+// -- Stats --
+function fmtTime(s) {
+  if (!s || s < 60) return (s || 0) + 's';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  return (s / 3600).toFixed(1) + 'h';
 }
 
 function applyStats(data) {
-  const stats = data[KEYS.stats] || {};
+  const st = data[KEYS.stats] || {};
   const today = new Date().toDateString();
-  const skipsToday = stats.statsDate === today ? (stats.skipsToday || 0) : 0;
-  statSkips.textContent = skipsToday;
-  const totalTime = stats.timeSavedSec || 0;
-  statTime.textContent = fmtTime(totalTime);
+  $('statSkips').textContent = st.statsDate === today ? (st.skipsToday || 0) : 0;
+  $('statTime').textContent  = fmtTime(st.timeSavedSec || 0);
 }
 
-// -- Load all state from storage --
+// -- Load status page --
 async function loadState() {
   const data = await br.storage.local.get(Object.values(KEYS));
   const enabled = data[KEYS.enabled] !== false;
   const mode    = data[KEYS.skipMode] || 'auto-all';
-
-  masterToggle.checked = enabled;
-  skipIntro.checked    = data[KEYS.skipIntro] !== false;
-  skipRecap.checked    = data[KEYS.skipRecap] !== false;
-  skipOutro.checked    = data[KEYS.skipOutro] !== false;
-
-  applyMasterSub(enabled);
+  currentTheme  = data[KEYS.theme]    || '';
+  applyTheme(currentTheme);
+  $('masterToggle').checked = enabled;
+  $('skipIntro').checked    = data[KEYS.skipIntro] !== false;
+  $('skipRecap').checked    = data[KEYS.skipRecap] !== false;
+  $('skipOutro').checked    = data[KEYS.skipOutro] !== false;
+  $('masterSub').textContent = enabled ? 'Extension is active' : 'Extension is paused';
   applyMode(mode, enabled);
   applyChildState(enabled);
   applyStats(data);
 }
 
-// -- Save helper --
-function save(obj) {
-  br.storage.local.set(obj);
+// -- Load skip settings page --
+let popupMode = 'auto-all';
+let popupRate = 1;
+
+async function loadSkipPage() {
+  const data = await br.storage.local.get([
+    KEYS.skipMode, KEYS.playRate,
+    KEYS.skipIntro, KEYS.skipRecap, KEYS.skipOutro,
+    KEYS.resumePlay, KEYS.autoNext,
+  ]);
+  popupMode = data[KEYS.skipMode] || 'auto-all';
+  popupRate = parseFloat(data[KEYS.playRate]) || 1;
+
+  document.querySelectorAll('.smode-chip').forEach(c =>
+    c.classList.toggle('selected', c.dataset.mode === popupMode));
+  document.querySelectorAll('.speed-chip').forEach(c =>
+    c.classList.toggle('selected', parseFloat(c.dataset.rate) === popupRate));
+
+  const chk = (id, key, def = true) => { const el = $(id); if (el) el.checked = data[key] !== false; };
+  chk('p-skipIntro',       KEYS.skipIntro);
+  chk('p-skipRecap',       KEYS.skipRecap);
+  chk('p-skipOutro',       KEYS.skipOutro);
+  chk('p-resumePlayback',  KEYS.resumePlay);
+  chk('p-autoNextEpisode', KEYS.autoNext);
 }
 
-// -- Master toggle --
-masterToggle.addEventListener('change', () => {
-  const enabled = masterToggle.checked;
-  save({ [KEYS.enabled]: enabled });
-  applyMasterSub(enabled);
-  applyChildState(enabled);
-  br.storage.local.get(KEYS.skipMode, d => {
-    applyMode(d[KEYS.skipMode] || 'auto-all', enabled);
+document.querySelectorAll('.smode-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    popupMode = chip.dataset.mode;
+    document.querySelectorAll('.smode-chip').forEach(c => c.classList.toggle('selected', c === chip));
   });
 });
 
-// -- Granular segment toggles --
-skipIntro.addEventListener('change', () => save({ [KEYS.skipIntro]: skipIntro.checked }));
-skipRecap.addEventListener('change', () => save({ [KEYS.skipRecap]: skipRecap.checked }));
-skipOutro.addEventListener('change', () => save({ [KEYS.skipOutro]: skipOutro.checked }));
-
-// -- Action bar buttons --
-// FIX: use tabs.create instead of openOptionsPage to avoid about:addons in Firefox
-settingsBtn.addEventListener('click', () => {
-  br.tabs.create({ url: br.runtime.getURL('options.html') });
+document.querySelectorAll('.speed-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    popupRate = parseFloat(chip.dataset.rate);
+    document.querySelectorAll('.speed-chip').forEach(c => c.classList.toggle('selected', c === chip));
+  });
 });
 
-historyBtn.addEventListener('click', () => {
-  br.tabs.create({ url: br.runtime.getURL('options.html') + '#history' });
+$('saveSkipBtn').addEventListener('click', async () => {
+  await br.storage.local.set({
+    [KEYS.skipMode]:  popupMode,
+    [KEYS.playRate]:  popupRate,
+    [KEYS.skipIntro]: $('p-skipIntro')?.checked   ?? true,
+    [KEYS.skipRecap]: $('p-skipRecap')?.checked   ?? true,
+    [KEYS.skipOutro]: $('p-skipOutro')?.checked   ?? false,
+    [KEYS.resumePlay]:$('p-resumePlayback')?.checked ?? true,
+    [KEYS.autoNext]:  $('p-autoNextEpisode')?.checked ?? false,
+  });
+  // Sync status tab badges + toggles
+  $('skipIntro').checked = $('p-skipIntro')?.checked;
+  $('skipRecap').checked = $('p-skipRecap')?.checked;
+  $('skipOutro').checked = $('p-skipOutro')?.checked;
+  applyMode(popupMode, $('masterToggle').checked);
+  const btn = $('saveSkipBtn');
+  btn.textContent = 'Saved ✓';
+  setTimeout(() => { btn.textContent = 'Save Settings'; }, 1800);
 });
 
-statsBtn.addEventListener('click', () => {
-  br.tabs.create({ url: br.runtime.getURL('options.html') + '#stats' });
+// -- Master toggle --
+$('masterToggle').addEventListener('change', () => {
+  const enabled = $('masterToggle').checked;
+  br.storage.local.set({ [KEYS.enabled]: enabled });
+  $('masterSub').textContent = enabled ? 'Extension is active' : 'Extension is paused';
+  applyChildState(enabled);
+  br.storage.local.get([KEYS.skipMode]).then(d => applyMode(d[KEYS.skipMode] || 'auto-all', enabled));
 });
 
-// -- Live stats update --
+// -- Segment toggles --
+$('skipIntro').addEventListener('change', () => br.storage.local.set({ [KEYS.skipIntro]: $('skipIntro').checked }));
+$('skipRecap').addEventListener('change', () => br.storage.local.set({ [KEYS.skipRecap]: $('skipRecap').checked }));
+$('skipOutro').addEventListener('change', () => br.storage.local.set({ [KEYS.skipOutro]: $('skipOutro').checked }));
+
+// -- Action bar --
+$('settingsBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') }));
+$('historyBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') + '#history' }));
+$('statsBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') + '#stats' }));
+
+// -- Live stats --
 br.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || !changes[KEYS.stats]) return;
   br.storage.local.get([KEYS.stats]).then(d => applyStats(d)).catch(() => {});

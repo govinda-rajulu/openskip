@@ -10,6 +10,8 @@
 
   // ── Module state ───────────────────────────────────────────────────────────
   let _masterJustEnabled = false;
+  const _promptedVideos = new WeakSet();
+  let _lastNativeSkipTs = 0;
 
   // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -430,6 +432,8 @@
     if (!prefs.resumePlayback) return;
     if (_masterJustEnabled) return;
     if (!getSitePrefs(prefs).skipEnabled) return;
+    if (_promptedVideos.has(video)) return;
+    _promptedVideos.add(video);
     const mediaId = getMediaId();
 
     // Check if this tab was opened via history click (pending resume)
@@ -928,7 +932,11 @@
       // Respect per-site overrides for native skip buttons
       const ep = getSitePrefs(prefs);
       if (ep.skipEnabled) {
-        clickFirst(SKIP_SELECTORS);
+        const now = Date.now();
+        if (now - _lastNativeSkipTs > 10000 && clickFirst(SKIP_SELECTORS)) {
+          _lastNativeSkipTs = now;
+          recordSkipStat(60);
+        }
       }
 
       // Next episode: fire when within 10s of end

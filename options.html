@@ -302,136 +302,16 @@
   <!-- ── Skip Behavior panel ────────────────────────────────────── -->
   <section id="panel-skipbehavior" class="panel">
     <h1 class="page-title">Skip Behavior</h1>
-    <p class="page-sub">Control how and which segments are skipped globally. Per-domain overrides can be set in Per-Site Rules.</p>
-
+    <p class="page-sub">Skip behavior is now managed directly in the extension popup for faster access while watching.</p>
     <div class="card">
-      <div class="card-header">
-        <div class="card-icon blue">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/></svg>
-        </div>
-        <div class="card-title-wrap">
-          <div class="card-title">Skip Mode</div>
-          <div class="card-subtitle">How detected segments are handled</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="mode-chips">
-          <button class="mode-chip" data-mode="off">
-            <span class="mode-chip-name">Disabled</span>
-            <span class="mode-chip-desc">Extension paused globally</span>
-          </button>
-          <button class="mode-chip" data-mode="prompt">
-            <span class="mode-chip-name">Prompt Button</span>
-            <span class="mode-chip-desc">Show skip button overlay, you decide</span>
-          </button>
-          <button class="mode-chip" data-mode="auto-all">
-            <span class="mode-chip-name">Auto-skip All</span>
-            <span class="mode-chip-desc">Silently skip all segment types</span>
-          </button>
-          <button class="mode-chip" data-mode="auto-intro">
-            <span class="mode-chip-name">Auto-skip Intros</span>
-            <span class="mode-chip-desc">Only skip intro segments</span>
-          </button>
-          <button class="mode-chip" data-mode="auto-recap">
-            <span class="mode-chip-name">Auto-skip Recaps</span>
-            <span class="mode-chip-desc">Only skip recap segments</span>
-          </button>
-          <button class="mode-chip" data-mode="auto-outro">
-            <span class="mode-chip-name">Auto-skip Outros</span>
-            <span class="mode-chip-desc">Only skip outro segments</span>
-          </button>
+      <div class="card-body" style="display:flex;align-items:center;gap:14px;padding:20px">
+        <svg width="32" height="32" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/></svg>
+        <div>
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px">Open the popup to configure skip settings</div>
+          <div style="font-size:12px;color:var(--text3);line-height:1.6">Click the SkipStream icon in your browser toolbar. Switch to the <strong>Skip Settings</strong> tab to change skip mode, segment toggles, and playback speed. Settings sync instantly to all active tabs.</div>
         </div>
       </div>
     </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-icon blue">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>
-        </div>
-        <div class="card-title-wrap">
-          <div class="card-title">Granular Toggles</div>
-          <div class="card-subtitle">Fine-tune which segment types are active</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="toggle-row">
-          <div class="toggle-info">
-            <div class="toggle-name">Skip Intros</div>
-            <div class="toggle-desc">Opening credits and title sequences</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="skipIntro">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="toggle-row">
-          <div class="toggle-info">
-            <div class="toggle-name">Skip Recaps</div>
-            <div class="toggle-desc">Previously on… episode summaries</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="skipRecap">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="toggle-row">
-          <div class="toggle-info">
-            <div class="toggle-name">Skip Outros</div>
-            <div class="toggle-desc">End credits and post-roll segments</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="skipOutro">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="toggle-row">
-          <div class="toggle-info">
-            <div class="toggle-name">Resume Playback</div>
-            <div class="toggle-desc">Continue where you left off</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="resumePlayback">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="toggle-row">
-          <div class="toggle-info">
-            <div class="toggle-name">Auto Next Episode</div>
-            <div class="toggle-desc">Jump to next episode near end</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="autoNextEpisode">
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-icon blue">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/></svg>
-        </div>
-        <div class="card-title-wrap">
-          <div class="card-title">Playback Speed</div>
-          <div class="card-subtitle">Default speed for all video</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="mode-chip" data-rate="1"    style="flex:1;min-width:60px"><span class="mode-chip-name">1x</span><span class="mode-chip-desc">Normal</span></button>
-          <button class="mode-chip" data-rate="1.25" style="flex:1;min-width:60px"><span class="mode-chip-name">1.25x</span><span class="mode-chip-desc">Slightly faster</span></button>
-          <button class="mode-chip" data-rate="1.5"  style="flex:1;min-width:60px"><span class="mode-chip-name">1.5x</span><span class="mode-chip-desc">Fast</span></button>
-          <button class="mode-chip" data-rate="2"    style="flex:1;min-width:60px"><span class="mode-chip-name">2x</span><span class="mode-chip-desc">Very fast</span></button>
-        </div>
-      </div>
-    </div>
-
-    <div class="btn-row">
-      <button class="btn-primary" id="saveBehavior">Save Behavior</button>
-    </div>
-    <div class="alert" id="alert-behavior"></div>
   </section>
 
   <!-- ── Per-Site Rules panel ───────────────────────────────────── -->
