@@ -840,7 +840,19 @@ body.theme-dark {
 .sub-status {
   font-size: 10px;
   color: var(--text-muted);
-  flex: 1;
+  display: block;
+  margin-top: 5px;
+}
+
+.sub-lang-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sub-lang-row .skip-label {
+  white-space: nowrap;
 }
 
 .sub-lang-select {

@@ -25,7 +25,8 @@
   </div>
 
   <nav class="nav">
-    <span class="nav-section-label">Configuration</span>
+
+    <span class="nav-section-label">Services</span>
 
     <button class="nav-item active" data-panel="connections">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.5 1.5"/></svg>
@@ -59,23 +60,12 @@
 
     <span class="nav-section-label">Behavior</span>
 
-    <button class="nav-item" data-panel="subtitles">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M3 9h4M9 9h4M3 12h6"/></svg>
-      Subtitles
-      <span class="nav-dot" id="navDotSubtitles"></span>
-    </button>
-
-    <button class="nav-item" data-panel="skipbehavior">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/></svg>
-      Skip Behavior
-    </button>
-
     <button class="nav-item" data-panel="siterules">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6M8 5v6"/></svg>
       Per-Site Rules
     </button>
 
-    <span class="nav-section-label">Data</span>
+    <span class="nav-section-label">View</span>
 
     <button class="nav-item" data-panel="history">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg>
@@ -87,17 +77,13 @@
       Stats
     </button>
 
-    <button class="nav-item" data-panel="exportimport">
+    <span class="nav-section-label">Manage</span>
+
+    <button class="nav-item" data-panel="dataadvanced">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v3h10v-3"/><path d="M8 2v7M5 6l3-4 3 4"/></svg>
-      Export / Import
+      Data &amp; Advanced
     </button>
 
-    <span class="nav-section-label">Advanced</span>
-
-    <button class="nav-item" data-panel="advanced">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.76 3.76l1.06 1.06M11.18 11.18l1.06 1.06M3.76 12.24l1.06-1.06M11.18 4.82l1.06-1.06"/></svg>
-      Advanced
-    </button>
   </nav>
 </aside>
 
@@ -303,21 +289,45 @@
         <div class="alert" id="alert-animeskip"></div>
       </div>
     </div>
-  </section>
-
-  <!-- ── Skip Behavior panel ────────────────────────────────────── -->
-  <section id="panel-skipbehavior" class="panel">
-    <h1 class="page-title">Skip Behavior</h1>
-    <p class="page-sub">Skip behavior is now managed directly in the extension popup for faster access while watching.</p>
-    <div class="card">
-      <div class="card-body" style="display:flex;align-items:center;gap:14px;padding:20px">
-        <svg width="32" height="32" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/></svg>
-        <div>
-          <div style="font-weight:700;font-size:14px;margin-bottom:4px">Open the popup to configure skip settings</div>
-          <div style="font-size:12px;color:var(--text3);line-height:1.6">Click the SkipStream icon in your browser toolbar. Switch to the <strong>Skip Settings</strong> tab to change skip mode, segment toggles, and playback speed. Settings sync instantly to all active tabs.</div>
+  <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M3 9h4M9 9h4M3 12h6"/></svg>
         </div>
+        <div class="card-title-wrap">
+          <div class="card-title">OpenSubtitles</div>
+          <div class="card-subtitle">Auto-subtitle fetch by IMDB ID</div>
+        </div>
+        <div class="status-dot" id="dot-osub"></div>
+        <div class="status-dot" id="dot-osub-card" style="display:none"></div>
+      </div>
+      <div class="card-body">
+        <div class="status-grid">
+          <div class="status-row">
+            <div class="status-dot" id="dot-osub-inner"></div>
+            <div class="status-body">
+              <div class="status-label">OpenSubtitles <span class="tag">optional</span></div>
+              <div class="status-msg" id="msg-osub">Not checked</div>
+            </div>
+          </div>
+        </div>
+        <div class="field" style="margin-top:14px">
+          <label class="field-label" for="osobUsername">Username</label>
+          <input type="text" id="osobUsername" placeholder="OpenSubtitles username" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label class="field-label" for="osobPassword">Password</label>
+          <input type="password" id="osobPassword" placeholder="OpenSubtitles password" autocomplete="off">
+        </div>
+        <p class="help" style="margin-bottom:12px">Without login: 5 subtitle downloads/day. Free account: up to 200/day. <a href="https://www.opensubtitles.com/en/newaccount" target="_blank" rel="noopener">Register here</a>. Subtitle language configured in popup.</p>
+        <div class="btn-row">
+          <button class="btn-primary" id="saveOsub">Save &amp; Login</button>
+          <button class="btn-ghost" id="logoutOsub">Log Out</button>
+        </div>
+        <div class="alert" id="alert-osub"></div>
       </div>
     </div>
+
   </section>
 
   <!-- ── Per-Site Rules panel ───────────────────────────────────── -->
@@ -421,172 +431,30 @@
     </div>
   </section>
 
-  <!-- ── Export / Import panel ──────────────────────────────────── -->
-  <section id="panel-exportimport" class="panel">
-    <h1 class="page-title">Export / Import</h1>
-    <p class="page-sub">Back up your credentials, history, stats, and site rules to a JSON file. Import merges history and combines session counts.</p>
+  <!-- ── Data & Advanced panel ─────────────────────────────────── -->
+  <section id="panel-dataadvanced" class="panel">
+    <h1 class="page-title">Data &amp; Advanced</h1>
+    <p class="page-sub">Backup, restore, manage local and cloud data, and device identity.</p>
 
     <div class="card">
       <div class="card-header">
         <div class="card-icon blue">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v3h10v-3"/><path d="M8 2v7M5 6l3-4 3 4"/></svg>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"><path d="M3 10v3h10v-3"/><path d="M8 2v7M5 6l3-4 3 4"/></svg>
         </div>
         <div class="card-title-wrap">
           <div class="card-title">Backup &amp; Restore</div>
-          <div class="card-subtitle">Includes credentials, history, stats, site rules, theme</div>
+          <div class="card-subtitle">Export settings, history, credentials as JSON</div>
         </div>
       </div>
       <div class="card-body">
         <div class="btn-row">
           <button class="btn-primary" id="exportBtn">Export All</button>
-          <button class="btn-ghost" id="importBtn">Import &amp; Merge</button>
+          <button class="btn-ghost" id="importBtn">Import Backup</button>
           <input type="file" id="importFile" accept=".json" style="display:none">
         </div>
         <div class="alert" id="alert-export"></div>
       </div>
     </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-icon red">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--danger)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,4 3,14 13,14 13,4"/><path d="M1 4h14M6 4V2h4v2"/></svg>
-        </div>
-        <div class="card-title-wrap">
-          <div class="card-title">Danger Zone</div>
-          <div class="card-subtitle">Irreversible actions</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="btn-row">
-          <button class="btn-danger" id="clearBtn">Clear All Data</button>
-        </div>
-        <p class="help" style="margin-top:8px">Removes all credentials, history, stats, and site rules from local storage. Cannot be undone.</p>
-      </div>
-    </div>
-  </section>
-
-<!-- ── Subtitles panel ───────────────────────────────────────── -->
-  <section id="panel-subtitles" class="panel">
-    <h1 class="page-title">Subtitles</h1>
-    <p class="page-sub">Auto-fetches subtitles from OpenSubtitles when a video is identified. Upload a local file for offline use. Language and font settings apply across all sites.</p>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-icon blue">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M3 9h4M9 9h4M3 12h6"/></svg>
-        </div>
-        <div class="card-title-wrap">
-          <div class="card-title">OpenSubtitles Account</div>
-          <div class="card-subtitle">Optional — increases daily download quota</div>
-        </div>
-        <div class="status-dot" id="dot-osub"></div>
-      </div>
-      <div class="card-body">
-        <p class="help" style="margin-bottom:12px">Without login: 5 downloads/day. With account: up to 200/day. Free account at <a href="https://www.opensubtitles.com/en/newaccount" target="_blank" rel="noopener">opensubtitles.com</a>.</p>
-        <div class="field">
-          <label class="field-label" for="osobUsername">Username</label>
-          <input type="text" id="osobUsername" placeholder="Your OpenSubtitles username" autocomplete="off" spellcheck="false">
-        </div>
-        <div class="field">
-          <label class="field-label" for="osobPassword">Password</label>
-          <input type="password" id="osobPassword" placeholder="Your OpenSubtitles password" autocomplete="off" spellcheck="false">
-        </div>
-        <div class="btn-row">
-          <button class="btn-primary" id="saveOsub">Save &amp; Login</button>
-          <button class="btn-ghost" id="logoutOsub">Log Out</button>
-        </div>
-        <div class="alert" id="alert-osub"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-icon blue">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6M8 5v6"/></svg>
-        </div>
-        <div class="card-title-wrap">
-          <div class="card-title">Preferences</div>
-          <div class="card-subtitle">Default language and display settings</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="field">
-          <label class="field-label" for="subLanguage">Default Language</label>
-          <select id="subLanguage">
-            <option value="en">English (default)</option>
-            <option value="ta">Tamil</option>
-            <option value="hi">Hindi</option>
-            <option value="es">Spanish</option>
-            <option value="fr">French</option>
-            <option value="de">German</option>
-            <option value="it">Italian</option>
-            <option value="pt">Portuguese</option>
-            <option value="ru">Russian</option>
-            <option value="ar">Arabic</option>
-            <option value="zh-CN">Chinese (Simplified)</option>
-            <option value="zh-TW">Chinese (Traditional)</option>
-            <option value="ja">Japanese</option>
-            <option value="ko">Korean</option>
-            <option value="nl">Dutch</option>
-            <option value="pl">Polish</option>
-            <option value="tr">Turkish</option>
-            <option value="sv">Swedish</option>
-            <option value="da">Danish</option>
-            <option value="fi">Finnish</option>
-            <option value="nb">Norwegian</option>
-            <option value="uk">Ukrainian</option>
-            <option value="vi">Vietnamese</option>
-            <option value="ml">Malayalam</option>
-            <option value="te">Telugu</option>
-            <option value="bn">Bengali</option>
-            <option value="id">Indonesian</option>
-            <option value="ms">Malay</option>
-            <option value="ro">Romanian</option>
-            <option value="cs">Czech</option>
-            <option value="hu">Hungarian</option>
-            <option value="el">Greek</option>
-            <option value="he">Hebrew</option>
-            <option value="fa">Persian</option>
-          </select>
-          <p class="help">Auto-falls back to English if no subtitle found in selected language.</p>
-        </div>
-        <div class="field">
-          <label class="field-label" for="subFontSize">Font Size (px base, scales with video size)</label>
-          <input type="number" id="subFontSize" min="10" max="48" step="1" value="18" style="width:100px">
-        </div>
-        <div class="btn-row">
-          <button class="btn-primary" id="saveSubPrefs">Save Preferences</button>
-        </div>
-        <div class="alert" id="alert-subprefs"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-icon amber">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--warn)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v3h10v-3"/><path d="M8 2v7M5 6l3-4 3 4"/></svg>
-        </div>
-        <div class="card-title-wrap">
-          <div class="card-title">Offline Subtitle</div>
-          <div class="card-subtitle">Override auto-fetch with a local file</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <p class="help" style="margin-bottom:10px">Upload a .srt or .vtt file to use instead of auto-fetching. Applied to all videos until cleared. Right-click the CC button on the video to adjust sync offset.</p>
-        <div class="btn-row">
-          <button class="btn-primary" id="subFileUploadBtn">Upload .srt / .vtt</button>
-          <button class="btn-ghost" id="subFileClearBtn">Clear</button>
-          <input type="file" id="subFileInputOpt" accept=".srt,.vtt" style="display:none">
-        </div>
-        <div class="alert" id="alert-subfile"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Advanced panel ────────────────────────────────────────── -->
-  <section id="panel-advanced" class="panel">
-    <h1 class="page-title">Advanced</h1>
-    <p class="page-sub">Device identity and cloud data management.</p>
 
     <div class="card">
       <div class="card-header">
@@ -602,7 +470,7 @@
         <div class="field">
           <label class="field-label" for="deviceName">Device Name</label>
           <input type="text" id="deviceName" placeholder="e.g. Living Room TV, Work Laptop" autocomplete="off" spellcheck="false">
-          <p class="help">Identifies this device in synced history. Auto-detected from browser if blank.</p>
+          <p class="help">Auto-detected from browser if blank.</p>
         </div>
         <div class="btn-row">
           <button class="btn-primary" id="saveAdvanced">Save</button>
@@ -614,40 +482,27 @@
     <div class="card">
       <div class="card-header">
         <div class="card-icon red">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--danger)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2L2 8l6 6 6-6-6-6z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--danger)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,4 4,4 14,4"/><path d="M5 4V2h6v2M6 8v5M10 8v5"/><path d="M3 4l1 10h8l1-10"/></svg>
         </div>
         <div class="card-title-wrap">
-          <div class="card-title">Local History</div>
-          <div class="card-subtitle">Manage on-device watch cache</div>
+          <div class="card-title">Clear Data</div>
+          <div class="card-subtitle">Remove local or cloud history</div>
         </div>
       </div>
       <div class="card-body">
         <div class="btn-row">
           <button class="btn-danger" id="clearLocalHistoryBtn">Clear Local History</button>
+          <button class="btn-danger" id="clearCloudHistoryBtn">Clear Cloud History</button>
         </div>
-        <p class="help" style="margin-top:8px">Removes all watch history stored locally on this device. Cloud history and credentials are unaffected.</p>
+        <p class="help" style="margin-top:8px">Local: removes on-device cache only. Cloud: deletes all Supabase history for this account, affects all devices.</p>
         <div class="alert" id="alert-local"></div>
+        <div class="alert" id="alert-cloud" style="margin-top:6px"></div>
+        <div class="btn-row" style="margin-top:14px;border-top:1px solid var(--divider);padding-top:14px">
+          <button class="btn-danger" id="clearBtn">Clear All SkipStream Data</button>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-header">
-        <div class="card-icon red">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--danger)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2L2 8l6 6 6-6-6-6z"/></svg>
-        </div>
-        <div class="card-title-wrap">
-          <div class="card-title">Cloud History</div>
-          <div class="card-subtitle">Manage Supabase watch history</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="btn-row">
-          <button class="btn-danger" id="clearCloudHistoryBtn">Clear Cloud History</button>
-        </div>
-        <p class="help" style="margin-top:8px">Deletes all watch history from your Supabase cloud for this account. Local history unaffected. All devices sharing these credentials are affected.</p>
-        <div class="alert" id="alert-cloud"></div>
-      </div>
-    </div>
   </section>
 
 </main>

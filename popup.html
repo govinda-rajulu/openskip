@@ -17,7 +17,7 @@
     </div>
     <span class="header-title">SkipStream</span>
     <span class="ver-badge" id="versionBadge"></span>
-    <button class="icon-btn theme-btn" id="themeBtn" title="Toggle theme">
+    <button class="icon-btn theme-btn" id="themeBtn" title="Toggle light/dark">
       <svg class="icon-sun" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="3.05" y1="3.05" x2="4.46" y2="4.46"/><line x1="11.54" y1="11.54" x2="12.95" y2="12.95"/><line x1="12.95" y1="3.05" x2="11.54" y2="4.46"/><line x1="4.46" y1="11.54" x2="3.05" y2="12.95"/></svg>
       <svg class="icon-moon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z"/></svg>
     </button>
@@ -25,22 +25,23 @@
 
   <div class="tab-bar">
     <button class="tab active" data-tab="status">Status</button>
-    <button class="tab" data-tab="skip">Skip Settings</button>
+    <button class="tab" data-tab="settings">Settings</button>
   </div>
 
-  <!-- Status page -->
+  <!-- STATUS page -->
   <div class="page" id="page-status">
+
     <div class="domain-strip">
       <div class="domain-pill">
         <div id="domainDot"></div>
-        <span id="domainLabel">No active video tab</span>
+        <span id="domainLabel">Detecting tab...</span>
       </div>
     </div>
 
     <div class="master-block">
       <div class="master-info">
         <div class="master-label">SkipStream</div>
-        <div class="master-sub" id="masterSub">Loading…</div>
+        <div id="masterSub">Loading...</div>
       </div>
       <label class="toggle-lg">
         <input type="checkbox" id="masterToggle">
@@ -60,32 +61,8 @@
     </div>
 
     <div class="mode-row">
-      <span class="mode-label">Skip mode</span>
-      <span class="mode-badge off" id="modeBadge">Disabled</span>
-    </div>
-
-    <div class="seg-toggles">
-      <div class="seg-row" id="rowIntro">
-        <div class="seg-icon intro">
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><polygon points="1,1 11,6 1,11"/><line x1="11" y1="1" x2="11" y2="11"/></svg>
-        </div>
-        <div class="seg-text"><div class="seg-name">Skip Intros</div><div class="seg-desc">Opening credits</div></div>
-        <label class="toggle-sm"><input type="checkbox" id="skipIntro"><span class="slider-sm"></span></label>
-      </div>
-      <div class="seg-row" id="rowRecap">
-        <div class="seg-icon recap">
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="var(--warn)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1,4 5,8 11,1"/><path d="M1 10h10"/></svg>
-        </div>
-        <div class="seg-text"><div class="seg-name">Skip Recaps</div><div class="seg-desc">Previously on…</div></div>
-        <label class="toggle-sm"><input type="checkbox" id="skipRecap"><span class="slider-sm"></span></label>
-      </div>
-      <div class="seg-row" id="rowOutro">
-        <div class="seg-icon outro">
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="1" y2="11"/><polygon points="3,1 11,6 3,11"/></svg>
-        </div>
-        <div class="seg-text"><div class="seg-name">Skip Outros</div><div class="seg-desc">End credits</div></div>
-        <label class="toggle-sm"><input type="checkbox" id="skipOutro"><span class="slider-sm"></span></label>
-      </div>
+      <span class="mode-label">Active mode</span>
+      <span class="mode-badge off" id="modeBadge">Loading</span>
     </div>
 
     <div class="action-bar">
@@ -97,20 +74,20 @@
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>
         Stats
       </button>
-      <button class="action-btn gear" id="settingsBtn" title="Open full settings">
+      <button class="action-btn gear" id="settingsBtn" title="Full settings">
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.4"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/></svg>
       </button>
     </div>
   </div>
 
-  <!-- Skip Settings page -->
-  <div class="page page-hidden" id="page-skip">
+  <!-- SETTINGS page -->
+  <div class="page page-hidden" id="page-settings">
     <div class="skip-inner">
 
       <div class="skip-section">
         <div class="skip-label">Skip Mode</div>
         <div class="skip-mode-grid">
-          <button class="smode-chip" data-mode="off"><span class="smc-name">Off</span><span class="smc-desc">Paused</span></button>
+          <button class="smode-chip" data-mode="off"><span class="smc-name">Off</span><span class="smc-desc">Disabled</span></button>
           <button class="smode-chip" data-mode="prompt"><span class="smc-name">Prompt</span><span class="smc-desc">Show button</span></button>
           <button class="smode-chip" data-mode="auto-all"><span class="smc-name">Auto All</span><span class="smc-desc">Everything</span></button>
           <button class="smode-chip" data-mode="auto-intro"><span class="smc-name">Intros</span><span class="smc-desc">Only intros</span></button>
@@ -120,28 +97,26 @@
       </div>
 
       <div class="skip-section">
-        <div class="skip-label">Segments &amp; Behavior</div>
+        <div class="skip-label">Segments</div>
         <div class="stog-list">
-          <label class="stog-row"><span>Skip Intros</span><span class="stog-right"><input type="checkbox" id="p-skipIntro"><span class="stog-slider"></span></span></label>
-          <label class="stog-row"><span>Skip Recaps</span><span class="stog-right"><input type="checkbox" id="p-skipRecap"><span class="stog-slider"></span></span></label>
-          <label class="stog-row"><span>Skip Outros</span><span class="stog-right"><input type="checkbox" id="p-skipOutro"><span class="stog-slider"></span></span></label>
-          <label class="stog-row"><span>Resume Playback</span><span class="stog-right"><input type="checkbox" id="p-resumePlayback"><span class="stog-slider"></span></span></label>
-          <label class="stog-row"><span>Auto Next Episode</span><span class="stog-right"><input type="checkbox" id="p-autoNextEpisode"><span class="stog-slider"></span></span></label>
+          <label class="stog-row"><span>Skip Intros</span><span class="stog-right"><input type="checkbox" id="skipIntro"><span class="stog-slider"></span></span></label>
+          <label class="stog-row"><span>Skip Recaps</span><span class="stog-right"><input type="checkbox" id="skipRecap"><span class="stog-slider"></span></span></label>
+          <label class="stog-row"><span>Skip Outros</span><span class="stog-right"><input type="checkbox" id="skipOutro"><span class="stog-slider"></span></span></label>
+          <label class="stog-row"><span>Resume Playback</span><span class="stog-right"><input type="checkbox" id="resumePlayback"><span class="stog-slider"></span></span></label>
+          <label class="stog-row"><span>Auto Next Episode</span><span class="stog-right"><input type="checkbox" id="autoNextEpisode"><span class="stog-slider"></span></span></label>
         </div>
       </div>
 
       <div class="skip-section">
         <div class="skip-label">Playback Speed</div>
         <div class="speed-row">
-          <button class="speed-chip" data-rate="0.75">0.75×</button>
-          <button class="speed-chip" data-rate="1">1×</button>
-          <button class="speed-chip" data-rate="1.25">1.25×</button>
-          <button class="speed-chip" data-rate="1.5">1.5×</button>
-          <button class="speed-chip" data-rate="2">2×</button>
+          <button class="speed-chip" data-rate="0.75">0.75x</button>
+          <button class="speed-chip" data-rate="1">1x</button>
+          <button class="speed-chip" data-rate="1.25">1.25x</button>
+          <button class="speed-chip" data-rate="1.5">1.5x</button>
+          <button class="speed-chip" data-rate="2">2x</button>
         </div>
       </div>
-
-      <button class="save-btn" id="saveSkipBtn">Save Settings</button>
 
       <div class="skip-section">
         <div class="skip-label">Subtitles</div>
@@ -150,53 +125,50 @@
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 2v8M5 5l3-3 3 3"/><path d="M2 12v2h12v-2"/></svg>
             Load .srt / .vtt
           </button>
-          <button class="sub-clear-btn" id="subClearBtn" title="Clear loaded subtitle">✕</button>
-          <span class="sub-status" id="subStatus">No subtitle loaded</span>
+          <button class="sub-clear-btn" id="subClearBtn" title="Clear loaded subtitle">x</button>
         </div>
+        <span class="sub-status" id="subStatus">No subtitle loaded</span>
         <input type="file" id="subFileInput" accept=".srt,.vtt" style="display:none">
-        <div class="skip-label" style="margin-top:10px">Language</div>
-        <select id="subLangSelect" class="sub-lang-select">
-          <option value="en">English</option>
-          <option value="ta">Tamil</option>
-          <option value="hi">Hindi</option>
-          <option value="es">Spanish</option>
-          <option value="fr">French</option>
-          <option value="de">German</option>
-          <option value="it">Italian</option>
-          <option value="pt">Portuguese</option>
-          <option value="ru">Russian</option>
-          <option value="ar">Arabic</option>
-          <option value="zh-CN">Chinese (Simplified)</option>
-          <option value="ja">Japanese</option>
-          <option value="ko">Korean</option>
-          <option value="nl">Dutch</option>
-          <option value="pl">Polish</option>
-          <option value="tr">Turkish</option>
-          <option value="sv">Swedish</option>
-          <option value="da">Danish</option>
-          <option value="fi">Finnish</option>
-          <option value="nb">Norwegian</option>
-          <option value="uk">Ukrainian</option>
-          <option value="vi">Vietnamese</option>
-          <option value="ml">Malayalam</option>
-          <option value="te">Telugu</option>
-          <option value="bn">Bengali</option>
-          <option value="id">Indonesian</option>
-          <option value="ms">Malay</option>
-          <option value="ro">Romanian</option>
-          <option value="cs">Czech</option>
-          <option value="sk">Slovak</option>
-          <option value="hu">Hungarian</option>
-          <option value="el">Greek</option>
-          <option value="he">Hebrew</option>
-          <option value="fa">Persian</option>
-        </select>
+        <div class="sub-lang-row">
+          <label class="skip-label" style="margin:0;flex-shrink:0">Language</label>
+          <select id="subLangSelect" class="sub-lang-select">
+            <option value="en">English</option>
+            <option value="ta">Tamil</option>
+            <option value="hi">Hindi</option>
+            <option value="te">Telugu</option>
+            <option value="ml">Malayalam</option>
+            <option value="bn">Bengali</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="pt">Portuguese</option>
+            <option value="it">Italian</option>
+            <option value="ru">Russian</option>
+            <option value="ar">Arabic</option>
+            <option value="zh-CN">Chinese (S)</option>
+            <option value="zh-TW">Chinese (T)</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="tr">Turkish</option>
+            <option value="nl">Dutch</option>
+            <option value="pl">Polish</option>
+            <option value="sv">Swedish</option>
+            <option value="uk">Ukrainian</option>
+            <option value="vi">Vietnamese</option>
+            <option value="id">Indonesian</option>
+            <option value="fa">Persian</option>
+            <option value="he">Hebrew</option>
+            <option value="el">Greek</option>
+          </select>
+        </div>
       </div>
+
+      <button class="save-btn" id="saveSettingsBtn">Save Settings</button>
+
     </div>
   </div>
 
 </div>
-
 <footer><a href="https://github.com/govinda-rajulu/openskip" target="_blank">SkipStream</a></footer>
 <script src="popup.js"></script>
 </body>
