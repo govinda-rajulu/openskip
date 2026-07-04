@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.7.1] - 2026-07-04
+
+### Fixed
+- `popup.js` missing version header comment, broke CI version-consistency check
+- `README.md` version badge stuck at 1.6.9
+- All `innerHTML` usage removed from `options.js` (15 sites) and `content-scripts/content.js` (1 site), replaced with DOM API (`createElement`, `textContent`, `createElementNS` for SVG) - fixes CI security check
+- `updates.json` missing 1.7.0 entry, added
+
 ## [1.7.0] - 2026-07-04
 
 ### Added
