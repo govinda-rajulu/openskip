@@ -1156,7 +1156,31 @@
     if (_subCCBtn) _subCCBtn.remove();
     const btn = document.createElement('button');
     btn.id = 'skipstream-cc-btn';
-    btn.innerHTML = `<svg width="13" height="10" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="1" y="1" width="14" height="9" rx="1.5"/><path d="M4 7h3M9 7h3"/></svg><span class="cc-lbl">CC</span>`;
+    btn.replaceChildren();
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('width', '13');
+    svg.setAttribute('height', '10');
+    svg.setAttribute('viewBox', '0 0 16 11');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.8');
+    svg.setAttribute('stroke-linecap', 'round');
+    const rect = document.createElementNS(SVG_NS, 'rect');
+    rect.setAttribute('x', '1');
+    rect.setAttribute('y', '1');
+    rect.setAttribute('width', '14');
+    rect.setAttribute('height', '9');
+    rect.setAttribute('rx', '1.5');
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', 'M4 7h3M9 7h3');
+    svg.appendChild(rect);
+    svg.appendChild(path);
+    const lbl = document.createElement('span');
+    lbl.className = 'cc-lbl';
+    lbl.textContent = 'CC';
+    btn.appendChild(svg);
+    btn.appendChild(lbl);
     Object.assign(btn.style, {
       all:'unset', position:(document.fullscreenElement||document.webkitFullscreenElement)?'absolute':'fixed',
       bottom:'10%', left:'3%', zIndex:'2147483646',

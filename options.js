@@ -35,6 +35,15 @@ const S = {
 
 const $ = id => document.getElementById(id);
 
+// -- DOM-safe helper: replaces innerHTML spinner+label pattern --
+function setSpinnerLabel(el, text) {
+  el.replaceChildren();
+  const spinner = document.createElement('span');
+  spinner.className = 'spinner';
+  el.appendChild(spinner);
+  el.appendChild(document.createTextNode(text));
+}
+
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -413,7 +422,7 @@ if (saveIntrodbBtn) {
   saveIntrodbBtn.addEventListener('click', async () => {
     const key = ($('introdbApiKey').value || '').trim();
     saveIntrodbBtn.disabled = true;
-    saveIntrodbBtn.innerHTML = '<span class="spinner"></span>Verifying...';
+    setSpinnerLabel(saveIntrodbBtn, 'Verifying...');
     await br.storage.local.set({ [S.introdbApiKey]: key });
     await verifyIntrodb(key);
     saveIntrodbBtn.disabled = false;
@@ -429,7 +438,7 @@ if (saveSupabaseBtn) {
     const url = ($('supabaseUrl').value || '').trim();
     const key = ($('supabaseAnonKey').value || '').trim();
     saveSupabaseBtn.disabled = true;
-    saveSupabaseBtn.innerHTML = '<span class="spinner"></span>Verifying...';
+    setSpinnerLabel(saveSupabaseBtn, 'Verifying...');
     await br.storage.local.set({ [S.supabaseUrl]: url, [S.supabaseAnonKey]: key });
     const ok = await verifySupabase(url, key);
     saveSupabaseBtn.disabled = false;
@@ -444,7 +453,7 @@ if (saveTmdbBtn) {
   saveTmdbBtn.addEventListener('click', async () => {
     const key = ($('tmdbApiKey').value || '').trim();
     saveTmdbBtn.disabled = true;
-    saveTmdbBtn.innerHTML = '<span class="spinner"></span>Verifying...';
+    setSpinnerLabel(saveTmdbBtn, 'Verifying...');
     await br.storage.local.set({ [S.tmdbApiKey]: key });
     await verifyTmdb(key);
     saveTmdbBtn.disabled = false;
@@ -461,7 +470,7 @@ if (saveAnimeskipBtn) {
     const clientId  = $('animeSkipClientId') ? ($('animeSkipClientId').value  || '').trim() : '';
     const authToken = $('animeSkipAuthToken')? ($('animeSkipAuthToken').value || '').trim() : '';
     saveAnimeskipBtn.disabled = true;
-    saveAnimeskipBtn.innerHTML = '<span class="spinner"></span>Verifying...';
+    setSpinnerLabel(saveAnimeskipBtn, 'Verifying...');
     await br.storage.local.set({
       [S.animeSkipEnabled]:   enabled,
       [S.animeSkipClientId]:  clientId,
@@ -486,20 +495,32 @@ let siteRules = {};
 function renderSiteRules() {
   const list = $('siteRulesList');
   if (!list) return;
-  list.innerHTML = '';
+  list.replaceChildren();
   const domains = Object.keys(siteRules);
   if (!domains.length) {
-    list.innerHTML = '<p style="font-size:12px;color:var(--text3);padding:4px 0">No rules yet. Add a domain below.</p>';
+    const emptyMsg = document.createElement('p');
+    emptyMsg.style.cssText = 'font-size:12px;color:var(--text3);padding:4px 0';
+    emptyMsg.textContent = 'No rules yet. Add a domain below.';
+    list.appendChild(emptyMsg);
     return;
   }
   domains.forEach(domain => {
     const row = document.createElement('div');
     row.className = 'site-rule-row';
-    row.innerHTML = `
-      <span class="site-rule-domain">${escapeHtml(domain)}</span>
-      <span class="site-rule-mode">${escapeHtml(siteRules[domain])}</span>
-      <button class="site-rule-del" data-domain="${escapeHtml(domain)}" title="Remove rule">x</button>
-    `;
+    const domainSpan = document.createElement('span');
+    domainSpan.className = 'site-rule-domain';
+    domainSpan.textContent = domain;
+    const modeSpan = document.createElement('span');
+    modeSpan.className = 'site-rule-mode';
+    modeSpan.textContent = siteRules[domain];
+    const delBtn = document.createElement('button');
+    delBtn.className = 'site-rule-del';
+    delBtn.dataset.domain = domain;
+    delBtn.title = 'Remove rule';
+    delBtn.textContent = 'x';
+    row.appendChild(domainSpan);
+    row.appendChild(modeSpan);
+    row.appendChild(delBtn);
     list.appendChild(row);
   });
   list.querySelectorAll('.site-rule-del').forEach(btn => {
@@ -561,7 +582,14 @@ function fmtTime(sec) {
 function makeStatCard(val, lbl) {
   const d = document.createElement('div');
   d.className = 'stat-card';
-  d.innerHTML = `<div class="stat-val">${val}</div><div class="stat-lbl">${lbl}</div>`;
+  const valEl = document.createElement('div');
+  valEl.className = 'stat-val';
+  valEl.textContent = val;
+  const lblEl = document.createElement('div');
+  lblEl.className = 'stat-lbl';
+  lblEl.textContent = lbl;
+  d.appendChild(valEl);
+  d.appendChild(lblEl);
   return d;
 }
 
@@ -577,12 +605,12 @@ function loadStats(data) {
   const allGrid     = $('statsAllGrid');
 
   if (sessionGrid) {
-    sessionGrid.innerHTML = '';
+    sessionGrid.replaceChildren();
     sessionGrid.appendChild(makeStatCard(skipsToday, 'Skips today'));
     sessionGrid.appendChild(makeStatCard(fmtTime(totalTime), 'Time saved today'));
   }
   if (allGrid) {
-    allGrid.innerHTML = '';
+    allGrid.replaceChildren();
     allGrid.appendChild(makeStatCard(totalSkips, 'Total skips'));
     allGrid.appendChild(makeStatCard(sessions,   'Sessions'));
     allGrid.appendChild(makeStatCard(fmtTime(totalTime), 'Total time saved'));
@@ -704,7 +732,13 @@ function renderHistory(items) {
   const list = $('historyList');
   if (!list) return;
   if (!items || !items.length) {
-    list.innerHTML = '<div class="h-empty">No history yet.<br>Start watching to build your log.</div>';
+    list.replaceChildren();
+    const empty = document.createElement('div');
+    empty.className = 'h-empty';
+    empty.appendChild(document.createTextNode('No history yet.'));
+    empty.appendChild(document.createElement('br'));
+    empty.appendChild(document.createTextNode('Start watching to build your log.'));
+    list.appendChild(empty);
     return;
   }
   const search = ($('historySearch') || {}).value || '';
@@ -717,11 +751,15 @@ function renderHistory(items) {
   });
 
   if (!filtered.length) {
-    list.innerHTML = '<div class="h-empty">No matches found.</div>';
+    list.replaceChildren();
+    const empty = document.createElement('div');
+    empty.className = 'h-empty';
+    empty.textContent = 'No matches found.';
+    list.appendChild(empty);
     return;
   }
 
-  list.innerHTML = '';
+  list.replaceChildren();
   filtered.slice(0, 100).forEach(item => {
     const title   = item.title || item.videoTitle || 'Unknown';
     const site    = item.site  || item.siteName  || '';
@@ -738,23 +776,74 @@ function renderHistory(items) {
     el.href = url;
     el.target = '_blank';
     el.rel = 'noopener';
-    el.innerHTML = `
-      <div class="h-item-inner">
-        <img class="h-poster" src="" alt="" style="display:none;width:36px;height:54px;object-fit:cover;border-radius:4px;flex-shrink:0;">
-        <div class="h-item-body">
-          <div class="h-title">${escapeHtml(title)}</div>
-          <div class="h-meta">
-            ${site ? `<span class="h-site">${escapeHtml(site)}</span>` : ''}
-            ${isCloud ? '<span class="h-cloud">Cloud</span>' : ''}
-            ${item.device ? `<span class="h-device">${escapeHtml(item.device)}</span>` : ''}
-            ${posStr ? `<span>${posStr}</span>` : ''}
-            ${pct > 0 ? `<span>${pct}%</span>` : ''}
-            ${dateStr ? `<span>${escapeHtml(dateStr)}</span>` : ''}
-          </div>
-          ${pct > 0 ? `<div class="h-bar"><div class="h-fill" style="width:${pct}%"></div></div>` : ''}
-        </div>
-      </div>
-    `;
+
+    const inner = document.createElement('div');
+    inner.className = 'h-item-inner';
+
+    const poster = document.createElement('img');
+    poster.className = 'h-poster';
+    poster.src = '';
+    poster.alt = '';
+    poster.style.cssText = 'display:none;width:36px;height:54px;object-fit:cover;border-radius:4px;flex-shrink:0;';
+    inner.appendChild(poster);
+
+    const body = document.createElement('div');
+    body.className = 'h-item-body';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'h-title';
+    titleEl.textContent = title;
+    body.appendChild(titleEl);
+
+    const meta = document.createElement('div');
+    meta.className = 'h-meta';
+    if (site) {
+      const siteEl = document.createElement('span');
+      siteEl.className = 'h-site';
+      siteEl.textContent = site;
+      meta.appendChild(siteEl);
+    }
+    if (isCloud) {
+      const cloudEl = document.createElement('span');
+      cloudEl.className = 'h-cloud';
+      cloudEl.textContent = 'Cloud';
+      meta.appendChild(cloudEl);
+    }
+    if (item.device) {
+      const deviceEl = document.createElement('span');
+      deviceEl.className = 'h-device';
+      deviceEl.textContent = item.device;
+      meta.appendChild(deviceEl);
+    }
+    if (posStr) {
+      const posEl = document.createElement('span');
+      posEl.textContent = posStr;
+      meta.appendChild(posEl);
+    }
+    if (pct > 0) {
+      const pctEl = document.createElement('span');
+      pctEl.textContent = pct + '%';
+      meta.appendChild(pctEl);
+    }
+    if (dateStr) {
+      const dateEl = document.createElement('span');
+      dateEl.textContent = dateStr;
+      meta.appendChild(dateEl);
+    }
+    body.appendChild(meta);
+
+    if (pct > 0) {
+      const bar = document.createElement('div');
+      bar.className = 'h-bar';
+      const fill = document.createElement('div');
+      fill.className = 'h-fill';
+      fill.style.width = pct + '%';
+      bar.appendChild(fill);
+      body.appendChild(bar);
+    }
+
+    inner.appendChild(body);
+    el.appendChild(inner);
     list.appendChild(el);
     const ytThumb = getYoutubeThumb(url);
     const isYoutubeish = /youtube|youtu\.be/i.test(site || '');
@@ -837,7 +926,11 @@ async function loadHistory(data) {
   const filterEl = $('historyFilter');
   if (filterEl) {
     const sites = [...new Set([..._histLocal, ..._histCloud].map(i => i.site || i.siteName).filter(Boolean))];
-    filterEl.innerHTML = '<option value="">All sites</option>';
+    filterEl.replaceChildren();
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'All sites';
+    filterEl.appendChild(allOpt);
     sites.forEach(s => {
       const opt = document.createElement('option');
       opt.value = s; opt.textContent = s;
@@ -1153,7 +1246,7 @@ if (saveOsubBtn) {
     const pass = ($('osobPassword')?.value || '').trim();
     if (!user || !pass) { showAlert($('alert-osub'), 'warn', 'Enter username and password.'); return; }
     saveOsubBtn.disabled = true;
-    saveOsubBtn.innerHTML = '<span class="spinner"></span>Logging in…';
+    setSpinnerLabel(saveOsubBtn, 'Logging in…');
     await br.storage.local.set({ [S.osobUsername]: user, [S.osobPassword]: pass });
     const res = await new Promise(resolve => br.runtime.sendMessage({ type: 'OSUB_LOGIN', username: user, password: pass }, resolve));
     saveOsubBtn.disabled = false;
