@@ -63,7 +63,9 @@ navItems.forEach(item => {
 });
 
 // Deep-link from popup (History / Stats buttons open options with #hash)
-const initialHash = location.hash.replace('#', '');
+const HASH_REDIRECTS = { exportimport: 'dataadvanced', advanced: 'dataadvanced', subtitles: 'dataadvanced', skipbehavior: 'connections' };
+const rawHash = location.hash.replace('#', '');
+const initialHash = HASH_REDIRECTS[rawHash] || rawHash;
 if (initialHash && document.getElementById('panel-' + initialHash)) {
   showPanel(initialHash);
 }
