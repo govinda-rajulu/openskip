@@ -2,6 +2,18 @@
 
 # Changelog
 
+## [1.7.5] - 2026-07-05
+
+### Fixed
+- **Docs drift**: README.md and the AMO listing description (`scripts/amo-update.js`) were both under- and over-claiming features versus the actual codebase. Fixed:
+  - Subtitle system (OpenSubtitles, CC overlay, sync offset, offline upload) was missing from both — added.
+  - Speed control claimed only 1x/1.25x/1.5x/2x; actual UI also has 0.75x — added.
+  - AMO listing claimed the theme toggle "follows system preference" — it doesn't; it's a manual dark/light toggle with no system-default state. Fixed wording.
+  - AMO listing called the manual Supabase push a "Force sync" feature; renamed to match the actual "Sync" button behavior.
+  - README's File Structure section labeled `manifest.json` as an MV3 manifest; it's MV2 (Chrome uses the separate `manifest-chrome.json` for MV3). Fixed.
+  - README Setup section only documented IntroDB and Supabase; TMDB, AnimeSkip, and OpenSubtitles credential panels exist in Settings but were undocumented. Added.
+  - Added "Are you still watching?" auto-dismiss and dark/light theme toggle to README's feature list (both existed in code, undocumented).
+
 ## [1.7.4] - 2026-07-05
 
 ### Fixed

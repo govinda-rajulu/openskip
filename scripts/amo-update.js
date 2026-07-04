@@ -334,15 +334,16 @@ What it does
 
 • Skips intros, recaps, and outros - 3s countdown toast with Undo (powered by IntroDB and AnimeSkip)
 • Clicks the platform's own Skip Intro button - Netflix, Prime Video, Disney+, Hulu, Max, Crunchyroll, Peacock, Paramount+, Apple TV+, Tubi
+• Subtitles - auto-fetched from OpenSubtitles by IMDb ID, draggable CC overlay with sync offset, offline .srt/.vtt upload, multiple languages
 • Resumes playback from where you stopped - locally cached and synced to your own Supabase project
 • Auto next episode - advances near end of video (optional, off by default)
-• Speed control - 1x / 1.25x / 1.5x / 2x, persists across pages
+• Speed control - 0.75x / 1x / 1.25x / 1.5x / 2x, persists across pages
 • Per-site rules - different skip mode for specific domains
 • Watch stats - segments skipped, time saved, session count
 • Dismisses "Are you still watching?" overlays automatically
-• Force sync - push all local positions to cloud and refresh history on demand
+• Manual sync button - push local playback positions to your Supabase project on demand
 • Full backup and restore - export all history, stats, credentials, preferences as JSON
-• Dark and light theme - follows system preference, manual override available
+• Dark and light theme toggle in the popup - persists across sessions
 • Works on any site with an HTML5 video player
 
 Setup

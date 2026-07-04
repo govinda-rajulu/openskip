@@ -5,7 +5,7 @@
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-Active-blue?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 [![Chrome](https://img.shields.io/badge/Chrome-Manual%20Install-yellow?logo=googlechrome)](../../releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.7.4-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.7.4)
+[![Version](https://img.shields.io/badge/version-1.7.5-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.7.5)
 
 ---
 
@@ -21,14 +21,17 @@
 
 ## What it does
 
-- **Skips** intros, recaps, and outros - 3-second countdown toast with Undo (powered by [IntroDB](https://introdb.app))
-- **Native button clicking** - also clicks the platform's own Skip Intro button on Netflix, Prime, Disney+, Hulu, Max, Crunchyroll, and others
+- **Skips** intros, recaps, and outros - 3-second countdown toast with Undo (powered by [IntroDB](https://introdb.app) and AnimeSkip)
+- **Native button clicking** - also clicks the platform's own Skip Intro button on Netflix, Prime Video, Disney+, Hulu, Max, Crunchyroll, Peacock, Paramount+, Apple TV+, and Tubi
+- **Subtitles** - auto-fetches from OpenSubtitles by IMDb ID, with a draggable CC overlay, sync offset, offline .srt/.vtt upload, and language selection
 - **Resumes** playback where you left off, on any device
 - **Syncs** watch history and settings to your own Supabase project - you own the data
 - **Auto next episode** - advances when near end of video (optional, off by default)
-- **Speed control** - 1x / 1.25x / 1.5x / 2x, persists across pages
+- **Speed control** - 0.75x / 1x / 1.25x / 1.5x / 2x, persists across pages
 - **Per-site rules** - override skip mode for specific domains in Settings
 - **Watch stats** - segments skipped, time saved, session count tracked locally
+- **Dismisses "Are you still watching?"** overlays automatically
+- **Dark/light theme toggle** in the popup - persists across sessions
 - **Full backup/restore** - export all history, stats, credentials, and settings as JSON; import merges history
 - **Android auto-update** - Firefox for Android checks for updates via `updates.json`
 - **Works on any site** with a standard HTML5 video element
@@ -39,11 +42,20 @@
 
 Click the **gear icon** in the popup to open Settings.
 
-### Skip segments (IntroDB)
+### Skip segments (IntroDB) - required for skipping
 Get a free key at [introdb.app](https://introdb.app). Without it, the extension works as a resume-only tool.
 
-### Cloud sync (Supabase)
+### Cloud sync (Supabase) - optional
 Create a free project at [supabase.com](https://supabase.com), run the SQL from `supabase_setup.sql` in your project's SQL editor, then paste your Project URL and anon key into Settings.
+
+### TMDB - optional
+Free key at [themoviedb.org](https://www.themoviedb.org/settings/api). Converts TMDB IDs to IMDb IDs for more accurate skip lookups, especially on Plex.
+
+### AnimeSkip - optional
+Free Client ID at [anime-skip.com](https://anime-skip.com). Fallback skip-segment source for anime.
+
+### Subtitles (OpenSubtitles) - optional
+Free account at [opensubtitles.com](https://www.opensubtitles.com/en/newaccount). Anonymous use gets 5 downloads/day; logging in raises that to 200/day. Subtitle language is set in the popup.
 
 ---
 
@@ -58,7 +70,7 @@ Create a free project at [supabase.com](https://supabase.com), run the SQL from 
 ## File Structure
 
 ```
-manifest.json              - Firefox MV3 manifest (authoritative version source)
+manifest.json              - Firefox MV2 manifest (authoritative version source)
 manifest-chrome.json       - Chrome MV3 manifest (must match manifest.json version)
 updates.json               - Firefox Android update feed
 background.js              - Service worker: all API calls, retry logic, offline queue
@@ -83,11 +95,12 @@ docs/                      - Additional documentation
 
 1. Content script detects any `<video>` element on the page
 2. Identifies the show/episode from the URL, page metadata, or JSON-LD
-3. Fetches skip segment timestamps from IntroDB; also clicks the platform's native Skip Intro button
+3. Fetches skip segment timestamps from IntroDB (falling back to AnimeSkip); also clicks the platform's native Skip Intro button
 4. Polls every 500ms - shows a 3-second countdown toast with Undo before auto-skipping
-5. Saves playback position locally every 2.5s and syncs to Supabase; queues saves when offline
-6. On next load, restores your position from local cache or cloud, whichever is newer
-7. Stats (skips, time saved, sessions) accumulated locally and backed up to Supabase `user_settings`
+5. If configured, fetches subtitles from OpenSubtitles by IMDb ID and overlays them on the video
+6. Saves playback position locally every 2.5s and syncs to Supabase; queues saves when offline
+7. On next load, restores your position from local cache or cloud, whichever is newer
+8. Stats (skips, time saved, sessions) accumulated locally and backed up to Supabase `user_settings`
 
 ---
 
