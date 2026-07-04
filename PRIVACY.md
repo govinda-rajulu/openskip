@@ -24,14 +24,15 @@ When configured, the extension communicates directly with:
 - **Your Supabase project** - for cross-device sync and settings backup
 - **IntroDB** - to fetch skip segment timestamps
 - **AnimeSkip** - for anime intro/outro data
-- **TMDB** - for show identification
+- **TMDB** - for show identification and poster images
+- **OpenSubtitles** - to fetch subtitle files when a video is identified (only if subtitle feature is used; sends IMDB ID and language preference)
 - **raw.githubusercontent.com** - to check for extension updates (Android only, no personal data sent)
 
 Each service has its own privacy policy. SkipStream only sends the minimum data needed.
 
 ## Your sync identity
 
-Your cloud sync ID is a SHA-256 hash of your own Supabase anon key. No account is required. No email. No personal information.
+Your cloud sync ID is a SHA-256 hash of your own Supabase anon key. No account is required. No email. No personal information. If multiple people configure the same Supabase anon key, they will share the same sync identity and see each other's history - use a private Supabase project with a key you do not share.
 
 ## Contact
 

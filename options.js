@@ -320,18 +320,15 @@ async function verifyAll() {
   // OpenSubtitles status check
   br.runtime.sendMessage({ type: 'OSUB_STATUS' }, res => {
     const dotOsub = $('dot-osub');
-    const dotOsubInner = $('dot-osub-inner');
     const msgOsub = $('msg-osub');
     if (res?.loggedIn) {
       const msg = res.downloads_remaining != null
         ? `Logged in - ${res.downloads_remaining} downloads remaining today`
         : 'Logged in';
       if (dotOsub) dotOsub.className = 'status-dot ok';
-      if (dotOsubInner) dotOsubInner.className = 'status-dot ok';
       if (msgOsub) { msgOsub.className = 'status-msg ok'; msgOsub.textContent = msg; }
     } else {
       if (dotOsub) dotOsub.className = 'status-dot warn';
-      if (dotOsubInner) dotOsubInner.className = 'status-dot warn';
       if (msgOsub) { msgOsub.className = 'status-msg warn'; msgOsub.textContent = 'Anonymous - 5 downloads/day (login to increase)'; }
     }
   });

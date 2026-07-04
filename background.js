@@ -316,7 +316,7 @@ async function checkSupabase(supabaseUrl, supabaseAnonKey) {
 // ── OpenSubtitles ─────────────────────────────────────────────────────────────
 
 const OSUB_API_KEY   = 'bBSwDAWRcnDjnw12mKLGHHu0SMSAUL34';
-const OSUB_UA        = 'SkipStream v1.6.9';
+const OSUB_UA        = 'SkipStream v1.7.0';
 const OSUB_SESS_KEY  = 'osub_session';
 const OSUB_SUB_CACHE = 'osub_sub_cache'; // file_id → srt text, capped 20 entries
 
