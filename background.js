@@ -113,7 +113,7 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url, options);
-      if ([401, 403, 404].includes(res.status)) return res;
+      if ([400, 401, 403, 404, 409, 422].includes(res.status)) return res;
       if (res.ok) return res;
       lastErr = new Error(`Status ${res.status}`);
     } catch (e) { lastErr = e; }
@@ -162,7 +162,10 @@ async function supabaseUpsert(body, { keepalive = false } = {}) {
         body: JSON.stringify(body),
       }
     );
-    return res.ok ? { ok: true } : { ok: false, err: `HTTP ${res.status}` };
+    if (res.ok) return { ok: true };
+    let detail = '';
+    try { detail = await res.text(); } catch (_) {}
+    return { ok: false, err: `HTTP ${res.status}${detail ? ' - ' + detail.slice(0, 200) : ''}` };
   } catch (e) {
     // Network failure - queue for retry
     const QUEUE_KEY = 'skipstream_offline_queue';
@@ -216,11 +219,12 @@ if (br.tabs && br.tabs.onRemoved) {
 // ── Segment providers ─────────────────────────────────────────────────────────
 
 async function providerIntroDB(imdbId, season, episode, { introdbApiKey }) {
+  // /segments is a public read endpoint - no auth required or checked.
+  // introdbApiKey is intentionally not sent here; it's only used for POST /submit.
   if (!introdbApiKey) return null;
   try {
     const r = await fetchWithRetry(
-      `https://api.introdb.app/segments?imdb_id=${imdbId}&season=${season}&episode=${episode}`,
-      { headers: { 'x-api-key': introdbApiKey } }
+      `https://api.introdb.app/segments?imdb_id=${imdbId}&season=${season}&episode=${episode}`
     );
     if (!r.ok) return null;
     return await r.json();
@@ -309,26 +313,120 @@ async function checkSupabase(supabaseUrl, supabaseAnonKey) {
   } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
 }
 
-async function checkTmdb(tmdbApiKey) {
-  if (!tmdbApiKey) return { ok: false, message: 'Not configured' };
+// ── OpenSubtitles ─────────────────────────────────────────────────────────────
+
+const OSUB_API_KEY   = 'bBSwDAWRcnDjnw12mKLGHHu0SMSAUL34';
+const OSUB_UA        = 'SkipStream v1.6.9';
+const OSUB_SESS_KEY  = 'osub_session';
+const OSUB_SUB_CACHE = 'osub_sub_cache'; // file_id → srt text, capped 20 entries
+
+async function osubGetSession() {
   try {
-    const r = await fetch(`https://api.themoviedb.org/3/configuration?api_key=${tmdbApiKey}`);
-    if (r.ok) return { ok: true, message: 'Connected' };
-    if (r.status === 401) return { ok: false, message: 'Invalid API key' };
-    return { ok: false, message: `Status ${r.status}` };
-  } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
+    const s = await br.storage.local.get(OSUB_SESS_KEY);
+    const sess = s[OSUB_SESS_KEY];
+    if (sess?.token && sess.expiry > Date.now()) return sess;
+  } catch { /* fall through */ }
+  return null;
 }
 
-async function checkIntroDB(introdbApiKey) {
-  if (!introdbApiKey) return { ok: false, message: 'Not configured' };
+async function osubLogin(username, password) {
   try {
-    const r = await fetch('https://api.introdb.app/intro?imdb_id=tt0944947&season=1&episode=1', {
-      headers: { 'x-api-key': introdbApiKey },
+    const r = await fetch('https://api.opensubtitles.com/api/v1/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Api-Key': OSUB_API_KEY, 'User-Agent': OSUB_UA },
+      body: JSON.stringify({ username, password }),
     });
-    if (r.ok) return { ok: true, message: 'Connected' };
-    if (r.status === 401 || r.status === 403) return { ok: false, message: 'Invalid API key' };
-    return { ok: false, message: `Status ${r.status}` };
-  } catch (e) { return { ok: false, message: `Network error: ${String(e)}` }; }
+    if (r.status === 401) return { ok: false, err: 'Invalid credentials (401). Stop retrying.' };
+    if (!r.ok) return { ok: false, err: `HTTP ${r.status}` };
+    const data = await r.json();
+    const sess = {
+      token:    data.token,
+      base_url: data.base_url || 'api.opensubtitles.com',
+      downloads_remaining: data.user?.allowed_downloads ?? null,
+      expiry:   Date.now() + 23 * 60 * 60 * 1000,
+    };
+    await br.storage.local.set({ [OSUB_SESS_KEY]: sess });
+    return { ok: true, downloads_remaining: sess.downloads_remaining };
+  } catch (e) { return { ok: false, err: String(e) }; }
+}
+
+async function osubSearch(imdbId, season, episode, language, sess) {
+  const base = `https://${sess?.base_url || 'api.opensubtitles.com'}/api/v1`;
+  const headers = { 'Api-Key': OSUB_API_KEY, 'User-Agent': OSUB_UA };
+  if (sess?.token) headers['Authorization'] = 'Bearer ' + sess.token;
+
+  const numericId = (imdbId || '').replace(/^tt/, '');
+  if (!numericId) return null;
+
+  const params = new URLSearchParams({
+    imdb_id:         numericId,
+    languages:       language || 'en',
+    order_by:        'download_count',
+    order_direction: 'desc',
+  });
+  if (season)  params.set('season_number',  String(season));
+  if (episode) params.set('episode_number', String(episode));
+  params.set('type', (season && episode) ? 'episode' : 'movie');
+
+  try {
+    const r = await fetchWithRetry(`${base}/subtitles?${params}`, { headers });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const best = (data.data || [])[0];
+    if (!best) return null;
+    const file = best.attributes?.files?.[0];
+    return file ? { file_id: file.file_id, name: file.file_name || '' } : null;
+  } catch { return null; }
+}
+
+async function osubDownload(file_id, sess) {
+  // Cache hit
+  try {
+    const c = await br.storage.local.get(OSUB_SUB_CACHE);
+    const cache = c[OSUB_SUB_CACHE] || {};
+    if (cache[file_id]) return { ok: true, text: cache[file_id] };
+  } catch { /* miss */ }
+
+  const base = `https://${sess?.base_url || 'api.opensubtitles.com'}/api/v1`;
+  const headers = { 'Api-Key': OSUB_API_KEY, 'User-Agent': OSUB_UA, 'Content-Type': 'application/json' };
+  if (sess?.token) headers['Authorization'] = 'Bearer ' + sess.token;
+
+  try {
+    const r = await fetchWithRetry(`${base}/download`, {
+      method: 'POST', headers, body: JSON.stringify({ file_id, sub_format: 'srt' }),
+    });
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      return { ok: false, err: `HTTP ${r.status}${txt ? ' - ' + txt.slice(0, 120) : ''}` };
+    }
+    const data = await r.json();
+    if (!data.link) return { ok: false, err: 'No download link' };
+
+    // Update remaining downloads in session cache
+    if (data.remaining !== undefined) {
+      try {
+        const s = await br.storage.local.get(OSUB_SESS_KEY);
+        const sess2 = s[OSUB_SESS_KEY];
+        if (sess2) { sess2.downloads_remaining = data.remaining; await br.storage.local.set({ [OSUB_SESS_KEY]: sess2 }); }
+      } catch { /* ok */ }
+    }
+
+    const dl = await fetch(data.link);
+    if (!dl.ok) return { ok: false, err: `CDN HTTP ${dl.status}` };
+    const text = await dl.text();
+
+    // Cache (cap 20)
+    try {
+      const c = await br.storage.local.get(OSUB_SUB_CACHE);
+      const cache = c[OSUB_SUB_CACHE] || {};
+      const keys = Object.keys(cache);
+      if (keys.length >= 20) delete cache[keys[0]];
+      cache[file_id] = text;
+      await br.storage.local.set({ [OSUB_SUB_CACHE]: cache });
+    } catch { /* ok */ }
+
+    return { ok: true, text, remaining: data.remaining };
+  } catch (e) { return { ok: false, err: String(e) }; }
 }
 
 // ── First install / update handler ───────────────────────────────────────────
@@ -345,7 +443,7 @@ br.runtime.onInstalled.addListener(async ({ reason }) => {
   }
 
   if (reason === 'install') {
-    br.runtime.openOptionsPage();
+    br.tabs.create({ url: br.runtime.getURL('options.html') });
   }
   if (reason === 'install' || reason === 'update') {
     const { supabaseUrl, supabaseAnonKey } = await getConfig();
@@ -367,18 +465,7 @@ br.runtime.onInstalled.addListener(async ({ reason }) => {
 br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const msg = message;
 
-  if (msg.type === 'CHECK_CONFIG') {
-    getConfig().then(async ({ supabaseUrl, supabaseAnonKey, tmdbApiKey, introdbApiKey }) => {
-      const [supabase, tmdb, introdb] = await Promise.all([
-        checkSupabase(supabaseUrl, supabaseAnonKey),
-        checkTmdb(tmdbApiKey),
-        checkIntroDB(introdbApiKey),
-      ]);
-      sendResponse({ supabase, tmdb, introdb });
-    });
-    return true;
-  }
-
+  
   if (msg.type === 'INVALIDATE_USER_ID') {
     _cachedUserId = null;
     br.storage.local.remove(USERID_CACHE_KEY).catch(() => {});
@@ -549,12 +636,61 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
       const url = `${supabaseUrl}/rest/v1/playback_states` +
         `?user_id=eq.${encodeURIComponent(msg.userId)}` +
-        `&select=media_id,playback_time,duration,site,site_name,video_title,device_name,updated_at` +
+        `&select=media_id,playback_time,duration,site,site_name,video_title,device_name,page_url,updated_at` +
         `&order=updated_at.desc&limit=200`;
       fetchWithRetry(url, { headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` } })
         .then(r => r.json())
         .then(data => sendResponse({ data: Array.isArray(data) ? data : [] }))
         .catch(err => sendResponse({ data: null, err: String(err) }));
+    });
+    return true;
+  }
+
+  if (msg.type === 'TMDB_SEARCH_POSTER') {
+    // Search TMDB for a title and return poster_path as full URL
+    // Tries TV search first, then movie search, returns first result
+    const posterCacheKey = `poster:${(msg.title || '').toLowerCase().trim()}`;
+    getTmdbCache().then(async (cache) => {
+      if (posterCacheKey in cache) {
+        sendResponse({ posterUrl: cache[posterCacheKey] });
+        return;
+      }
+      const { tmdbApiKey } = await getConfig();
+      if (!tmdbApiKey) {
+        await setTmdbCache(posterCacheKey, null);
+        sendResponse({ posterUrl: null });
+        return;
+      }
+      const q = encodeURIComponent((msg.title || '').replace(/\s*S\d+\s*E\d+.*/i,'').trim());
+      try {
+        // Try TV first
+        let posterPath = null;
+        const tvRes = await fetchWithRetry(
+          `https://api.themoviedb.org/3/search/tv?api_key=${tmdbApiKey}&query=${q}&page=1`
+        );
+        if (tvRes.ok) {
+          const tvData = await tvRes.json();
+          posterPath = tvData.results?.[0]?.poster_path || null;
+        }
+        // Fallback to movie if no TV result
+        if (!posterPath) {
+          const mvRes = await fetchWithRetry(
+            `https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${q}&page=1`
+          );
+          if (mvRes.ok) {
+            const mvData = await mvRes.json();
+            posterPath = mvData.results?.[0]?.poster_path || null;
+          }
+        }
+        const posterUrl = posterPath
+          ? `https://image.tmdb.org/t/p/w92${posterPath}`
+          : null;
+        await setTmdbCache(posterCacheKey, posterUrl);
+        sendResponse({ posterUrl });
+      } catch {
+        await setTmdbCache(posterCacheKey, null);
+        sendResponse({ posterUrl: null });
+      }
     });
     return true;
   }
@@ -587,6 +723,42 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
       } catch (e) { sendResponse({ ok: false, message: `Network error: ${String(e)}` }); }
     });
+    return true;
+  }
+if (msg.type === 'OSUB_LOGIN') {
+    osubLogin(msg.username, msg.password).then(res => sendResponse(res));
+    return true;
+  }
+
+  if (msg.type === 'OSUB_LOGOUT') {
+    br.storage.local.remove(OSUB_SESS_KEY).catch(() => {});
+    sendResponse({ ok: true });
+    return true;
+  }
+
+  if (msg.type === 'OSUB_STATUS') {
+    osubGetSession().then(sess => sendResponse({
+      loggedIn: !!sess,
+      downloads_remaining: sess?.downloads_remaining ?? null,
+    }));
+    return true;
+  }
+
+  if (msg.type === 'OSUB_SEARCH_AND_FETCH') {
+    (async () => {
+      const { imdbId, season, episode, language } = msg;
+      const sess = await osubGetSession();
+      let result = await osubSearch(imdbId, season, episode, language, sess);
+
+      // Fallback to English if primary language has no results
+      if (!result && language && language !== 'en') {
+        result = await osubSearch(imdbId, season, episode, 'en', sess);
+      }
+
+      if (!result) { sendResponse({ ok: false, err: 'no_results' }); return; }
+      const dl = await osubDownload(result.file_id, sess);
+      sendResponse({ ...dl, file_id: result.file_id, name: result.name });
+    })();
     return true;
   }
 

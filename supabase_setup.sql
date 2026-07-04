@@ -14,6 +14,7 @@ create table if not exists public.playback_states (
   site_name     text,
   video_title   text,
   device_name   text,
+  page_url      text,
   updated_at    timestamptz  not null default now(),
   constraint playback_states_user_media_key unique (user_id, media_id)
 );
@@ -31,6 +32,10 @@ do $$ begin
   if not exists (select 1 from information_schema.columns
     where table_schema='public' and table_name='playback_states' and column_name='device_name') then
     alter table public.playback_states add column device_name text;
+  end if;
+  if not exists (select 1 from information_schema.columns
+    where table_schema='public' and table_name='playback_states' and column_name='page_url') then
+    alter table public.playback_states add column page_url text;
   end if;
 end $$;
 
@@ -127,7 +132,12 @@ do $$ begin
   end if;
 end $$;
 
--- ── 8. Setup verification function ───────────────────────────────────────────
+-- ── 8. Table grants (must run after both tables exist) ───────────────────────
+grant select, insert, update, delete on public.playback_states to anon, authenticated;
+grant select, insert, update, delete on public.user_settings to anon, authenticated;
+grant usage on all sequences in schema public to anon, authenticated;
+
+-- ── 9. Setup verification function ───────────────────────────────────────────
 -- Call select public.ss_verify_setup() after running this script to confirm.
 create or replace function public.ss_verify_setup()
   returns jsonb language plpgsql as $$

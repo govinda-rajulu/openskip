@@ -1,979 +1,266 @@
-/* SkipStream - popup v1.6.9 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+const KEYS = {
+  enabled:    'skipEnabled',
+  skipMode:   'skipMode',
+  skipIntro:  'skipIntro',
+  skipRecap:  'skipRecap',
+  skipOutro:  'skipOutro',
+  resumePlay: 'resumePlayback',
+  autoNext:   'autoNextEpisode',
+  playRate:   'playbackSpeed',
+  stats:      'skipstream_stats',
+  theme:      'skipstream_theme',
+  subLang:    'subtitle_language',
+  subSrt:     'subtitle_override_srt',
+};
 
-const CHILD_KEYS  = ['skipIntro', 'skipRecap', 'skipOutro'];
-const ALL_TOGGLES = [...CHILD_KEYS, 'resumePlayback', 'autoNextEpisode'];
-const DEFAULTS    = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipMaster: true, autoNextEpisode: false };
-const CACHE_KEY   = 'skipstream_cache';
-const PENDING_KEY = 'skipstream_pending_resume';
+const $ = id => document.getElementById(id);
 
-// ── Prefs ─────────────────────────────────────────────────────────────────────
+// Version
+$('versionBadge').textContent = 'v' + br.runtime.getManifest().version;
 
-async function loadPrefs() {
-  try {
-    const stored = await br.storage.local.get([...ALL_TOGGLES, 'skipMaster']);
-    const prefs = { ...DEFAULTS };
-    for (const key of [...ALL_TOGGLES, 'skipMaster']) {
-      if (key in stored) prefs[key] = stored[key];
-    }
-    return prefs;
-  } catch { return { ...DEFAULTS }; }
+// -- Theme: simple light/dark toggle, no system intermediate state --
+let currentTheme = 'dark';
+
+function applyTheme(t) {
+  document.body.classList.remove('theme-light', 'theme-dark');
+  document.body.classList.add(t === 'light' ? 'theme-light' : 'theme-dark');
+  const isDark = t !== 'light';
+  const sun  = document.querySelector('.icon-sun');
+  const moon = document.querySelector('.icon-moon');
+  if (sun)  sun.style.display  = isDark ? 'block' : 'none';
+  if (moon) moon.style.display = isDark ? 'none'  : 'block';
 }
 
-function prefsToMode(prefs) {
-  if (!prefs.skipMaster) return 'off';
-  if (prefs.skipIntro && prefs.skipRecap && prefs.skipOutro) return 'auto-all';
-  if (prefs.skipIntro  && !prefs.skipRecap && !prefs.skipOutro) return 'auto-intro';
-  if (!prefs.skipIntro && prefs.skipRecap  && !prefs.skipOutro) return 'auto-recap';
-  if (!prefs.skipIntro && !prefs.skipRecap && prefs.skipOutro)  return 'auto-outro';
-  if (!prefs.skipIntro && !prefs.skipRecap && !prefs.skipOutro) return 'prompt';
-  return 'prompt'; // mixed state - default to prompt
-}
+$('themeBtn').addEventListener('click', () => {
+  currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  applyTheme(currentTheme);
+  br.storage.local.set({ [KEYS.theme]: currentTheme });
+});
 
-function modeToPrefs(mode) {
-  const base = { skipMaster: true, skipIntro: false, skipRecap: false, skipOutro: false };
-  if (mode === 'off')        return { ...base, skipMaster: false };
-  if (mode === 'auto-intro') return { ...base, skipIntro: true };
-  if (mode === 'auto-recap') return { ...base, skipRecap: true };
-  if (mode === 'auto-outro') return { ...base, skipOutro: true };
-  if (mode === 'auto-all')   return { ...base, skipIntro: true, skipRecap: true, skipOutro: true };
-  return base; // prompt - master on, all auto off = show button
-}
-
-// ── Formatting ────────────────────────────────────────────────────────────────
-
-function fmtTime(secs) {
-  if (!secs || isNaN(secs)) return '0:00';
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = Math.floor(secs % 60);
-  return h
-    ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
-    : `${m}:${String(s).padStart(2,'0')}`;
-}
-
-function fmtDate(ts) {
-  if (!ts) return '';
-  const diff = Date.now() - ts;
-  if (diff < 60_000)      return 'just now';
-  if (diff < 3_600_000)   return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000)  return `${Math.floor(diff / 3_600_000)}h ago`;
-  if (diff < 604_800_000) return `${Math.floor(diff / 86_400_000)}d ago`;
-  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-// ── Deep link builder ─────────────────────────────────────────────────────────
-
-function buildDeepLink(entry) {
-  if (!entry.url) return null;
-  try {
-    const u = new URL(entry.url);
-    if (u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be')) {
-      u.searchParams.set('t', Math.floor(entry.p || 0));
-    } else if (u.hostname.includes('vimeo.com')) {
-      u.hash = `t=${Math.floor(entry.p || 0)}s`;
-    } else {
-      // Generic: append skipstream_t param so content script can pick it up
-      u.searchParams.set('skipstream_t', Math.floor(entry.p || 0));
-    }
-    return u.toString();
-  } catch { return entry.url || null; }
-}
-
-// ── Open history entry in new tab + inject resume position ───────────────────
-
-async function openHistoryEntry(entry) {
-  const url  = entry.url;
-  const pos  = entry.p;
-  const mediaId = entry.mediaId || null;
-
-  if (!url) return;
-
-  // Write a pending-resume record so the content script on the new tab can consume it
-  if (pos && pos >= 10 && mediaId) {
-    try {
-      await br.storage.local.set({
-        [PENDING_KEY]: { mediaId, position: pos, ts: Date.now() },
-      });
-    } catch { /* ok */ }
-  }
-
-  try {
-    await br.tabs.create({ url });
-  } catch {
-    // Fallback: just open the URL without tab API
-    window.open(url, '_blank', 'noopener');
-  }
-}
-
-// ── Tabs ──────────────────────────────────────────────────────────────────────
-
-document.querySelectorAll('.tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t  => t.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    const panel = document.getElementById(btn.dataset.tab);
-    if (panel) panel.classList.add('active');
-    if (btn.dataset.tab === 'stats') renderStats();
+// -- Tabs --
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+    const targetId = 'page-' + tab.dataset.tab;
+    document.querySelectorAll('.page').forEach(p => p.classList.toggle('page-hidden', p.id !== targetId));
   });
 });
 
-// ── Skip folder (master + children) ──────────────────────────────────────────
-
-// Accepts the prefs object so badge is always computed from live storage values,
-// eliminating the "0/3" race condition on init.
-function updateSkipBadge(prefs) {
-  const badge = document.getElementById('skipBadge');
-  const sub   = document.getElementById('skipSub');
-  if (!badge || !sub) return;
-
-  const masterOn = prefs ? prefs.skipMaster : false;
-
-  if (!masterOn) {
-    badge.classList.add('hidden');
-    sub.textContent = 'Disabled - all skip detection off';
-    return;
-  }
-
-  // Count active children from prefs (or DOM if no prefs given)
-  const activeKeys = CHILD_KEYS.filter(k => {
-    if (prefs) return prefs[k];
-    return document.getElementById(k)?.checked;
-  });
-
-  badge.textContent = `${activeKeys.length}/${CHILD_KEYS.length}`;
-  badge.classList.remove('hidden');
-
-  const typeNames = [];
-  const pSrc = prefs || {};
-  if (pSrc.skipIntro ?? document.getElementById('skipIntro')?.checked) typeNames.push('Intro');
-  if (pSrc.skipRecap ?? document.getElementById('skipRecap')?.checked) typeNames.push('Recap');
-  if (pSrc.skipOutro ?? document.getElementById('skipOutro')?.checked) typeNames.push('Outro');
-
-  sub.textContent = typeNames.length
-    ? `Auto-skipping: ${typeNames.join(', ')}`
-    : 'Enabled - all types set to prompt mode';
-}
-
-function setSkipBodyOpen(open) {
-  const body = document.getElementById('skipBody');
-  if (body) body.classList.toggle('open', open);
-}
-
-// ── Add Segment folder ────────────────────────────────────────────────────────
-
-let asState    = 'idle';
-let asStartSec = null;
-let asEndSec   = null;
-let asType     = null;
-
-function asSetStep(n) {
-  document.querySelectorAll('.flow-step').forEach((s, i) => {
-    s.classList.toggle('active', i + 1 === n);
-  });
-}
-
-function asOpenFolder(open) {
-  const body    = document.getElementById('addBody');
-  const chevron = document.getElementById('addChevron');
-  if (body)    body.classList.toggle('open', open);
-  if (chevron) chevron.classList.toggle('open', open);
-  if (!open) asReset(false);
-}
-
-function asReset(closeFolder = true) {
-  asState = 'idle'; asStartSec = null; asEndSec = null; asType = null;
-
-  const startBtn = document.getElementById('flowStartBtn');
-  if (startBtn) {
-    startBtn.replaceChildren();
-    startBtn.appendChild(svgPlay());
-    startBtn.appendChild(document.createTextNode(' Start'));
-    startBtn.className = 'flow-btn primary';
-    startBtn.disabled = false;
-  }
-
-  const flowLabel = document.getElementById('flowLabel');
-  if (flowLabel) {
-    flowLabel.replaceChildren(
-      document.createTextNode('Press '),
-      Object.assign(document.createElement('strong'), { textContent: 'Start' }),
-      document.createTextNode(' when the segment begins.'),
-    );
-  }
-
-  const addSub = document.getElementById('addSub');
-  if (addSub) addSub.textContent = 'Record a missing intro, recap, or outro';
-
-  document.querySelectorAll('.type-chip').forEach(c => c.classList.remove('selected'));
-
-  const submitBtn = document.getElementById('flowSubmitBtn');
-  if (submitBtn) submitBtn.disabled = true;
-
-  asSetStep(1);
-  if (closeFolder) asOpenFolder(false);
-}
-
-function svgPlay() {
-  const s = document.createElementNS('http://www.w3.org/2000/svg','svg');
-  s.setAttribute('width','10'); s.setAttribute('height','10');
-  s.setAttribute('viewBox','0 0 12 12'); s.setAttribute('fill','currentColor');
-  const p = document.createElementNS('http://www.w3.org/2000/svg','polygon');
-  p.setAttribute('points','2,1 11,6 2,11');
-  s.appendChild(p);
-  return s;
-}
-
-const addHeader = document.getElementById('addHeader');
-if (addHeader) {
-  addHeader.addEventListener('click', () => {
-    const open = document.getElementById('addBody')?.classList.contains('open');
-    asOpenFolder(!open);
-  });
-}
-
-const flowCancelBtn = document.getElementById('flowCancelBtn');
-if (flowCancelBtn) flowCancelBtn.addEventListener('click', () => asReset(true));
-
-const flowBackBtn = document.getElementById('flowBackBtn');
-if (flowBackBtn) {
-  flowBackBtn.addEventListener('click', () => {
-    asState = 'idle'; asEndSec = null; asType = null;
-    document.querySelectorAll('.type-chip').forEach(c => c.classList.remove('selected'));
-    const sb = document.getElementById('flowSubmitBtn');
-    if (sb) sb.disabled = true;
-    asSetStep(1);
-  });
-}
-
-const flowStartBtn = document.getElementById('flowStartBtn');
-if (flowStartBtn) {
-  flowStartBtn.addEventListener('click', async () => {
-    const btn = document.getElementById('flowStartBtn');
-    if (asState === 'idle') {
-      asState = 'recording';
-      asStartSec = null;
-      btn.disabled = true;
-      try {
-        const tabs = await br.tabs.query({ active: true, currentWindow: true });
-        if (tabs[0]?.id) {
-          const res = await br.tabs.sendMessage(tabs[0].id, { type: 'GET_VIDEO_TIME' });
-          asStartSec = res?.time ?? null;
-        }
-      } catch { /* tab may not have content script */ }
-
-      const label = document.getElementById('flowLabel');
-      if (label) {
-        label.replaceChildren(
-          document.createTextNode(
-            asStartSec != null
-              ? `Recording… started at ${fmtTime(asStartSec)}. Press `
-              : 'Recording… Press '
-          ),
-          Object.assign(document.createElement('strong'), { textContent: 'Stop' }),
-          document.createTextNode(' when it ends.'),
-        );
-      }
-
-      // Swap to Stop button
-      btn.replaceChildren();
-      const stopSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-      stopSvg.setAttribute('width','10'); stopSvg.setAttribute('height','10');
-      stopSvg.setAttribute('viewBox','0 0 12 12'); stopSvg.setAttribute('fill','currentColor');
-      const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
-      rect.setAttribute('x','2'); rect.setAttribute('y','2');
-      rect.setAttribute('width','8'); rect.setAttribute('height','8'); rect.setAttribute('rx','1.5');
-      stopSvg.appendChild(rect);
-      btn.appendChild(stopSvg);
-      btn.appendChild(document.createTextNode(' Stop'));
-      btn.className = 'flow-btn stop';
-      btn.disabled = false;
-
-      const addSub = document.getElementById('addSub');
-      if (addSub) addSub.textContent = '⏺ Recording…';
-
-    } else if (asState === 'recording') {
-      asState = 'stopped';
-      asEndSec = null;
-      btn.disabled = true;
-      try {
-        const tabs = await br.tabs.query({ active: true, currentWindow: true });
-        if (tabs[0]?.id) {
-          const res = await br.tabs.sendMessage(tabs[0].id, { type: 'GET_VIDEO_TIME' });
-          asEndSec = res?.time ?? null;
-        }
-      } catch { /* ok */ }
-
-      const timeText = document.getElementById('flowTimeText');
-      if (timeText) {
-        timeText.textContent = (asStartSec != null && asEndSec != null)
-          ? `${fmtTime(asStartSec)}  -  ${fmtTime(asEndSec)}`
-          : 'Timestamps recorded';
-      }
-
-      const addSub = document.getElementById('addSub');
-      if (addSub) addSub.textContent = 'Select type to submit';
-      asSetStep(2);
+// -- Domain --
+async function detectDomain() {
+  try {
+    const [tab] = await br.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url) return;
+    const url = new URL(tab.url);
+    if (!url.hostname || ['chrome:', 'about:', 'moz-extension:', 'chrome-extension:'].includes(url.protocol)) {
+      $('domainLabel').textContent = 'No active video tab'; return;
     }
-  });
+    $('domainLabel').textContent = url.hostname.replace(/^www\./, '');
+    $('domainDot').classList.add('active');
+  } catch { $('domainLabel').textContent = 'No active video tab'; }
 }
 
-document.querySelectorAll('.type-chip').forEach(chip => {
+// -- Mode labels --
+const MODE_LABELS = {
+  off: 'Disabled', prompt: 'Prompt',
+  'auto-intro': 'Auto Intros', 'auto-recap': 'Auto Recaps',
+  'auto-outro': 'Auto Outros', 'auto-all': 'Auto All',
+};
+
+// -- Mode <-> Toggle bidirectional mapping --
+const MODE_TO_SEGS = {
+  'off':        { i: false, r: false, o: false },
+  'prompt':     { i: false, r: false, o: false },
+  'auto-intro': { i: true,  r: false, o: false },
+  'auto-recap': { i: false, r: true,  o: false },
+  'auto-outro': { i: false, r: false, o: true  },
+  'auto-all':   { i: true,  r: true,  o: true  },
+};
+
+function inferMode(i, r, o) {
+  if (!i && !r && !o) return 'off';
+  if (i  && !r && !o) return 'auto-intro';
+  if (!i && r  && !o) return 'auto-recap';
+  if (!i && !r && o)  return 'auto-outro';
+  return 'auto-all';
+}
+
+let popupMode = 'auto-all';
+let popupRate = 1;
+
+function applyModeToUI(mode, enabled) {
+  popupMode = mode;
+  // Chips
+  document.querySelectorAll('.smode-chip').forEach(c => c.classList.toggle('selected', c.dataset.mode === mode));
+  // Segment toggles
+  const seg = MODE_TO_SEGS[mode] || { i: true, r: true, o: true };
+  if ($('skipIntro')) $('skipIntro').checked = seg.i;
+  if ($('skipRecap')) $('skipRecap').checked = seg.r;
+  if ($('skipOutro')) $('skipOutro').checked = seg.o;
+  // Status badge
+  const badge = $('modeBadge');
+  if (badge) {
+    badge.textContent = MODE_LABELS[mode] || mode;
+    badge.className = (!enabled || mode === 'off') ? 'mode-badge off' : 'mode-badge';
+  }
+}
+
+// Mode chip click -> update toggles
+document.querySelectorAll('.smode-chip').forEach(chip => {
   chip.addEventListener('click', () => {
-    document.querySelectorAll('.type-chip').forEach(c => c.classList.remove('selected'));
-    chip.classList.add('selected');
-    asType = chip.dataset.type;
-    const sb = document.getElementById('flowSubmitBtn');
-    if (sb) sb.disabled = false;
+    applyModeToUI(chip.dataset.mode, $('masterToggle').checked);
+    // Persist immediately
+    const seg = MODE_TO_SEGS[chip.dataset.mode] || { i: true, r: true, o: true };
+    br.storage.local.set({
+      [KEYS.skipMode]:  chip.dataset.mode,
+      [KEYS.skipIntro]: seg.i,
+      [KEYS.skipRecap]: seg.r,
+      [KEYS.skipOutro]: seg.o,
+    });
   });
 });
 
-const flowSubmitBtn = document.getElementById('flowSubmitBtn');
-if (flowSubmitBtn) {
-  flowSubmitBtn.addEventListener('click', async () => {
-    if (!asType) return;
-    const btn = document.getElementById('flowSubmitBtn');
-    btn.disabled = true;
-    btn.textContent = 'Submitting…';
-
-    try {
-      const tabs = await br.tabs.query({ active: true, currentWindow: true });
-      const tabId = tabs[0]?.id;
-      let imdbId = null, season = null, episode = null, site = null;
-      if (tabId) {
-        try {
-          const info = await br.tabs.sendMessage(tabId, { type: 'GET_SHOW_INFO' });
-          imdbId  = info?.imdbId  || null;
-          season  = info?.season  || null;
-          episode = info?.episode || null;
-          site    = info?.site    || null;
-        } catch { /* content script not on this page */ }
-      }
-
-      const res = await br.runtime.sendMessage({
-        type: 'REPORT_SEGMENT',
-        imdbId, season, episode, site,
-        startSec: asStartSec,
-        endSec:   asEndSec,
-        segType:  asType,
-      });
-
-      const resultLabel = document.getElementById('flowResultLabel');
-      if (resultLabel) {
-        if (res?.ok) {
-          resultLabel.className = 'flow-label ok';
-          resultLabel.textContent = '✓ Submitted - thank you for contributing!';
-        } else {
-          resultLabel.className = 'flow-label warn';
-          resultLabel.textContent = '⚠ Submit failed - check your API key in Settings.';
-        }
-      }
-      const addSub = document.getElementById('addSub');
-      if (addSub) addSub.textContent = res?.ok ? 'Submitted ✓' : 'Submit failed';
-      asSetStep(3);
-      setTimeout(() => asReset(false), 3500);
-
-    } catch (e) {
-      btn.disabled = false;
-      btn.textContent = 'Submit';
-      const flowLabel = document.getElementById('flowLabel');
-      if (flowLabel) flowLabel.textContent = `Error: ${e.message}`;
+// Segment toggle click -> infer mode, update chips
+['skipIntro', 'skipRecap', 'skipOutro'].forEach(id => {
+  $(id)?.addEventListener('change', () => {
+    const i = $('skipIntro')?.checked ?? true;
+    const r = $('skipRecap')?.checked ?? true;
+    const o = $('skipOutro')?.checked ?? false;
+    const inferred = inferMode(i, r, o);
+    popupMode = inferred;
+    document.querySelectorAll('.smode-chip').forEach(c => c.classList.toggle('selected', c.dataset.mode === inferred));
+    const badge = $('modeBadge');
+    if (badge) {
+      badge.textContent = MODE_LABELS[inferred] || inferred;
+      badge.className = ($('masterToggle').checked && inferred !== 'off') ? 'mode-badge' : 'mode-badge off';
     }
-  });
-}
-
-// ── History ───────────────────────────────────────────────────────────────────
-
-let _localEntries  = {};   // mediaId → entry
-let _cloudEntries  = {};   // mediaId → entry
-let _historySource = 'merged';
-
-// Source pills
-document.querySelectorAll('.source-pill').forEach(pill => {
-  pill.addEventListener('click', () => {
-    document.querySelectorAll('.source-pill').forEach(p => p.classList.remove('active'));
-    pill.classList.add('active');
-    _historySource = pill.dataset.source;
-    applyHistoryFilters();
+    // Persist immediately
+    br.storage.local.set({
+      [KEYS.skipMode]:  inferred,
+      [KEYS.skipIntro]: i,
+      [KEYS.skipRecap]: r,
+      [KEYS.skipOutro]: o,
+    });
   });
 });
 
-async function loadLocalHistory() {
-  try {
-    const stored = await br.storage.local.get(CACHE_KEY);
-    const cache = stored[CACHE_KEY] || {};
-    // Attach mediaId onto each entry for history click handler
-    _localEntries = {};
-    for (const [mediaId, entry] of Object.entries(cache)) {
-      _localEntries[mediaId] = { ...entry, mediaId };
-    }
-  } catch { _localEntries = {}; }
-}
-
-async function loadCloudHistory(userId, supabaseUrl, supabaseAnonKey) {
-  if (!userId || !supabaseUrl || !supabaseAnonKey) return;
-  try {
-    const url =
-      `${supabaseUrl}/rest/v1/playback_states` +
-      `?user_id=eq.${encodeURIComponent(userId)}` +
-      `&select=media_id,playback_time,duration,site,site_name,video_title,updated_at` +
-      `&order=updated_at.desc&limit=200`;
-    const res = await fetch(url, {
-      headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` },
-    });
-    if (!res.ok) return;
-    const rows = await res.json();
-    _cloudEntries = {};
-    for (const row of rows) {
-      _cloudEntries[row.media_id] = {
-        mediaId:   row.media_id,
-        p:         row.playback_time,
-        d:         row.duration,
-        t:         row.updated_at ? new Date(row.updated_at).getTime() : null,
-        site:      row.site || '',
-        site_name: row.site_name || '',
-        title:     row.video_title || '',
-        fromCloud: true,
-      };
-    }
-  } catch { /* network or parse error */ }
-
-  // Write cloud rows back into local cache so content script can resume from cloud
-  // positions on next page load without waiting for a cloud round-trip
-  if (Object.keys(_cloudEntries).length > 0) {
-    br.storage.local.get(CACHE_KEY).then(stored => {
-      const cache = stored[CACHE_KEY] || {};
-      let changed = false;
-      for (const [mediaId, cloud] of Object.entries(_cloudEntries)) {
-        const local = cache[mediaId];
-        const cloudTs = cloud.t || 0;
-        const localTs = local ? (local.t || 0) : 0;
-        if (!local || cloudTs > localTs || cloud.p > (local.p || 0)) {
-          cache[mediaId] = {
-            p:         cloud.p,
-            d:         cloud.d || (local && local.d) || null,
-            t:         cloudTs || localTs,
-            url:       (local && local.url)       || '',
-            title:     cloud.title     || (local && local.title)     || '',
-            site:      cloud.site      || (local && local.site)      || '',
-            site_name: cloud.site_name || (local && local.site_name) || '',
-          };
-          changed = true;
-        }
-      }
-      if (changed) br.storage.local.set({ [CACHE_KEY]: cache });
-    }).catch(() => { /* storage unavailable */ });
-  }
-}
-
-function mergeHistoryEntries() {
-  const merged = {};
-  for (const [id, entry] of Object.entries(_localEntries)) {
-    merged[id] = { ...entry };
-  }
-  for (const [id, cloud] of Object.entries(_cloudEntries)) {
-    if (merged[id]) {
-      const localTime = merged[id].t || 0;
-      const cloudTime = cloud.t || 0;
-      if (cloudTime > localTime || merged[id].p < cloud.p) {
-        merged[id].p = cloud.p;
-        merged[id].d = cloud.d || merged[id].d;
-        merged[id].t = Math.max(localTime, cloudTime) || merged[id].t;
-      }
-      // Prefer richer metadata from cloud if local lacks it
-      if (!merged[id].site_name && cloud.site_name) merged[id].site_name = cloud.site_name;
-      if (!merged[id].title && cloud.title)          merged[id].title     = cloud.title;
-      merged[id].fromCloud = true;
-    } else {
-      merged[id] = { ...cloud };
-    }
-  }
-  return merged;
-}
-
-function getDisplayEntries() {
-  if (_historySource === 'cloud') return Object.entries(_cloudEntries);
-  if (_historySource === 'local') return Object.entries(_localEntries);
-  return Object.entries(mergeHistoryEntries());
-}
-
-function applyHistoryFilters() {
-  const q       = (document.getElementById('historySearch')?.value || '').trim().toLowerCase();
-  const siteVal = document.getElementById('historyFilter')?.value || '';
-
-  let entries = getDisplayEntries()
-    .filter(([, v]) => v.p > 10)
-    .sort(([, a], [, b]) => (b.t || 0) - (a.t || 0));
-
-  if (siteVal) entries = entries.filter(([, v]) => v.site === siteVal);
-  if (q)       entries = entries.filter(([, v]) => {
-    const label = v.title || v.site_name || v.site || '';
-    return label.toLowerCase().includes(q);
+// Speed chips
+document.querySelectorAll('.speed-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    popupRate = parseFloat(chip.dataset.rate);
+    document.querySelectorAll('.speed-chip').forEach(c => c.classList.toggle('selected', c === chip));
   });
+});
 
-  renderHistoryList(entries);
+// -- Stats --
+function fmtTime(s) {
+  if (!s || s < 60) return (s || 0) + 's';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  return (s / 3600).toFixed(1) + 'h';
 }
 
-function renderHistoryList(entries) {
-  const list = document.getElementById('historyList');
-  if (!list) return;
-  list.replaceChildren();
-
-  if (!entries.length) {
-    const empty = document.createElement('div');
-    empty.className = 'h-empty';
-
-    const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.setAttribute('width','32'); svg.setAttribute('height','32');
-    svg.setAttribute('viewBox','0 0 24 24'); svg.setAttribute('fill','none');
-    svg.setAttribute('stroke','currentColor'); svg.setAttribute('stroke-width','1.5');
-    svg.setAttribute('stroke-linecap','round'); svg.setAttribute('stroke-linejoin','round');
-    const r1 = document.createElementNS('http://www.w3.org/2000/svg','rect');
-    r1.setAttribute('x','2'); r1.setAttribute('y','4'); r1.setAttribute('width','20');
-    r1.setAttribute('height','16'); r1.setAttribute('rx','2');
-    svg.appendChild(r1);
-    const p1 = document.createElementNS('http://www.w3.org/2000/svg','path');
-    p1.setAttribute('d','M16 2v4M8 2v4M2 10h20M7 14h.01M12 14h.01M17 14h.01');
-    svg.appendChild(p1);
-    empty.appendChild(svg);
-
-    const msg = document.createElement('div');
-    msg.textContent = _historySource === 'cloud' && !Object.keys(_cloudEntries).length
-      ? 'No cloud history - configure Supabase in Settings.'
-      : 'Nothing here yet. Watch something first.';
-    empty.appendChild(msg);
-    list.appendChild(empty);
-    return;
-  }
-
-  for (const [mediaId, entry] of entries) {
-    const pct  = entry.d ? Math.min(100, Math.round((entry.p / entry.d) * 100)) : 0;
-    // Display label: prefer video_title/title, then site_name, then site hostname
-    const displayTitle = entry.title || entry.video_title || entry.site_name || entry.site || 'Unknown';
-    const displaySite  = entry.site_name || entry.site || '';
-
-    const item = document.createElement('div');
-    item.className = 'h-item';
-    item.style.cursor = 'pointer';
-
-    // Click handler: open in new tab with resume injection
-    item.addEventListener('click', () => {
-      openHistoryEntry({ ...entry, mediaId });
-    });
-
-    // Top row
-    const top = document.createElement('div');
-    top.className = 'h-item-top';
-
-    const thumb = document.createElement('div');
-    thumb.className = 'h-thumb';
-    const tSvg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-    tSvg.setAttribute('width','16'); tSvg.setAttribute('height','16');
-    tSvg.setAttribute('viewBox','0 0 16 16'); tSvg.setAttribute('fill','none');
-    tSvg.setAttribute('stroke','currentColor'); tSvg.setAttribute('stroke-width','1.5');
-    const tPoly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
-    tPoly.setAttribute('points','3,2 13,8 3,14');
-    tSvg.appendChild(tPoly);
-    thumb.appendChild(tSvg);
-
-    const info = document.createElement('div');
-    info.className = 'h-info';
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'h-title';
-    titleEl.textContent = displayTitle;
-
-    const meta = document.createElement('div');
-    meta.className = 'h-meta';
-
-    if (displaySite) {
-      const sitePill = document.createElement('span');
-      sitePill.className = 'h-site';
-      sitePill.textContent = displaySite;
-      meta.appendChild(sitePill);
-    }
-    if (entry.fromCloud) {
-      const cloud = document.createElement('span');
-      cloud.className = 'h-cloud';
-      cloud.textContent = '☁';
-      meta.appendChild(cloud);
-    }
-    if (entry.t) {
-      const dateEl = document.createElement('span');
-      dateEl.textContent = fmtDate(entry.t);
-      meta.appendChild(dateEl);
-    }
-
-    info.appendChild(titleEl);
-    info.appendChild(meta);
-    top.appendChild(thumb);
-    top.appendChild(info);
-
-    const bar  = document.createElement('div'); bar.className = 'h-bar';
-    const fill = document.createElement('div'); fill.className = 'h-fill';
-    fill.style.width = `${pct}%`;
-    bar.appendChild(fill);
-
-    const timeEl = document.createElement('div');
-    timeEl.className = 'h-time';
-    timeEl.textContent = `${fmtTime(entry.p)}${entry.d ? ` / ${fmtTime(entry.d)} · ${pct}%` : ''}`;
-
-    item.appendChild(top);
-    item.appendChild(bar);
-    item.appendChild(timeEl);
-    list.appendChild(item);
-  }
+function applyStats(data) {
+  const st = data[KEYS.stats] || {};
+  const today = new Date().toDateString();
+  $('statSkips').textContent = st.statsDate === today ? (st.skipsToday || 0) : 0;
+  $('statTime').textContent  = fmtTime(st.timeSavedSec || 0);
 }
 
-function populateSiteFilter() {
-  const allEntries = Object.values(mergeHistoryEntries());
-  const sites = [...new Set(allEntries.map(v => v.site).filter(Boolean))].sort();
+// -- Master toggle --
+$('masterToggle').addEventListener('change', () => {
+  const enabled = $('masterToggle').checked;
+  br.storage.local.set({ [KEYS.enabled]: enabled });
+  $('masterSub').textContent = enabled ? 'Extension is active' : 'Extension is paused';
+  applyModeToUI(popupMode, enabled);
+});
 
-  const sel = document.getElementById('historyFilter');
-  if (!sel) return;
-  const cur = sel.value;
-  sel.replaceChildren();
-  const allOpt = document.createElement('option');
-  allOpt.value = ''; allOpt.textContent = 'All sites';
-  sel.appendChild(allOpt);
-  for (const s of sites) {
-    const o = document.createElement('option');
-    o.value = s; o.textContent = s;
-    if (s === cur) o.selected = true;
-    sel.appendChild(o);
-  }
+// -- Save all settings --
+$('saveSettingsBtn').addEventListener('click', async () => {
+  const seg = MODE_TO_SEGS[popupMode] || { i: true, r: true, o: true };
+  await br.storage.local.set({
+    [KEYS.skipMode]:  popupMode,
+    [KEYS.playRate]:  popupRate,
+    [KEYS.skipIntro]: $('skipIntro')?.checked ?? seg.i,
+    [KEYS.skipRecap]: $('skipRecap')?.checked ?? seg.r,
+    [KEYS.skipOutro]: $('skipOutro')?.checked ?? seg.o,
+    [KEYS.resumePlay]:$('resumePlayback')?.checked ?? true,
+    [KEYS.autoNext]:  $('autoNextEpisode')?.checked ?? false,
+  });
+  const btn = $('saveSettingsBtn');
+  btn.textContent = 'Saved!';
+  setTimeout(() => { btn.textContent = 'Save Settings'; }, 1800);
+});
+
+// -- Load all state --
+async function loadState() {
+  const data = await br.storage.local.get(Object.values(KEYS));
+  const enabled  = data[KEYS.enabled] !== false;
+  const mode     = data[KEYS.skipMode] || 'auto-all';
+  currentTheme   = data[KEYS.theme] || 'dark';
+
+  applyTheme(currentTheme);
+  $('masterToggle').checked = enabled;
+  $('masterSub').textContent = enabled ? 'Extension is active' : 'Extension is paused';
+
+  popupRate = parseFloat(data[KEYS.playRate]) || 1;
+  document.querySelectorAll('.speed-chip').forEach(c =>
+    c.classList.toggle('selected', parseFloat(c.dataset.rate) === popupRate));
+
+  if ($('resumePlayback'))  $('resumePlayback').checked  = data[KEYS.resumePlay] !== false;
+  if ($('autoNextEpisode')) $('autoNextEpisode').checked = !!data[KEYS.autoNext];
+
+  applyModeToUI(mode, enabled);
+  applyStats(data);
+
+  // Subtitle state
+  const subStatus = $('subStatus');
+  if (subStatus) subStatus.textContent = data[KEYS.subSrt] ? 'Subtitle loaded' : 'No subtitle loaded';
+  if ($('subLangSelect') && data[KEYS.subLang]) $('subLangSelect').value = data[KEYS.subLang];
 }
 
-const historySearch = document.getElementById('historySearch');
-if (historySearch) historySearch.addEventListener('input', applyHistoryFilters);
+// -- Subtitle handlers --
+const subUploadBtn = $('subUploadBtn');
+const subFileInput = $('subFileInput');
 
-const historyFilter = document.getElementById('historyFilter');
-if (historyFilter) historyFilter.addEventListener('change', applyHistoryFilters);
-
-// ── Status helpers ────────────────────────────────────────────────────────────
-
-function setStatus(dotClass, text) {
-  const dot  = document.getElementById('statusDot');
-  const span = document.getElementById('statusText');
-  if (dot)  dot.className   = `status-dot ${dotClass}`;
-  if (span) span.textContent = text;
-}
-
-function setSyncStatus(dotClass, text) {
-  const dot  = document.getElementById('syncDot');
-  const span = document.getElementById('syncText');
-  if (dot)  dot.className   = `sync-dot ${dotClass}`;
-  if (span) span.textContent = text;
-}
-
-// ── Force sync ────────────────────────────────────────────────────────────────
-
-let _syncInProgress = false;
-
-async function forceSyncNow() {
-  if (_syncInProgress) return;
-  _syncInProgress = true;
-  const btn  = document.getElementById('syncNowBtn');
-  const icon = document.getElementById('syncIcon');
-  if (btn)  btn.style.opacity = '0.5';
-  if (icon) icon.style.animation = 'spin 0.8s linear infinite';
-
-  setSyncStatus('syncing', 'Syncing…');
-  try {
-    // Step 1: push every local cache entry to cloud
-    const stored = await br.storage.local.get(['skipstream_cache']);
-    const cache  = stored.skipstream_cache || {};
-    const userId = await new Promise(res => {
-      br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null));
-    });
-
-    if (userId) {
-      const entries = Object.entries(cache);
-      let pushed = 0;
-      for (const [mediaId, entry] of entries) {
-        if (!entry.p || entry.p < 5) continue;
-        const result = await new Promise(res => {
-          br.runtime.sendMessage({
-            type: 'SUPABASE_UPSERT',
-            body: {
-              user_id:       userId,
-              media_id:      mediaId,
-              playback_time: Math.floor(entry.p),
-              duration:      entry.d || null,
-              site:          entry.site || '',
-              site_name:     entry.site_name || '',
-              video_title:   entry.title || '',
-              device_name:   navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Edg/') ? 'Edge' : 'Chrome',
-              updated_at:    new Date(entry.t || Date.now()).toISOString(),
-            },
-          }, r => res(r));
-        });
-        if (result?.ok) pushed++;
-      }
-
-      // Step 2: refresh history from cloud
-      const syncStored = await br.storage.local.get(['supabaseUrl','supabaseAnonKey']);
-      const syncUidRes = await br.runtime.sendMessage({ type: 'GET_USER_ID' });
-      await loadCloudHistory(syncUidRes?.userId, syncStored.supabaseUrl, syncStored.supabaseAnonKey);
-      populateSiteFilter();
-      applyHistoryFilters();
-
-      const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      setSyncStatus('ok', `Synced ${pushed} item${pushed !== 1 ? 's' : ''} - ${ts}`);
-      await br.storage.local.set({ skipstream_last_sync: Date.now() });
-    } else {
-      setSyncStatus('warn', 'Supabase not configured');
-    }
-  } catch (e) {
-    setSyncStatus('err', 'Sync failed - check connection');
-  }
-
-  if (btn)  btn.style.opacity = '';
-  if (icon) icon.style.animation = '';
-  _syncInProgress = false;
-}
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-
-async function init() {
-
-  // ── Load prefs FIRST - must complete before any badge/toggle rendering ────
-  // This eliminates the "0/3" race condition: storage is fully resolved
-  // before we write any values into the DOM.
-  const prefs = await loadPrefs();
-
-  // ── Skip mode selector (single dropdown replaces legacy individual toggles) ──
-  const modeEl = document.getElementById('skipModeSelect');
-  if (modeEl) {
-    modeEl.value = prefsToMode(prefs);
-    modeEl.addEventListener('change', () => {
-      const newPrefs = modeToPrefs(modeEl.value);
-      br.storage.local.set(newPrefs);
-      updateSkipBadge({ ...prefs, ...newPrefs });
-    });
-  }
-
-  // Render badge from fully-resolved prefs
-  updateSkipBadge(prefs);
-
-  // Resume toggle
-  const resumeEl = document.getElementById('resumePlayback');
-  if (resumeEl) {
-    resumeEl.checked = prefs.resumePlayback;
-    resumeEl.addEventListener('change', () =>
-      br.storage.local.set({ resumePlayback: resumeEl.checked })
-    );
-  }
-
-  // Sync button
-  const syncBtn = document.getElementById('syncNowBtn');
-  if (syncBtn) syncBtn.addEventListener('click', forceSyncNow);
-
-  // Auto next episode toggle
-  const nextEpEl = document.getElementById('autoNextEpisode');
-  if (nextEpEl) {
-    nextEpEl.checked = prefs.autoNextEpisode ?? false;
-    nextEpEl.addEventListener('change', () =>
-      br.storage.local.set({ autoNextEpisode: nextEpEl.checked })
-    );
-  }
-
-  // Settings gear
-  const optionsBtn = document.getElementById('optionsBtn');
-  if (optionsBtn) optionsBtn.addEventListener('click', () => br.runtime.openOptionsPage());
-
-  // ── Load local history immediately ────────────────────────────────────────
-  await loadLocalHistory();
-  populateSiteFilter();
-  applyHistoryFilters();
-
-  // ── Service health check ─────────────────────────────────────────────────
-  let result;
-  try {
-    result = await br.runtime.sendMessage({ type: 'CHECK_CONFIG' });
-  } catch {
-    setStatus('err', 'Extension error - try reloading');
-    return;
-  }
-
-  const sbOk    = result?.supabase?.ok;
-  const idbOk   = result?.introdb?.ok;
-  const tmOk    = result?.tmdb?.ok;
-  const sbMsg   = result?.supabase?.message || '';
-  const idbMsg  = result?.introdb?.message  || '';
-  const needsSQL = result?.supabase?.needsManualSetup;
-
-  const activeSvcs = [idbOk && 'IntroDB', sbOk && 'Supabase', tmOk && 'TMDB'].filter(Boolean);
-  if (activeSvcs.length) {
-    setStatus('ok', activeSvcs.join(' · ') + ' · Connected');
-  } else {
-    setStatus('warn', 'No services configured - open Settings');
-  }
-
-  const banner = document.getElementById('alertBanner');
-  if (banner) {
-    const warnings = [];
-    if (!idbOk && idbMsg !== 'Not configured') warnings.push(`IntroDB: ${idbMsg}`);
-    if (!sbOk && needsSQL) warnings.push('Supabase: run supabase_setup.sql once to create the table.');
-    else if (!sbOk && sbMsg && !sbMsg.includes('configured')) warnings.push(`Supabase: ${sbMsg}`);
-
-    if (warnings.length) {
-      banner.className = 'alert warn';
-      banner.replaceChildren();
-      for (const [i, w] of warnings.entries()) {
-        banner.appendChild(document.createTextNode(`⚠ ${w}`));
-        if (i < warnings.length - 1) banner.appendChild(document.createElement('br'));
-      }
-    }
-  }
-
-  // ── Load cloud history in background ─────────────────────────────────────
-  if (sbOk) {
-    setSyncStatus('', 'Syncing cloud history…');
-    try {
-      const uidRes = await br.runtime.sendMessage({ type: 'GET_USER_ID' });
-      const userId = uidRes?.userId;
-      const stored = await br.storage.local.get(['supabaseUrl','supabaseAnonKey']);
-      const supabaseUrl     = stored.supabaseUrl;
-      const supabaseAnonKey = stored.supabaseAnonKey;
-
-      if (userId && supabaseUrl && supabaseAnonKey) {
-        await loadCloudHistory(userId, supabaseUrl, supabaseAnonKey);
-        populateSiteFilter();
-        applyHistoryFilters();
-
-        const cloudCount = Object.keys(_cloudEntries).length;
-        // Show last sync time if available
-        br.storage.local.get('skipstream_last_sync').then(s => {
-          const ts = s.skipstream_last_sync
-            ? new Date(s.skipstream_last_sync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : null;
-          setSyncStatus('ok', `Cloud: ${cloudCount} item${cloudCount !== 1 ? 's' : ''}${ts ? ' · last sync ' + ts : ''}`);
-        }).catch(() => {
-          setSyncStatus('ok', `Cloud: ${cloudCount} item${cloudCount !== 1 ? 's' : ''}`);
-        });
-      } else {
-        setSyncStatus('warn', 'Cloud: missing credentials');
-      }
-    } catch (e) {
-      setSyncStatus('warn', `Cloud sync failed: ${e.message}`);
-    }
-  } else {
-    const localCount = Object.keys(_localEntries).length;
-    setSyncStatus('', `Local: ${localCount} item${localCount !== 1 ? 's' : ''} · Supabase not connected`);
-  }
-}
-
-// ── Playback speed ─────────────────────────────────────────────────────────────
-
-const SPEED_LABEL = { '1': '1x - Normal', '1.25': '1.25x - Faster', '1.5': '1.5x - Fast', '2': '2x - Double' };
-
-async function initSpeedControl() {
-  const stored = await br.storage.local.get('playbackSpeed');
-  const rate = stored.playbackSpeed || 1;
-  setSpeedUI(rate);
-
-  document.querySelectorAll('.speed-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const r = parseFloat(btn.dataset.rate);
-      br.storage.local.set({ playbackSpeed: r });
-      setSpeedUI(r);
-      // Apply to any active video on current tab
-      br.tabs.query({ active: true, currentWindow: true }, tabs => {
-        if (!tabs[0]) return;
-        br.tabs.sendMessage(tabs[0].id, { type: 'SET_PLAYBACK_RATE', rate: r }).catch(() => {});
-      });
-    });
+if (subUploadBtn && subFileInput) {
+  subUploadBtn.addEventListener('click', () => { subFileInput.value = ''; subFileInput.click(); });
+  subFileInput.addEventListener('change', async () => {
+    const file = subFileInput.files?.[0];
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['srt','vtt'].includes(ext)) { alert('Only .srt or .vtt files.'); return; }
+    const text = await file.text();
+    await br.storage.local.set({ [KEYS.subSrt]: text });
+    const s = $('subStatus');
+    if (s) s.textContent = file.name;
   });
 }
 
-function setSpeedUI(rate) {
-  const key = String(rate);
-  document.querySelectorAll('.speed-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.rate === key);
-  });
-  const lbl = document.getElementById('speedLabel');
-  if (lbl) lbl.textContent = SPEED_LABEL[key] || `${rate}x`;
-}
+$('subClearBtn')?.addEventListener('click', async () => {
+  await br.storage.local.remove(KEYS.subSrt);
+  const s = $('subStatus');
+  if (s) s.textContent = 'No subtitle loaded';
+});
 
-// ── Watch Stats ────────────────────────────────────────────────────────────────
+$('subLangSelect')?.addEventListener('change', async () => {
+  await br.storage.local.set({ [KEYS.subLang]: $('subLangSelect').value });
+});
 
-function renderStats() {
-  const grid    = document.getElementById('statsGrid');
-  const allGrid = document.getElementById('statsAllGrid');
-  if (!grid || !allGrid) return;
+// -- Action bar --
+$('settingsBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') }));
+$('historyBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') + '#history' }));
+$('statsBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') + '#stats' }));
 
-  br.storage.local.get(['skipstream_cache', 'skipstream_stats']).then(stored => {
-    const cache = stored.skipstream_cache || {};
-    const stats = stored.skipstream_stats || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0 };
+// -- Live stats --
+br.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes[KEYS.stats]) return;
+  br.storage.local.get([KEYS.stats]).then(d => applyStats(d)).catch(() => {});
+});
 
-    // Compute from cache: total items, total watch time
-    const entries  = Object.values(cache);
-    const inProgress = entries.filter(e => e.p > 10 && e.d && (e.p / e.d) < 0.95);
-    const watchSec = entries.reduce((s, e) => s + (e.p || 0), 0);
-
-    const mkCard = (val, lbl) => {
-      const c = document.createElement('div'); c.className = 'stat-card';
-      const v = document.createElement('div'); v.className = 'stat-val'; v.textContent = val;
-      const l = document.createElement('div'); l.className = 'stat-lbl'; l.textContent = lbl;
-      c.appendChild(v); c.appendChild(l); return c;
-    };
-
-    const fmtHr = s => s >= 3600 ? `${(s/3600).toFixed(1)}h` : `${Math.round(s/60)}m`;
-
-    grid.replaceChildren(
-      mkCard(inProgress.length,    'In Progress'),
-      mkCard(fmtHr(watchSec),      'Watch Time Tracked'),
-    );
-    allGrid.replaceChildren(
-      mkCard(entries.length,       'Total Titles'),
-      mkCard(stats.skipsTotal,     'Segments Skipped'),
-      mkCard(fmtHr(stats.timeSavedSec), 'Time Saved'),
-      mkCard(stats.sessionsTotal,  'Sessions'),
-    );
-  }).catch(() => {});
-}
-
-// ── Version badge ──────────────────────────────────────────────────────────────
-
-const vBadge = document.getElementById('versionBadge');
-if (vBadge) vBadge.textContent = `v${br.runtime.getManifest().version}`;
-
-// ── Theme toggle ──────────────────────────────────────────────────────────────
-(function initTheme() {
-  const THEME_KEY = 'skipstream_theme';
-  const html = document.documentElement;
-  const btn  = document.getElementById('themeToggle');
-  const icon = document.getElementById('themeIcon');
-
-  // Use data-theme on the SVG itself to swap sun/moon via CSS - no innerHTML needed
-  function applyTheme(theme) {
-    html.setAttribute('data-theme', theme);
-    if (icon) icon.setAttribute('data-mode', theme);
-    if (btn)  btn.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
-  }
-
-  br.storage.local.get(THEME_KEY).then(s => {
-    const saved = s[THEME_KEY];
-    const sys   = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    applyTheme(saved || sys);
-  }).catch(() => applyTheme('dark'));
-
-  if (btn) {
-    btn.addEventListener('click', () => {
-      const current = html.getAttribute('data-theme');
-      const next    = current === 'dark' ? 'light' : 'dark';
-      applyTheme(next);
-      br.storage.local.set({ [THEME_KEY]: next });
-    });
-  }
-})();
-
-initSpeedControl();
-
-init();
+// -- Init --
+detectDomain();
+loadState();

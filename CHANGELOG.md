@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.6.9-ui-polish] - 2026-06-15
+
+### Fixed (ui-polish branch)
+- **Firefox install error**: `browser_specific_settings.gecko.data_collection_permissions.required` changed from `false` to `[]` (array) - extension now loads without errors
+- **Settings button opens about:addons**: `popup.js` and `background.js` both changed from `openOptionsPage()` to `chrome.tabs.create({ url: getURL('options.html') })` - opens full options tab consistently in Firefox
+- **History/Stats buttons**: already used `tabs.create` with `#hash` - verified working; `options.js` reads `location.hash` on DOMContentLoaded and routes to correct panel
+- **Toggle switches not saving**: root cause identified as Firefox treating temp addon storage as non-persistent; storage.local.set() calls on every `change` event are correct - persists after proper signed install
+- **JSON import from 1.6.5 failing**: added `migrateImportData()` shim in `options.js` handling renamed keys: `apiKey`→`introdbApiKey`, `supabaseKey`→`supabaseAnonKey`, `autoSkip`→`skipIntro`, `totalSkips`→`statsTotalSkips`, `timeSaved`→`statsTotalTimeSaved`
+- **domain detection**: `popup.js` now skips `moz-extension:` protocol in addition to `chrome:` and `about:`
+
+### Added (ui-polish branch)
+- **`popup.css`**: Premium AdGuard-style dark UI, exact selector mapping to popup.html classes, spring-eased toggle animations, tabular-nums stat display
+- **`options.css`**: Full-tab options page styling, glassmorphism cards, light/dark via CSS vars, status dot pulse animations, responsive sidebar collapse at 640px
+- **Export version tagging**: exports now include `_exportVersion` field for future migration detection
+- **`options_ui.open_in_tab: true`**: added to Firefox `manifest.json` so options always opens as full tab
+
 ## [1.6.9] - 2026-06-12
 
 ### Fixed
