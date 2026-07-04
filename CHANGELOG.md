@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.7.4] - 2026-07-05
+
+### Fixed
+- Removed stray `.github/workflows/ai-fix-pr.yml.save` editor backup file (superseded, unused)
+
 ## [1.7.3] - 2026-07-05
 
 ### Fixed
