@@ -199,8 +199,8 @@ jobs:
           zip -r skipstream-firefox.zip \
             manifest.json background.js \
             content-scripts/ icons/ \
-            popup.html popup.js \
-            options.html options.js
+            popup.html popup.js popup.css \
+            options.html options.js options.css
           echo "✅ Firefox ZIP built: $(du -h skipstream-firefox.zip | cut -f1)"
 
       - name: Build Chrome release ZIP
@@ -208,11 +208,27 @@ jobs:
           # Chrome ZIP uses manifest-chrome.json renamed to manifest.json
           rm -rf /tmp/chrome-build
           mkdir -p /tmp/chrome-build
-          cp -r content-scripts icons popup.html popup.js options.html options.js background.js /tmp/chrome-build/
+          cp -r content-scripts icons popup.html popup.js popup.css options.html options.js options.css background.js /tmp/chrome-build/
           cp manifest-chrome.json /tmp/chrome-build/manifest.json
           cd /tmp/chrome-build && zip -r "$GITHUB_WORKSPACE/skipstream-chrome.zip" .
           cd "$GITHUB_WORKSPACE"
           echo "✅ Chrome ZIP built: $(du -h skipstream-chrome.zip | cut -f1)"
+
+      - name: Verify ZIPs contain required assets
+        run: |
+          for f in popup.css options.css popup.html options.html background.js manifest.json; do
+            if ! unzip -l skipstream-firefox.zip | grep -q "$f"; then
+              echo "❌ skipstream-firefox.zip is missing $f"
+              exit 1
+            fi
+          done
+          for f in popup.css options.css popup.html options.html background.js manifest.json; do
+            if ! unzip -l skipstream-chrome.zip | grep -q "$f"; then
+              echo "❌ skipstream-chrome.zip is missing $f"
+              exit 1
+            fi
+          done
+          echo "✅ Both ZIPs contain all required assets (including stylesheets)"
 
       - name: Upload Firefox artifact
         uses: actions/upload-artifact@v4

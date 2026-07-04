@@ -82,8 +82,8 @@ jobs:
             zip -r "$ZIP_NAME" \
               manifest.json background.js \
               content-scripts/ icons/ \
-              popup.html popup.js \
-              options.html options.js
+              popup.html popup.js popup.css \
+              options.html options.js options.css
             echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
           fi
           echo "ZIP contents:"

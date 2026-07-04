@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.7.6] - 2026-07-05
+
+### Fixed
+- **Critical: broken UI in every packaged build.** `popup.css` and `options.css` were never included in the built extension ZIP — every workflow that packages the extension (`release.yml`, `amo-submit.yml`, `cws-submit.yml`, `validate.yml`) listed `popup.html`/`popup.js` and `options.html`/`options.js` but omitted the stylesheets both pages `<link>` to. Anyone installing from AMO, the Chrome Web Store, or a GitHub Release ZIP got completely unstyled popup and options pages — this affected every published version. Fixed all 4 workflows to include `popup.css` and `options.css`. Added a CI step (`validate.yml`) that fails the build if a packaged ZIP is missing either stylesheet, to prevent regression.
+
 ## [1.7.5] - 2026-07-05
 
 ### Fixed

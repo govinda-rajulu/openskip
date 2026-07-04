@@ -119,8 +119,8 @@ jobs:
           zip -r "$ZIP_NAME" \
             manifest.json background.js \
             content-scripts/ icons/ \
-            popup.html popup.js \
-            options.html options.js
+            popup.html popup.js popup.css \
+            options.html options.js options.css
           echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
           echo "✅ Firefox ZIP built: $(du -h $ZIP_NAME | cut -f1)"
 
@@ -132,7 +132,7 @@ jobs:
           ZIP_NAME="skipstream-${VERSION}-chrome.zip"
           rm -rf /tmp/chrome-build
           mkdir -p /tmp/chrome-build
-          cp -r content-scripts icons popup.html popup.js options.html options.js background.js /tmp/chrome-build/
+          cp -r content-scripts icons popup.html popup.js popup.css options.html options.js options.css background.js /tmp/chrome-build/
           cp manifest-chrome.json /tmp/chrome-build/manifest.json
           cd /tmp/chrome-build && zip -r "$GITHUB_WORKSPACE/$ZIP_NAME" .
           cd "$GITHUB_WORKSPACE"
