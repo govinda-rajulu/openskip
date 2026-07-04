@@ -230,7 +230,7 @@ async function main() {
 
     // ── Step 2: Poll validation ─────────────────────────────────────────────
     process.stdout.write('\n🔍  Step 2/4 - Waiting for validation…\n');
-    await poll(async () => {
+    const validationResult = await poll(async () => {
       const r = await apiRequest('GET', `/api/v5/addons/upload/${uploadUuid}/`);
       if (r.status !== 200) return null;
       if (r.data.processed && r.data.valid) return r.data;
@@ -244,7 +244,7 @@ async function main() {
       }
       return null;
     }, 'Validating', { interval: 8000, timeout: 600_000 });
-    process.stdout.write(`    Warnings: ${r.data.validation?.warnings?.length || 0}\n`);
+    process.stdout.write(`    Warnings: ${validationResult.validation?.warnings?.length || 0}\n`);
   }
 
   // ── Step 3: Create new version ────────────────────────────────────────────
