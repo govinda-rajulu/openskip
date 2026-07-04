@@ -1,5 +1,67 @@
 # Changelog
 
+# Changelog
+
+## [1.7.0] - 2026-07-04
+
+### Added
+- **Subtitle system**: auto-fetches subtitles from OpenSubtitles by IMDB ID on any identified video; CC button on player with drag-to-reposition, right-click sync offset; offline .srt/.vtt override via popup upload; language selection (30+ languages, English default, auto-fallback); subtitle overlay scales with video size; 20-entry local cache avoids repeat downloads
+- **OpenSubtitles integration**: `background.js` handles login/logout/search/download; anonymous 5/day, logged-in up to 200/day; session cached with 23h expiry; login status and quota shown in Connections panel
+- **Popup Settings tab**: skip mode chips, segment toggles, playback speed, subtitle upload/language all in one place - no options page needed for daily use
+- **Bidirectional skip mode/segment sync**: changing skip mode chip updates segment toggles and vice versa; infers mode from toggle state (`inferMode`); persists immediately on change without explicit save
+- **Theme toggle in popup**: single tap dark-to-light or light-to-dark; no intermediate system-default dead state; persists across sessions
+- **Device name setting**: user-configurable device identity shown in cross-device history; falls back to browser UA if blank
+- **Welcome-back toast**: options page shows contextual greeting on load based on Supabase connection state
+- **Cloud history clear**: Advanced panel deletes all Supabase `playback_states` for current user; switches to Cloud tab after confirm
+- **Local history clear**: removes `skipstream_cache` only, cloud unaffected
+- **`page_url` in Supabase**: real page URL now stored and fetched; cloud history items are clickable links
+- **YouTube/music thumbnails**: history uses `ytimg.com` thumbnail by video ID instead of TMDB; playlist and cloud entries matched via `yt/ID` media-id format; Spotify/SoundCloud via oEmbed
+- **Date/time on history items**: shows Today HH:MM, Yesterday HH:MM, or short date
+- **Supabase explicit grants**: `GRANT SELECT,INSERT,UPDATE,DELETE` on both tables to `anon,authenticated`; `GRANT USAGE ON ALL SEQUENCES` - fixes DELETE 403 without hardcoding sequence names
+- **`INVALIDATE_USER_ID` called on Clear All**: background in-memory userId cache reset immediately on data clear
+
+### Fixed
+- **Skip loop at segment end**: 1.5s cooldown (`video._ssCooldownUntil`) after any skip prevents immediate re-trigger from +1s grace window
+- **Master toggle re-fires resume prompt**: `_promptedVideos` WeakSet prevents `restorePlayback` re-running on same video element after toggle ON
+- **Per-site rules not applied**: `effectivePrefs = getSitePrefs(prefs)` moved before segment detection in poll; `restorePlayback` now checks site rules before prompting
+- **Playback speed not reactive**: `storage.onChanged` listener applies new rate to all connected video elements immediately; `playbackRate`/`playbackSpeed` key mismatch fixed across options.js and popup.js
+- **Stats always 0**: `content.js` writes `skipstream_stats` blob; options/popup now read same blob key; `loadStats` and `applyStats` unified; live `storage.onChanged` listener updates stats panel without page reload
+- **Native platform skip buttons never counted**: `clickFirst(SKIP_SELECTORS)` now calls `recordSkipStat(60)` with 10s cooldown between counts
+- **Manual skip button never counted**: `recordSkipStat` added to manual skip path alongside auto-countdown path
+- **Stats today counter**: `skipsToday` + `statsDate` fields added to blob; daily reset logic in `recordSkipStat`
+- **YouTube og:title stale on SPA nav**: reads from live DOM (`yt-formatted-string`, `ytmusic-player-bar .title`) instead of og:title meta tag which never updates after initial page load
+- **`chrome.*` storage API in Firefox**: all `chrome.storage.*` calls in `options.js` and `popup.js` switched to `br` shim; fixes `get(null)` returning undefined in Firefox causing import crash and export failure
+- **options.js syntax error**: missing closing `}` on `saveSupabase` handler blocked entire script parse; nav, toggles, history all dead until fixed
+- **History source-pill stale after Sync**: `_histLocal`/`_histCloud` lifted to module scope; `getHistoryItems()` always reads current arrays; source pill clicks post-sync show fresh data
+- **`loadHistory` listener stacking**: `historyListenersAttached` flag prevents duplicate sync/search/filter/pill listeners on each reload
+- **Supabase sync 400 `PGRST204`**: `device_name` and `page_url` columns added to `supabase_setup.sql` via idempotent `ALTER TABLE` blocks
+- **`fetchWithRetry` swallowing 400 errors**: 400/409/422 added to pass-through list; response body extracted and surfaced in sync error message
+- **Export download silent fail**: anchor appended to `document.body` before `.click()`; `URL.revokeObjectURL` after 1s; try/catch surfaces real errors; honest toast wording
+- **Import crash `existing.statsTotalSkips undefined`**: `storage.local.get(null)` via `br` shim now returns real object; stats merge uses blob keys
+- **Import malformed file accepted silently**: type/array guard added; Supabase URL swap now requires explicit confirm dialog
+- **`skipMaster` not migrated on 1.6.5 import**: migration shim maps `skipMaster`→`skipEnabled`
+- **`navDotConnections` spinning forever**: `verifyAll` sets final state after all service checks resolve; OpenSubtitles status included
+- **Cloud history no video links**: `url: row.media_id` replaced with `url: row.page_url`
+- **Export credential warning missing**: confirm dialog before download warns plaintext credentials included
+- **Supabase save no success toast**: `verifySupabase` return value checked; green alert shown on success
+- **`CHECK_CONFIG` dead code removed**: handler and `checkTmdb`/`checkIntroDB` background functions deleted; zero callers confirmed
+- **Clear All not resetting background cache**: `INVALIDATE_USER_ID` message sent to background on clear
+
+### Changed
+- **Options consolidated to 4 panels**: Connections (all services + OpenSubtitles), History, Stats, Data & Advanced - was 9 panels
+- **Skip Behavior panel removed from options**: all skip config lives in popup Settings tab
+- **Subtitles panel removed from options**: subtitle config lives in popup Settings tab
+- **Export/Import + Advanced merged**: single "Data & Advanced" panel covers backup, device identity, clear local, clear cloud, clear all
+- **History defaults to Merged tab**: was Local
+- **Sync push errors surfaced**: shows count of pushed/failed with real error text instead of silent swallow
+- **CSP `connect-src` added**: both manifests now explicitly allowlist all API domains; closes unrestricted exfiltration path
+- **TMDB poster concurrency**: max 4 simultaneous TMDB calls via `scheduleFetchPoster` queue; prevents rate-limit on large history
+- **Responsive sidebar**: hamburger menu below 640px; sidebar slides in/out; main content padding adjusts; fluid layout up to 1600px
+- **Font stack**: Inter + system fallbacks; `clamp()`-based font sizes; 200ms ease-out transitions throughout
+- **Popup light mode**: full light theme CSS vars; single-tap toggle between dark and light
+
+---
+
 ## [1.6.9-ui-polish] - 2026-06-15
 
 ### Fixed (ui-polish branch)
