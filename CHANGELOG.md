@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.7.3] - 2026-07-05
+
+### Fixed
+- **AMO submission error**: `browser_specific_settings.gecko.data_collection_permissions.required` as empty array `[]` is now rejected by the updated AMO validator, which requires 1+ items. Removed `data_collection_permissions` entirely from `manifest.json`, since the extension collects no data.
+
 ## [1.7.2] - 2026-07-04
 
 ### Fixed
