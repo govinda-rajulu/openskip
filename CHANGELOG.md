@@ -2,6 +2,14 @@
 
 # Changelog
 
+## [1.7.2] - 2026-07-04
+
+### Fixed
+- Duplicate OpenSubtitles card IDs in animeskip panel, dead form inputs
+- Removed dead `dot-osub-inner` ref in options.js
+- `OSUB_UA` bumped to v1.7.0
+- PRIVACY.md: OpenSubtitles disclosure + sync ID collision warning
+
 ## [1.7.1] - 2026-07-04
 
 ### Fixed
