@@ -95,7 +95,7 @@ jobs:
                   with urllib.request.urlopen(req,timeout=120) as r:
                       text = json.load(r)["content"][0]["text"].strip()
               elif openrouter_key:
-                  p = json.dumps({"model":"meta-llama/llama-3.3-70b-instruct:free","max_tokens":8192,"messages":[{"role":"user","content":prompt}]}).encode()
+                  p = json.dumps({"model":"google/gemini-2.0-flash-exp:free","max_tokens":8192,"messages":[{"role":"user","content":prompt}]}).encode()
                   req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=p,
                       headers={"Content-Type":"application/json","Authorization":f"Bearer {openrouter_key}",
                                "HTTP-Referer":"https://github.com/govinda-rajulu/openskip","X-Title":"openskip-sweep"},method="POST")
