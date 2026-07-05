@@ -11,27 +11,29 @@
 }
 
 :root {
-  --bg-base:        #16181f;
-  --bg-card:        #1d212b;
-  --bg-surface:     #262b38;
-  --bg-hover:       #2d3342;
-  --accent:         #6fce55;
-  --accent-dim:     #4d9a3a;
-  --accent-glow:    rgba(111, 206, 85, 0.20);
-  --danger:         #ef6b6b;
-  --warn:           #6ba3e8;
-  --ok:             #e89159;
-  --text-primary:   #edeff5;
-  --text-secondary: #949cb2;
-  --text-muted:     #5b6479;
-  --border:         rgba(255, 255, 255, 0.07);
-  --border-strong:  rgba(255, 255, 255, 0.12);
+  /* ---- M3 Expressive: green seed tonal scheme (dark, default) ---- */
+  --bg-base:        #10140F;  /* surface */
+  --bg-card:        #1C211B;  /* surface-container */
+  --bg-surface:     #262B25;  /* surface-container-high */
+  --bg-hover:       #313630;  /* surface-container-highest */
+  --accent:         #57A860;  /* primary, vivid tone - white text passes contrast where --accent is reused as a flat fill */
+  --on-accent:      #FFFFFF;
+  --accent-dim:     #3F8A49;  /* darker pressed/hover shade of accent */
+  --accent-glow:    rgba(87, 168, 96, 0.18);
+  --danger:         #FFB4AB;  /* error (dark) */
+  --warn:           #A0CFD4;  /* tertiary (dark), info accent */
+  --ok:             #E3A876;  /* custom warm accent role */
+  --text-primary:   #DFE4DA;  /* on-surface */
+  --text-secondary: #C1C9BB;  /* on-surface-variant */
+  --text-muted:     #8B9388;  /* outline */
+  --border:         rgba(193, 201, 187, 0.10);   /* outline-variant tint */
+  --border-strong:  rgba(193, 201, 187, 0.18);
   --shadow-card:    0 1px 2px rgba(0,0,0,0.35), 0 8px 24px rgba(0,0,0,0.40), 0 18px 44px rgba(0,0,0,0.30);
-  --radius-card:    20px;
-  --radius-pill:    999px;
-  --radius-sm:      10px;
-  --font-ui:        'Inter', 'Segoe UI', system-ui, sans-serif;
-  --transition:     200ms cubic-bezier(0.2, 0, 0, 1);
+  --radius-card:    var(--md-sys-shape-corner-extra-large);
+  --radius-pill:    var(--md-sys-shape-corner-full);
+  --radius-sm:      var(--md-sys-shape-corner-medium);
+  --font-ui:        'Roboto Flex', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --transition:     var(--md-sys-motion-duration-standard) var(--md-sys-motion-easing-standard);
 
   /* Dynamic (fluid) sizing tokens */
   --icon-logo:      clamp(26px, 6vw, 30px);
@@ -39,6 +41,30 @@
   --sp-card:        clamp(13px, 3.2vw, 17px);
   --fs-body:        clamp(12px, 3.5vw, 14px);
   --fs-title:       clamp(13px, 3.4vw, 15px);
+
+  /* ---- M3 shape scale ---- */
+  --md-sys-shape-corner-none:               0px;
+  --md-sys-shape-corner-extra-small:        4px;
+  --md-sys-shape-corner-small:              8px;
+  --md-sys-shape-corner-medium:             12px;
+  --md-sys-shape-corner-large:              16px;
+  --md-sys-shape-corner-large-increased:    20px;
+  --md-sys-shape-corner-extra-large:        28px;
+  --md-sys-shape-corner-extra-extra-large:  48px;
+  --md-sys-shape-corner-full:               9999px;
+
+  /* ---- M3 motion: legacy easing/duration for transitions ---- */
+  --md-sys-motion-easing-emphasized:             cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-easing-emphasized-decelerate:  cubic-bezier(0.05, 0.7, 0.1, 1);
+  --md-sys-motion-easing-emphasized-accelerate:  cubic-bezier(0.3, 0, 0.8, 0.15);
+  --md-sys-motion-easing-standard:               cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-easing-standard-decelerate:    cubic-bezier(0, 0, 0, 1);
+  --md-sys-motion-easing-standard-accelerate:    cubic-bezier(0.3, 0, 1, 1);
+  --md-sys-motion-duration-emphasized:  500ms;
+  --md-sys-motion-duration-standard:    300ms;
+  /* Spring physics have no Material Web equivalent; an overshoot easing
+     curve is the spec-recommended fallback for expressive motion on web. */
+  --md-sys-motion-easing-expressive-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 body {
@@ -73,7 +99,7 @@ body {
   border-bottom: 1px solid var(--border);
   background: linear-gradient(
     180deg,
-    rgba(111, 206, 85, 0.05) 0%,
+    rgba(87, 168, 96, 0.05) 0%,
     transparent 100%
   );
 }
@@ -249,7 +275,7 @@ body {
   background: var(--text-muted);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
   transition:
-    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 220ms var(--md-sys-motion-easing-expressive-spring),
     background 220ms ease,
     box-shadow 220ms ease;
 }
@@ -336,7 +362,7 @@ body {
   font-weight: 700;
   color: var(--accent);
   background: var(--accent-glow);
-  border: 1px solid rgba(111, 206, 85, 0.28);
+  border: 1px solid rgba(87, 168, 96, 0.30);
   border-radius: var(--radius-pill);
   padding: 2px 9px;
   letter-spacing: 0.04em;
@@ -379,7 +405,7 @@ body {
   flex-shrink: 0;
 }
 
-.seg-icon.intro { background: rgba(111, 206, 85, 0.13); }
+.seg-icon.intro { background: rgba(87, 168, 96, 0.14); }
 .seg-icon.recap { background: rgba(107, 163, 232, 0.13); }
 .seg-icon.outro { background: rgba(232, 145, 89, 0.13); }
 
@@ -560,22 +586,23 @@ footer a:hover {
 /* ---------- Light Mode ---------- */
 @media (prefers-color-scheme: light) {
   :root {
-    --bg-base:        #f4f6fb;
-    --bg-card:        #ffffff;
-    --bg-surface:     #eef1f7;
-    --bg-hover:       #e6eaf3;
-    --accent:         #4a9e2f;
-    --accent-dim:     #3a7e24;
-    --accent-glow:    rgba(74,158,47,0.15);
-    --danger:         #cc3333;
-    --text-primary:   #111318;
-    --text-secondary: #50596a;
-    --text-muted:     #8a95a8;
-    --border:         rgba(0,0,0,0.08);
-    --border-strong:  rgba(0,0,0,0.14);
+    --bg-base:        #F7FBF1;
+    --bg-card:        #FFFFFF;
+    --bg-surface:     #F1F5EB;
+    --bg-hover:       #EBEFE5;
+    --accent:         #35693A;
+    --on-accent:      #FFFFFF;
+    --accent-dim:     #1F4A22;
+    --accent-glow:    rgba(53, 105, 58, 0.14);
+    --danger:         #BA1A1A;
+    --text-primary:   #181D17;
+    --text-secondary: #414942;
+    --text-muted:     #717970;
+    --border:         rgba(65, 73, 66, 0.10);
+    --border-strong:  rgba(65, 73, 66, 0.18);
     --shadow-card:    0 4px 24px rgba(0,0,0,0.10);
-    --warn:           #4a7fb5;
-    --ok:             #b85c28;
+    --warn:           #38656A;
+    --ok:             #8A5A2C;
   }
 }
 
@@ -585,35 +612,38 @@ footer a:hover {
 
 /* ---------- Light theme override ---------- */
 body.theme-light {
-  --bg-base:        #f4f6fb;
-  --bg-card:        #ffffff;
-  --bg-surface:     #eef1f7;
-  --bg-hover:       #e6eaf3;
-  --text-primary:   #111318;
-  --text-secondary: #50596a;
-  --text-muted:     #8a95a8;
-  --border:         rgba(0,0,0,0.08);
-  --border-strong:  rgba(0,0,0,0.14);
+  --bg-base:        #F7FBF1;
+  --bg-card:        #FFFFFF;
+  --bg-surface:     #F1F5EB;
+  --bg-hover:       #EBEFE5;
+  --text-primary:   #181D17;
+  --text-secondary: #414942;
+  --text-muted:     #717970;
+  --border:         rgba(65, 73, 66, 0.10);
+  --border-strong:  rgba(65, 73, 66, 0.18);
   --shadow-card:    0 4px 24px rgba(0,0,0,0.10);
-  --accent:         #4a9e2f;
-  --accent-dim:     #3a7e24;
-  --accent-glow:    rgba(74,158,47,0.15);
-  --danger:         #cc3333;
-  --warn:           #4a7fb5;
-  --ok:             #b85c28;
+  --accent:         #35693A;
+  --on-accent:      #FFFFFF;
+  --accent-dim:     #1F4A22;
+  --accent-glow:    rgba(53, 105, 58, 0.14);
+  --danger:         #BA1A1A;
+  --warn:           #38656A;
+  --ok:             #8A5A2C;
 }
 
 /* ---------- Dark theme force ---------- */
 body.theme-dark {
-  --bg-base:        #1a1d23;
-  --bg-card:        #20242d;
-  --bg-surface:     #272c38;
-  --bg-hover:       #2e3444;
-  --text-primary:   #e8eaf0;
-  --text-secondary: #8b93a8;
-  --text-muted:     #555e72;
-  --border:         rgba(255,255,255,0.06);
-  --border-strong:  rgba(255,255,255,0.11);
+  --bg-base:        #10140F;
+  --bg-card:        #1C211B;
+  --bg-surface:     #262B25;
+  --bg-hover:       #313630;
+  --text-primary:   #DFE4DA;
+  --text-secondary: #C1C9BB;
+  --text-muted:     #8B9388;
+  --border:         rgba(193, 201, 187, 0.10);
+  --border-strong:  rgba(193, 201, 187, 0.18);
+  --accent:         #57A860;
+  --on-accent:      #FFFFFF;
 }
 
 /* ---------- Tab bar ---------- */
@@ -788,9 +818,9 @@ body.theme-dark {
   width: 100%;
   padding: 10px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border: none;
-  border-radius: 9px;
+  border-radius: var(--md-sys-shape-corner-full);
   font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 700;

@@ -6,45 +6,46 @@
 
 /* ---------- Tokens (MD3-inspired) ---------- */
 :root {
-  --bg:           #eef0f9;
+  --bg:           #F7FBF1;  /* surface (light) */
   --sidebar-bg:   rgba(255,255,255,0.62);
   --card:         rgba(255,255,255,0.74);
   --card-border:  rgba(255,255,255,0.92);
-  --surface:      rgba(29,25,64,0.04);
-  --surface2:     rgba(29,25,64,0.065);
-  --divider:      rgba(29,25,64,0.08);
+  --surface:      rgba(24,29,23,0.04);
+  --surface2:     rgba(24,29,23,0.065);
+  --divider:      rgba(65,73,66,0.10);
   --input-bg:     rgba(255,255,255,0.92);
-  --input-border: rgba(29,25,64,0.14);
-  --text:         #1b1b23;
-  --text2:        #4d4f5e;
-  --text3:        #8a8da3;
-  --accent:       #4356e8;
-  --accent-dim:   rgba(67,86,232,0.11);
-  --accent-h:     #3345cf;
+  --input-border: rgba(65,73,66,0.16);
+  --text:         #181D17;  /* on-surface */
+  --text2:        #414942;  /* on-surface-variant */
+  --text3:        #717970;  /* outline */
+  --accent:       #35693A;  /* primary (light), matches popup.css brand green */
+  --on-accent:    #FFFFFF;
+  --accent-dim:   rgba(53,105,58,0.11);
+  --accent-h:     #1F4A22;
   --ok:           #17a568;
   --ok-dim:       rgba(23,165,104,0.12);
   --ok-border:    rgba(23,165,104,0.24);
   --warn:         #b5720a;
   --warn-dim:     rgba(181,114,10,0.11);
   --warn-border:  rgba(181,114,10,0.24);
-  --danger:       #d3374a;
-  --danger-dim:   rgba(211,55,74,0.10);
-  --danger-border:rgba(211,55,74,0.24);
-  --toggle-off:   rgba(29,25,64,0.16);
+  --danger:       #BA1A1A;
+  --danger-dim:   rgba(186,26,26,0.10);
+  --danger-border:rgba(186,26,26,0.24);
+  --toggle-off:   rgba(24,29,23,0.16);
 
   /* MD3 elevation - layered, soft, tonal shadows */
-  --shadow:       0 1px 2px rgba(29,25,64,0.06), 0 4px 14px rgba(29,25,64,0.08), 0 10px 30px rgba(29,25,64,0.06);
-  --shadow-sm:    0 1px 2px rgba(29,25,64,0.09), 0 2px 6px rgba(29,25,64,0.07);
-  --shadow-lg:    0 2px 4px rgba(29,25,64,0.07), 0 10px 24px rgba(29,25,64,0.10), 0 20px 48px rgba(29,25,64,0.08);
+  --shadow:       0 1px 2px rgba(24,29,23,0.06), 0 4px 14px rgba(24,29,23,0.08), 0 10px 30px rgba(24,29,23,0.06);
+  --shadow-sm:    0 1px 2px rgba(24,29,23,0.09), 0 2px 6px rgba(24,29,23,0.07);
+  --shadow-lg:    0 2px 4px rgba(24,29,23,0.07), 0 10px 24px rgba(24,29,23,0.10), 0 20px 48px rgba(24,29,23,0.08);
 
-  /* MD3 shape scale */
-  --r-card:       20px;
-  --r-md:         14px;
-  --r-sm:         10px;
-  --r-full:       999px;
+  /* MD3 shape scale (semantic aliases, kept for existing selectors) */
+  --r-card:       var(--md-sys-shape-corner-extra-large);
+  --r-md:         var(--md-sys-shape-corner-medium);
+  --r-sm:         var(--md-sys-shape-corner-small);
+  --r-full:       var(--md-sys-shape-corner-full);
 
-  --font:         'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --ease:         200ms cubic-bezier(0.2, 0, 0, 1);
+  --font:         'Roboto Flex', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --ease:         var(--md-sys-motion-duration-standard) var(--md-sys-motion-easing-standard);
 
   /* Dynamic (fluid) sizing tokens */
   --sidebar-w:    clamp(196px, 16vw + 120px, 252px);
@@ -55,35 +56,55 @@
   --fs-title:     clamp(18px, 1.1vw + 15px, 23px);
   --fs-card-title:clamp(13.5px, 0.3vw + 12.5px, 15px);
   --sp-card:      clamp(14px, 1.4vw + 8px, 22px);
+
+  /* ---- M3 shape scale ---- */
+  --md-sys-shape-corner-none:               0px;
+  --md-sys-shape-corner-extra-small:        4px;
+  --md-sys-shape-corner-small:              8px;
+  --md-sys-shape-corner-medium:             12px;
+  --md-sys-shape-corner-large:              16px;
+  --md-sys-shape-corner-large-increased:    20px;
+  --md-sys-shape-corner-extra-large:        28px;
+  --md-sys-shape-corner-extra-extra-large:  48px;
+  --md-sys-shape-corner-full:               9999px;
+
+  /* ---- M3 motion ---- */
+  --md-sys-motion-easing-emphasized:             cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-easing-emphasized-decelerate:  cubic-bezier(0.05, 0.7, 0.1, 1);
+  --md-sys-motion-easing-emphasized-accelerate:  cubic-bezier(0.3, 0, 0.8, 0.15);
+  --md-sys-motion-easing-standard:               cubic-bezier(0.2, 0, 0, 1);
+  --md-sys-motion-duration-emphasized:  500ms;
+  --md-sys-motion-duration-standard:    300ms;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg:           #0d0e14;
-    --sidebar-bg:   rgba(17,18,28,0.72);
-    --card:         rgba(20,21,32,0.82);
-    --card-border:  rgba(255,255,255,0.08);
-    --surface:      rgba(255,255,255,0.05);
-    --surface2:     rgba(255,255,255,0.08);
-    --divider:      rgba(255,255,255,0.07);
-    --input-bg:     rgba(255,255,255,0.06);
-    --input-border: rgba(255,255,255,0.13);
-    --text:         #e9e9f5;
-    --text2:        #8c90ab;
-    --text3:        #52566c;
-    --accent:       #97a2ff;
-    --accent-dim:   rgba(151,162,255,0.14);
-    --accent-h:     #b0b8ff;
+    --bg:           #10140F;  /* surface (dark) */
+    --sidebar-bg:   rgba(28,33,27,0.72);
+    --card:         rgba(28,33,27,0.82);
+    --card-border:  rgba(193,201,187,0.08);
+    --surface:      rgba(193,201,187,0.05);
+    --surface2:     rgba(193,201,187,0.08);
+    --divider:      rgba(193,201,187,0.07);
+    --input-bg:     rgba(193,201,187,0.06);
+    --input-border: rgba(193,201,187,0.13);
+    --text:         #DFE4DA;
+    --text2:        #C1C9BB;
+    --text3:        #8B9388;
+    --accent:       #57A860;  /* matches popup.css dark accent */
+    --on-accent:    #FFFFFF;
+    --accent-dim:   rgba(87,168,96,0.14);
+    --accent-h:     #6FBD68;
     --ok:           #3ddf94;
     --ok-dim:       rgba(61,223,148,0.12);
     --ok-border:    rgba(61,223,148,0.24);
     --warn:         #f5b04a;
     --warn-dim:     rgba(245,176,74,0.11);
     --warn-border:  rgba(245,176,74,0.24);
-    --danger:       #f5707f;
-    --danger-dim:   rgba(245,112,127,0.11);
-    --danger-border:rgba(245,112,127,0.24);
-    --toggle-off:   rgba(255,255,255,0.15);
+    --danger:       #FFB4AB;
+    --danger-dim:   rgba(255,180,171,0.11);
+    --danger-border:rgba(255,180,171,0.24);
+    --toggle-off:   rgba(193,201,187,0.15);
     --shadow:       0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.45), 0 16px 40px rgba(0,0,0,0.35);
     --shadow-sm:    0 1px 3px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.35);
     --shadow-lg:    0 2px 6px rgba(0,0,0,0.45), 0 12px 28px rgba(0,0,0,0.45), 0 24px 56px rgba(0,0,0,0.4);
