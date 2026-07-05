@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [1.7.8] - 2026-07-05
+
+### Fixed
+- OpenSubtitles registration link corrected to `https://www.opensubtitles.com/#modal-register` (was pointing at a non-existent `/en/newaccount` path).
+
+### Changed
+- **Settings consolidated to one page.** IntroDB, Supabase, TMDB, AnimeSkip, and OpenSubtitles credentials previously each lived on a separate sidebar page. All five are now on a single "Services" page, directly below the unified Service Status card - no more clicking through sidebar tabs to configure each service. Sidebar nav reduced from 9 items to 6.
+- **Visual redesign (MD3-inspired).** Retokenized colors, elevation, and shape scale in `options.css` and `popup.css` toward Material Design 3 principles: layered tonal shadows instead of flat drop-shadows, MD3 shape scale (20px cards, pill-shaped buttons and nav items), refined primary color.
+- **Dynamic sizing.** Sidebar width, body font size, page titles, card padding, icons, and buttons now scale fluidly with viewport width via `clamp()` instead of fixed pixel values.
+
 ## [1.7.7] - 2026-07-05
 
 ### Fixed

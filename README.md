@@ -5,7 +5,7 @@
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-Active-blue?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 [![Chrome](https://img.shields.io/badge/Chrome-Manual%20Install-yellow?logo=googlechrome)](../../releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.7.7-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.7.7)
+[![Version](https://img.shields.io/badge/version-1.7.8-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.7.8)
 
 ---
 
@@ -40,7 +40,7 @@
 
 ## Setup
 
-Click the **gear icon** in the popup to open Settings.
+Click the **gear icon** in the popup to open Settings. All five service credentials (IntroDB, Supabase, TMDB, AnimeSkip, OpenSubtitles) live on the single **Services** page, alongside live status for each.
 
 ### Skip segments (IntroDB) - required for skipping
 Get a free key at [introdb.app](https://introdb.app). Without it, the extension works as a resume-only tool.
@@ -55,7 +55,7 @@ Free key at [themoviedb.org](https://www.themoviedb.org/settings/api). Converts 
 Free Client ID at [anime-skip.com](https://anime-skip.com). Fallback skip-segment source for anime.
 
 ### Subtitles (OpenSubtitles) - optional
-Free account at [opensubtitles.com](https://www.opensubtitles.com/en/newaccount). Anonymous use gets 5 downloads/day; logging in raises that to 200/day. Subtitle language is set in the popup.
+Free account at [opensubtitles.com](https://www.opensubtitles.com/#modal-register). Anonymous use gets 5 downloads/day; logging in raises that to 200/day. Subtitle language is set in the popup.
 
 ---
 

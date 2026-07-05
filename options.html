@@ -30,32 +30,8 @@
 
     <button class="nav-item active" data-panel="connections">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.5 1.5"/></svg>
-      Connections
+      Services
       <span class="nav-dot spin" id="navDotConnections"></span>
-    </button>
-
-    <button class="nav-item" data-panel="introdb">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 8h6M5 11h4"/></svg>
-      IntroDB
-      <span class="nav-dot spin" id="navDotIntrodb"></span>
-    </button>
-
-    <button class="nav-item" data-panel="supabase">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2L2 8l6 6 6-6-6-6z"/></svg>
-      Supabase
-      <span class="nav-dot spin" id="navDotSupabase"></span>
-    </button>
-
-    <button class="nav-item" data-panel="tmdb">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M6 5.5l4 2.5-4 2.5V5.5z" fill="currentColor" stroke="none"/></svg>
-      TMDB
-      <span class="nav-dot spin" id="navDotTmdb"></span>
-    </button>
-
-    <button class="nav-item" data-panel="animeskip">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="2,2 10,8 2,14"/><polygon points="8,2 16,8 8,14"/></svg>
-      AnimeSkip
-      <span class="nav-dot" id="navDotAnimeskip"></span>
     </button>
 
     <span class="nav-section-label">Behavior</span>
@@ -92,8 +68,8 @@
 
   <!-- ── Connections panel ──────────────────────────────────────── -->
   <section id="panel-connections" class="panel active">
-    <h1 class="page-title">Connections</h1>
-    <p class="page-sub">Live status of all configured services. Click any service in the sidebar to configure its credentials.</p>
+    <h1 class="page-title">Services</h1>
+    <p class="page-sub">Configure and monitor every connected service from one page.</p>
 
     <div class="card">
       <div class="card-header">
@@ -141,62 +117,29 @@
             </div>
           </div>
 
-        </div>
-        <div class="alert warn" id="sqlAlert"></div>
-          <div class="status-row" style="margin-top:8px;padding-top:12px;border-top:1px solid var(--divider)">
+          <div class="status-row">
             <div class="status-dot" id="dot-osub"></div>
             <div class="status-body">
               <div class="status-label">OpenSubtitles <span class="tag">(subtitles)</span></div>
               <div class="status-msg" id="msg-osub">Not checked</div>
             </div>
           </div>
+
+        </div>
+        <div class="alert warn" id="sqlAlert"></div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-header">
-        <div class="card-icon blue">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M3 9h4M9 9h4M3 12h6"/></svg>
-        </div>
-        <div class="card-title-wrap">
-          <div class="card-title">OpenSubtitles</div>
-          <div class="card-subtitle">Auto-subtitle fetch - optional, increases quota</div>
-        </div>
-      </div>
-      <div class="card-body">
-        <p class="help" style="margin-bottom:12px">Anonymous: 5 downloads/day. Logged in: up to 200/day. <a href="https://www.opensubtitles.com/en/newaccount" target="_blank" rel="noopener">Free account</a>. Subtitle language set in popup.</p>
-        <div class="field">
-          <label class="field-label" for="osobUsername">Username</label>
-          <input type="text" id="osobUsername" placeholder="OpenSubtitles username" autocomplete="off" spellcheck="false">
-        </div>
-        <div class="field">
-          <label class="field-label" for="osobPassword">Password</label>
-          <input type="password" id="osobPassword" placeholder="OpenSubtitles password" autocomplete="off">
-        </div>
-        <div class="btn-row">
-          <button class="btn-primary" id="saveOsub">Save &amp; Login</button>
-          <button class="btn-ghost" id="logoutOsub">Log Out</button>
-        </div>
-        <div class="alert" id="alert-osub"></div>
-      </div>
-    </div>
-
-  </section>
-  <!-- ── IntroDB panel ──────────────────────────────────────────── -->
-  <section id="panel-introdb" class="panel">
-    <h1 class="page-title">IntroDB</h1>
-    <p class="page-sub">Required for intro, recap, and outro skip segment detection.</p>
-
+    <!-- ── IntroDB ─────────────────────────────────────────────────── -->
     <div class="card">
       <div class="card-header">
         <div class="card-icon blue">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 8h6M5 11h4"/></svg>
         </div>
         <div class="card-title-wrap">
-          <div class="card-title">API Key</div>
-          <div class="card-subtitle">Required for skipping</div>
+          <div class="card-title">IntroDB</div>
+          <div class="card-subtitle">Required for intro, recap, and outro skip detection</div>
         </div>
-        <div class="status-dot checking" id="dot-introdb-card"></div>
       </div>
       <div class="card-body">
         <div class="field">
@@ -210,23 +153,17 @@
         <div class="alert" id="alert-introdb"></div>
       </div>
     </div>
-  </section>
 
-  <!-- ── Supabase panel ─────────────────────────────────────────── -->
-  <section id="panel-supabase" class="panel">
-    <h1 class="page-title">Supabase</h1>
-    <p class="page-sub">Optional cloud sync. Watch progress syncs to your own private Supabase project - nothing is sent to us.</p>
-
+    <!-- ── Supabase ────────────────────────────────────────────────── -->
     <div class="card">
       <div class="card-header">
         <div class="card-icon green">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--ok)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2L2 8l6 6 6-6-6-6z"/></svg>
         </div>
         <div class="card-title-wrap">
-          <div class="card-title">Project Credentials</div>
-          <div class="card-subtitle">Stored locally, never shared</div>
+          <div class="card-title">Supabase</div>
+          <div class="card-subtitle">Optional cloud sync - your own private project</div>
         </div>
-        <div class="status-dot checking" id="dot-supabase-card"></div>
       </div>
       <div class="card-body">
         <div class="field">
@@ -246,27 +183,21 @@
         <div class="alert warn" id="sqlAlert2"></div>
       </div>
     </div>
-  </section>
 
-  <!-- ── TMDB panel ─────────────────────────────────────────────── -->
-  <section id="panel-tmdb" class="panel">
-    <h1 class="page-title">TMDB</h1>
-    <p class="page-sub">Optional. Converts TMDB IDs to IMDb IDs for more accurate skip segment lookup, especially for Plex.</p>
-
+    <!-- ── TMDB ────────────────────────────────────────────────────── -->
     <div class="card">
       <div class="card-header">
         <div class="card-icon amber">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--warn)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M6 5.5l4 2.5-4 2.5V5.5z" fill="var(--warn)" stroke="none"/></svg>
         </div>
         <div class="card-title-wrap">
-          <div class="card-title">API Key (v3)</div>
+          <div class="card-title">TMDB</div>
           <div class="card-subtitle">Optional - improves Plex detection</div>
         </div>
-        <div class="status-dot checking" id="dot-tmdb-card"></div>
       </div>
       <div class="card-body">
         <div class="field">
-          <label class="field-label" for="tmdbApiKey">API Key</label>
+          <label class="field-label" for="tmdbApiKey">API Key (v3)</label>
           <input type="password" id="tmdbApiKey" placeholder="Your TMDB v3 API key" autocomplete="off" spellcheck="false">
           <p class="help">Free key at <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org/settings/api</a>.</p>
         </div>
@@ -276,21 +207,16 @@
         <div class="alert" id="alert-tmdb"></div>
       </div>
     </div>
-  </section>
 
-  <!-- ── AnimeSkip panel ────────────────────────────────────────── -->
-  <section id="panel-animeskip" class="panel">
-    <h1 class="page-title">AnimeSkip</h1>
-    <p class="page-sub">Optional anime fallback. Used when IntroDB has no data for a Crunchyroll or other anime title.</p>
-
+    <!-- ── AnimeSkip ───────────────────────────────────────────────── -->
     <div class="card">
       <div class="card-header">
         <div class="card-icon blue">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="2,2 10,8 2,14"/><polygon points="8,2 16,8 8,14"/></svg>
         </div>
         <div class="card-title-wrap">
-          <div class="card-title">AnimeSkip Credentials</div>
-          <div class="card-subtitle">Anime intro fallback</div>
+          <div class="card-title">AnimeSkip</div>
+          <div class="card-subtitle">Optional anime fallback when IntroDB has no data</div>
         </div>
       </div>
       <div class="card-body">
@@ -322,6 +248,35 @@
           <button class="btn-primary" id="saveAnimeskip">Save &amp; Verify</button>
         </div>
         <div class="alert" id="alert-animeskip"></div>
+      </div>
+    </div>
+
+    <!-- ── OpenSubtitles ───────────────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon blue">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="14" height="10" rx="1.5"/><path d="M3 9h4M9 9h4M3 12h6"/></svg>
+        </div>
+        <div class="card-title-wrap">
+          <div class="card-title">OpenSubtitles</div>
+          <div class="card-subtitle">Auto-subtitle fetch - optional, increases quota</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="help" style="margin-bottom:12px">Anonymous: 5 downloads/day. Logged in: up to 200/day. <a href="https://www.opensubtitles.com/#modal-register" target="_blank" rel="noopener">Free account</a>. Subtitle language set in popup.</p>
+        <div class="field">
+          <label class="field-label" for="osobUsername">Username</label>
+          <input type="text" id="osobUsername" placeholder="OpenSubtitles username" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label class="field-label" for="osobPassword">Password</label>
+          <input type="password" id="osobPassword" placeholder="OpenSubtitles password" autocomplete="off">
+        </div>
+        <div class="btn-row">
+          <button class="btn-primary" id="saveOsub">Save &amp; Login</button>
+          <button class="btn-ghost" id="logoutOsub">Log Out</button>
+        </div>
+        <div class="alert" id="alert-osub"></div>
       </div>
     </div>
 

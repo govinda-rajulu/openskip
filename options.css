@@ -4,68 +4,89 @@
    Light + dark via CSS vars. Link AFTER removing <style> tag.
    ============================================================ */
 
-/* ---------- Tokens ---------- */
+/* ---------- Tokens (MD3-inspired) ---------- */
 :root {
-  --bg:           #eef1f7;
-  --sidebar-bg:   rgba(255,255,255,0.60);
-  --card:         rgba(255,255,255,0.72);
-  --card-border:  rgba(255,255,255,0.90);
-  --surface:      rgba(0,0,0,0.038);
-  --surface2:     rgba(0,0,0,0.06);
-  --divider:      rgba(0,0,0,0.07);
-  --input-bg:     rgba(255,255,255,0.90);
-  --input-border: rgba(0,0,0,0.13);
-  --text:         #0d0f14;
-  --text2:        #50596a;
-  --text3:        #8a95a8;
-  --accent:       #2860f0;
-  --accent-dim:   rgba(40,96,240,0.11);
-  --accent-h:     #1a4fd8;
-  --ok:           #15a350;
-  --ok-dim:       rgba(21,163,80,0.11);
-  --ok-border:    rgba(21,163,80,0.22);
-  --warn:         #c0720a;
-  --warn-dim:     rgba(192,114,10,0.10);
-  --warn-border:  rgba(192,114,10,0.22);
-  --danger:       #d93025;
-  --danger-dim:   rgba(217,48,37,0.09);
-  --danger-border:rgba(217,48,37,0.22);
-  --toggle-off:   rgba(0,0,0,0.15);
-  --shadow:       0 12px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.05);
-  --shadow-sm:    0 1px 4px rgba(0,0,0,0.08);
-  --r-card:       16px;
-  --r-md:         10px;
-  --r-sm:         7px;
+  --bg:           #eef0f9;
+  --sidebar-bg:   rgba(255,255,255,0.62);
+  --card:         rgba(255,255,255,0.74);
+  --card-border:  rgba(255,255,255,0.92);
+  --surface:      rgba(29,25,64,0.04);
+  --surface2:     rgba(29,25,64,0.065);
+  --divider:      rgba(29,25,64,0.08);
+  --input-bg:     rgba(255,255,255,0.92);
+  --input-border: rgba(29,25,64,0.14);
+  --text:         #1b1b23;
+  --text2:        #4d4f5e;
+  --text3:        #8a8da3;
+  --accent:       #4356e8;
+  --accent-dim:   rgba(67,86,232,0.11);
+  --accent-h:     #3345cf;
+  --ok:           #17a568;
+  --ok-dim:       rgba(23,165,104,0.12);
+  --ok-border:    rgba(23,165,104,0.24);
+  --warn:         #b5720a;
+  --warn-dim:     rgba(181,114,10,0.11);
+  --warn-border:  rgba(181,114,10,0.24);
+  --danger:       #d3374a;
+  --danger-dim:   rgba(211,55,74,0.10);
+  --danger-border:rgba(211,55,74,0.24);
+  --toggle-off:   rgba(29,25,64,0.16);
+
+  /* MD3 elevation - layered, soft, tonal shadows */
+  --shadow:       0 1px 2px rgba(29,25,64,0.06), 0 4px 14px rgba(29,25,64,0.08), 0 10px 30px rgba(29,25,64,0.06);
+  --shadow-sm:    0 1px 2px rgba(29,25,64,0.09), 0 2px 6px rgba(29,25,64,0.07);
+  --shadow-lg:    0 2px 4px rgba(29,25,64,0.07), 0 10px 24px rgba(29,25,64,0.10), 0 20px 48px rgba(29,25,64,0.08);
+
+  /* MD3 shape scale */
+  --r-card:       20px;
+  --r-md:         14px;
+  --r-sm:         10px;
+  --r-full:       999px;
+
   --font:         'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --ease:         200ms ease-out;
-  --sidebar-w:    220px;
+  --ease:         200ms cubic-bezier(0.2, 0, 0, 1);
+
+  /* Dynamic (fluid) sizing tokens */
+  --sidebar-w:    clamp(196px, 16vw + 120px, 252px);
+  --icon-xs:      clamp(11px, 0.5vw + 9px, 13px);
+  --icon-sm:      clamp(13px, 0.6vw + 10px, 16px);
+  --icon-md:      clamp(28px, 1.6vw + 20px, 36px);
+  --fs-body:      clamp(12.5px, 0.28vw + 11.6px, 14px);
+  --fs-title:     clamp(18px, 1.1vw + 15px, 23px);
+  --fs-card-title:clamp(13.5px, 0.3vw + 12.5px, 15px);
+  --sp-card:      clamp(14px, 1.4vw + 8px, 22px);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg:           #0b0d12;
-    --sidebar-bg:   rgba(18,21,30,0.70);
-    --card:         rgba(18,21,30,0.80);
+    --bg:           #0d0e14;
+    --sidebar-bg:   rgba(17,18,28,0.72);
+    --card:         rgba(20,21,32,0.82);
     --card-border:  rgba(255,255,255,0.08);
     --surface:      rgba(255,255,255,0.05);
     --surface2:     rgba(255,255,255,0.08);
     --divider:      rgba(255,255,255,0.07);
     --input-bg:     rgba(255,255,255,0.06);
     --input-border: rgba(255,255,255,0.13);
-    --text:         #edf0f7;
-    --text2:        #7e8da4;
-    --text3:        #4e5a6e;
-    --ok:           #34d474;
-    --ok-dim:       rgba(52,212,116,0.11);
-    --ok-border:    rgba(52,212,116,0.22);
-    --warn:         #f5a623;
-    --warn-dim:     rgba(245,166,35,0.10);
-    --warn-border:  rgba(245,166,35,0.22);
-    --danger:       #f25a4f;
-    --danger-dim:   rgba(242,90,79,0.10);
-    --danger-border:rgba(242,90,79,0.22);
+    --text:         #e9e9f5;
+    --text2:        #8c90ab;
+    --text3:        #52566c;
+    --accent:       #97a2ff;
+    --accent-dim:   rgba(151,162,255,0.14);
+    --accent-h:     #b0b8ff;
+    --ok:           #3ddf94;
+    --ok-dim:       rgba(61,223,148,0.12);
+    --ok-border:    rgba(61,223,148,0.24);
+    --warn:         #f5b04a;
+    --warn-dim:     rgba(245,176,74,0.11);
+    --warn-border:  rgba(245,176,74,0.24);
+    --danger:       #f5707f;
+    --danger-dim:   rgba(245,112,127,0.11);
+    --danger-border:rgba(245,112,127,0.24);
     --toggle-off:   rgba(255,255,255,0.15);
-    --shadow:       0 12px 40px rgba(0,0,0,0.55);
+    --shadow:       0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.45), 0 16px 40px rgba(0,0,0,0.35);
+    --shadow-sm:    0 1px 3px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.35);
+    --shadow-lg:    0 2px 6px rgba(0,0,0,0.45), 0 12px 28px rgba(0,0,0,0.45), 0 24px 56px rgba(0,0,0,0.4);
   }
 }
 
@@ -79,7 +100,7 @@ html {
 
 body {
   font-family: var(--font);
-  font-size: 13px;
+  font-size: var(--fs-body);
   line-height: 1.5;
   color: var(--text);
   background: var(--bg);
@@ -99,7 +120,7 @@ body {
   border-right: 1px solid var(--divider);
   display: flex;
   flex-direction: column;
-  padding: 24px 12px;
+  padding: clamp(18px,2vw,26px) clamp(10px,1vw,14px);
   position: fixed;
   top: 0; left: 0; bottom: 0;
   z-index: 10;
@@ -109,7 +130,7 @@ body {
   margin-left: var(--sidebar-w);
   flex: 1;
   padding: clamp(24px,4vw,40px) clamp(16px,4vw,40px) 60px;
-  max-width: 680px;
+  max-width: 720px;
 }
 
 /* ---------- Sidebar brand ---------- */
@@ -123,9 +144,9 @@ body {
 }
 
 .brand-logo {
-  width: 30px; height: 30px;
+  width: var(--icon-md); height: var(--icon-md);
   background: var(--accent);
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   box-shadow: var(--shadow-sm);
@@ -169,9 +190,9 @@ body {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 8px 10px;
-  border-radius: 9px;
-  font-size: 12px; font-weight: 500;
+  padding: clamp(7px,0.6vw,9px) clamp(9px,0.8vw,12px);
+  border-radius: var(--r-full);
+  font-size: clamp(11.5px,0.5vw,13px); font-weight: 500;
   color: var(--text2);
   cursor: pointer;
   border: none;
@@ -226,14 +247,14 @@ body {
 
 /* ---------- Page heading ---------- */
 .page-title {
-  font-size: clamp(18px,3vw,22px);
+  font-size: var(--fs-title);
   font-weight: 800;
   letter-spacing: -0.03em;
   margin-bottom: 4px;
 }
 
 .page-sub {
-  font-size: 12px;
+  font-size: clamp(11.5px, 0.2vw + 11px, 13px);
   color: var(--text2);
   margin-bottom: 24px;
   line-height: 1.6;
@@ -247,26 +268,26 @@ body {
   border: 1px solid var(--card-border);
   border-radius: var(--r-card);
   box-shadow: var(--shadow);
-  margin-bottom: 16px;
+  margin-bottom: clamp(14px,1.2vw,18px);
   overflow: hidden;
-  transition: box-shadow 200ms ease-out, transform 200ms ease-out;
+  transition: box-shadow 200ms cubic-bezier(0.2,0,0,1), transform 200ms cubic-bezier(0.2,0,0,1);
 }
 
 .card:hover {
-  box-shadow: var(--shadow), 0 0 0 1px rgba(40,96,240,0.08);
+  box-shadow: var(--shadow-lg);
 }
 
 .card-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 16px 20px 14px;
+  padding: var(--sp-card) var(--sp-card) calc(var(--sp-card) - 4px);
   border-bottom: 1px solid var(--divider);
 }
 
 .card-icon {
-  width: 32px; height: 32px;
-  border-radius: 9px;
+  width: var(--icon-md); height: var(--icon-md);
+  border-radius: var(--r-sm);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
@@ -279,18 +300,18 @@ body {
 .card-title-wrap { flex: 1; min-width: 0; }
 
 .card-title {
-  font-size: 14px;
+  font-size: var(--fs-card-title);
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .card-subtitle {
-  font-size: 11px;
+  font-size: clamp(10.5px,0.2vw,11.5px);
   color: var(--text3);
   margin-top: 1px;
 }
 
-.card-body { padding: 16px 20px; }
+.card-body { padding: var(--sp-card); }
 .card-body + .card-body { padding-top: 0; }
 
 /* ---------- Field ---------- */
@@ -314,12 +335,12 @@ body {
 input[type=text],
 input[type=password] {
   width: 100%;
-  padding: 9px 12px;
+  padding: clamp(8px,0.6vw,10px) clamp(11px,0.8vw,13px);
   background: var(--input-bg);
   border: 1px solid var(--input-border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-family: var(--font);
   outline: none;
   transition: border-color var(--ease), box-shadow var(--ease);
@@ -333,12 +354,12 @@ input[type=password]:focus {
 
 select {
   width: 100%;
-  padding: 9px 12px;
+  padding: clamp(8px,0.6vw,10px) clamp(11px,0.8vw,13px);
   background: var(--input-bg);
   border: 1px solid var(--input-border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-family: var(--font);
   outline: none;
   cursor: pointer;
@@ -523,9 +544,9 @@ select:focus { border-color: var(--accent); }
 }
 
 button {
-  padding: 10px 22px;
-  border-radius: var(--r-md);
-  font-size: 13px; font-weight: 600;
+  padding: clamp(9px,0.7vw,11px) clamp(18px,1.5vw,24px);
+  border-radius: var(--r-full);
+  font-size: var(--fs-body); font-weight: 600;
   cursor: pointer;
   border: none;
   font-family: var(--font);
@@ -542,11 +563,12 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   color: #fff;
   flex: 1;
   min-width: 120px;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-h);
-  box-shadow: 0 0 0 3px var(--accent-dim);
+  box-shadow: var(--shadow-sm), 0 0 0 3px var(--accent-dim);
 }
 
 .btn-ghost {
@@ -567,13 +589,13 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: rgba(217,48,37,0.15);
+  background: rgba(211,55,74,0.16);
   box-shadow: 0 0 0 3px var(--danger-dim);
 }
 
 @media (prefers-color-scheme: dark) {
   .btn-danger:hover:not(:disabled) {
-    background: rgba(242,90,79,0.18);
+    background: rgba(245,112,127,0.18);
   }
 }
 
