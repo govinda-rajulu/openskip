@@ -31,6 +31,7 @@ const S = {
   subLanguage:        'subtitle_language',
   subFontSize:        'subtitle_font_size',
   subEnabled:         'subtitle_enabled',
+  theme:              'skipstream_theme',
 };
 
 const $ = id => document.getElementById(id);
@@ -60,7 +61,11 @@ const panels   = document.querySelectorAll('.panel');
 
 function showPanel(id) {
   panels.forEach(p => p.classList.toggle('active', p.id === 'panel-' + id));
-  navItems.forEach(n => n.classList.toggle('active', n.dataset.panel === id));
+  navItems.forEach(n => {
+    const isActive = n.dataset.panel === id;
+    n.classList.toggle('active', isActive);
+    if (isActive) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current');
+  });
   history.replaceState(null, '', '#' + id);
   if (id === 'stats') {
     br.storage.local.get([S.stats]).then(d => loadStats(d)).catch(() => {});
@@ -1288,6 +1293,16 @@ br.storage.onChanged.addListener((changes, area) => {
   if (statsPanel?.classList.contains('active')) {
     br.storage.local.get([S.stats]).then(d => loadStats(d)).catch(() => {});
   }
+});
+
+// -- Theme: follow the user's popup theme choice (no separate toggle here) --
+function applyStoredTheme(theme) {
+  document.body.classList.toggle('theme-light', theme === 'light');
+  document.body.classList.toggle('theme-dark', theme === 'dark');
+}
+br.storage.local.get([S.theme]).then(d => applyStoredTheme(d[S.theme])).catch(() => {});
+br.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes[S.theme]) applyStoredTheme(changes[S.theme].newValue);
 });
 
 // -- Init --

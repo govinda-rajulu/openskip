@@ -17,15 +17,15 @@
     </div>
     <span class="header-title">SkipStream</span>
     <span class="ver-badge" id="versionBadge"></span>
-    <button class="icon-btn theme-btn" id="themeBtn" title="Toggle light/dark">
+    <button class="icon-btn theme-btn" id="themeBtn" title="Toggle light/dark" aria-label="Toggle light/dark theme">
       <svg class="icon-sun" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="3.05" y1="3.05" x2="4.46" y2="4.46"/><line x1="11.54" y1="11.54" x2="12.95" y2="12.95"/><line x1="12.95" y1="3.05" x2="11.54" y2="4.46"/><line x1="4.46" y1="11.54" x2="3.05" y2="12.95"/></svg>
       <svg class="icon-moon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z"/></svg>
     </button>
   </div>
 
-  <div class="tab-bar">
-    <button class="tab active" data-tab="status">Status</button>
-    <button class="tab" data-tab="settings">Settings</button>
+  <div class="tab-bar" role="tablist">
+    <button class="tab active" data-tab="status" role="tab" aria-selected="true">Status</button>
+    <button class="tab" data-tab="settings" role="tab" aria-selected="false">Settings</button>
   </div>
 
   <!-- STATUS page -->
@@ -44,7 +44,7 @@
         <div class="master-sub" id="masterSub">Loading...</div>
       </div>
       <label class="toggle-lg">
-        <input type="checkbox" id="masterToggle">
+        <input type="checkbox" id="masterToggle" aria-label="Enable SkipStream">
         <span class="slider-lg"></span>
       </label>
     </div>
@@ -74,7 +74,7 @@
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="9" width="3" height="6" rx="1"/><rect x="6.5" y="5" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="14" rx="1"/></svg>
         Stats
       </button>
-      <button class="action-btn gear" id="settingsBtn" title="Full settings">
+      <button class="action-btn gear" id="settingsBtn" title="Full settings" aria-label="Open full settings">
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.4"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/></svg>
       </button>
     </div>
@@ -86,13 +86,13 @@
 
       <div class="skip-section">
         <div class="skip-label">Skip Mode</div>
-        <div class="skip-mode-grid">
-          <button class="smode-chip" data-mode="off"><span class="smc-name">Off</span><span class="smc-desc">Disabled</span></button>
-          <button class="smode-chip" data-mode="prompt"><span class="smc-name">Prompt</span><span class="smc-desc">Show button</span></button>
-          <button class="smode-chip" data-mode="auto-all"><span class="smc-name">Auto All</span><span class="smc-desc">Everything</span></button>
-          <button class="smode-chip" data-mode="auto-intro"><span class="smc-name">Intros</span><span class="smc-desc">Only intros</span></button>
-          <button class="smode-chip" data-mode="auto-recap"><span class="smc-name">Recaps</span><span class="smc-desc">Only recaps</span></button>
-          <button class="smode-chip" data-mode="auto-outro"><span class="smc-name">Outros</span><span class="smc-desc">Only outros</span></button>
+        <div class="skip-mode-grid" role="radiogroup" aria-label="Skip Mode">
+          <button class="smode-chip" data-mode="off" role="radio" aria-checked="false"><span class="smc-name">Off</span><span class="smc-desc">Disabled</span></button>
+          <button class="smode-chip" data-mode="prompt" role="radio" aria-checked="false"><span class="smc-name">Prompt</span><span class="smc-desc">Show button</span></button>
+          <button class="smode-chip" data-mode="auto-all" role="radio" aria-checked="false"><span class="smc-name">Auto All</span><span class="smc-desc">Everything</span></button>
+          <button class="smode-chip" data-mode="auto-intro" role="radio" aria-checked="false"><span class="smc-name">Intros</span><span class="smc-desc">Only intros</span></button>
+          <button class="smode-chip" data-mode="auto-recap" role="radio" aria-checked="false"><span class="smc-name">Recaps</span><span class="smc-desc">Only recaps</span></button>
+          <button class="smode-chip" data-mode="auto-outro" role="radio" aria-checked="false"><span class="smc-name">Outros</span><span class="smc-desc">Only outros</span></button>
         </div>
       </div>
 
@@ -109,12 +109,12 @@
 
       <div class="skip-section">
         <div class="skip-label">Playback Speed</div>
-        <div class="speed-row">
-          <button class="speed-chip" data-rate="0.75">0.75x</button>
-          <button class="speed-chip" data-rate="1">1x</button>
-          <button class="speed-chip" data-rate="1.25">1.25x</button>
-          <button class="speed-chip" data-rate="1.5">1.5x</button>
-          <button class="speed-chip" data-rate="2">2x</button>
+        <div class="speed-row" role="radiogroup" aria-label="Playback Speed">
+          <button class="speed-chip" data-rate="0.75" role="radio" aria-checked="false">0.75x</button>
+          <button class="speed-chip" data-rate="1" role="radio" aria-checked="false">1x</button>
+          <button class="speed-chip" data-rate="1.25" role="radio" aria-checked="false">1.25x</button>
+          <button class="speed-chip" data-rate="1.5" role="radio" aria-checked="false">1.5x</button>
+          <button class="speed-chip" data-rate="2" role="radio" aria-checked="false">2x</button>
         </div>
       </div>
 
@@ -125,7 +125,7 @@
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 2v8M5 5l3-3 3 3"/><path d="M2 12v2h12v-2"/></svg>
             Load .srt / .vtt
           </button>
-          <button class="sub-clear-btn" id="subClearBtn" title="Clear loaded subtitle">x</button>
+          <button class="sub-clear-btn" id="subClearBtn" title="Clear loaded subtitle" aria-label="Clear loaded subtitle">x</button>
         </div>
         <span class="sub-status" id="subStatus">No subtitle loaded</span>
         <input type="file" id="subFileInput" accept=".srt,.vtt" style="display:none">

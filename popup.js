@@ -45,7 +45,10 @@ $('themeBtn').addEventListener('click', () => {
 // -- Tabs --
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('.tab').forEach(t => {
+      t.classList.toggle('active', t === tab);
+      t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+    });
     const targetId = 'page-' + tab.dataset.tab;
     document.querySelectorAll('.page').forEach(p => p.classList.toggle('page-hidden', p.id !== targetId));
   });
@@ -96,7 +99,11 @@ let popupRate = 1;
 function applyModeToUI(mode, enabled) {
   popupMode = mode;
   // Chips
-  document.querySelectorAll('.smode-chip').forEach(c => c.classList.toggle('selected', c.dataset.mode === mode));
+  document.querySelectorAll('.smode-chip').forEach(c => {
+    const isSel = c.dataset.mode === mode;
+    c.classList.toggle('selected', isSel);
+    c.setAttribute('aria-checked', isSel ? 'true' : 'false');
+  });
   // Segment toggles
   const seg = MODE_TO_SEGS[mode] || { i: true, r: true, o: true };
   if ($('skipIntro')) $('skipIntro').checked = seg.i;
@@ -133,7 +140,11 @@ document.querySelectorAll('.smode-chip').forEach(chip => {
     const o = $('skipOutro')?.checked ?? false;
     const inferred = inferMode(i, r, o);
     popupMode = inferred;
-    document.querySelectorAll('.smode-chip').forEach(c => c.classList.toggle('selected', c.dataset.mode === inferred));
+    document.querySelectorAll('.smode-chip').forEach(c => {
+      const isSel = c.dataset.mode === inferred;
+      c.classList.toggle('selected', isSel);
+      c.setAttribute('aria-checked', isSel ? 'true' : 'false');
+    });
     const badge = $('modeBadge');
     if (badge) {
       badge.textContent = MODE_LABELS[inferred] || inferred;
@@ -153,7 +164,11 @@ document.querySelectorAll('.smode-chip').forEach(chip => {
 document.querySelectorAll('.speed-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     popupRate = parseFloat(chip.dataset.rate);
-    document.querySelectorAll('.speed-chip').forEach(c => c.classList.toggle('selected', c === chip));
+    document.querySelectorAll('.speed-chip').forEach(c => {
+      const isSel = c === chip;
+      c.classList.toggle('selected', isSel);
+      c.setAttribute('aria-checked', isSel ? 'true' : 'false');
+    });
   });
 });
 
@@ -208,8 +223,11 @@ async function loadState() {
   $('masterSub').textContent = enabled ? 'Extension is active' : 'Extension is paused';
 
   popupRate = parseFloat(data[KEYS.playRate]) || 1;
-  document.querySelectorAll('.speed-chip').forEach(c =>
-    c.classList.toggle('selected', parseFloat(c.dataset.rate) === popupRate));
+  document.querySelectorAll('.speed-chip').forEach(c => {
+    const isSel = parseFloat(c.dataset.rate) === popupRate;
+    c.classList.toggle('selected', isSel);
+    c.setAttribute('aria-checked', isSel ? 'true' : 'false');
+  });
 
   if ($('resumePlayback'))  $('resumePlayback').checked  = data[KEYS.resumePlay] !== false;
   if ($('autoNextEpisode')) $('autoNextEpisode').checked = !!data[KEYS.autoNext];

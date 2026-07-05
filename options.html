@@ -28,7 +28,7 @@
 
     <span class="nav-section-label">Services</span>
 
-    <button class="nav-item active" data-panel="connections">
+    <button class="nav-item active" data-panel="connections" aria-current="page">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4l2.5 1.5"/></svg>
       Services
       <span class="nav-dot spin" id="navDotConnections"></span>
@@ -226,7 +226,7 @@
             <div class="toggle-desc">Use anime-skip.com as fallback when IntroDB has no data</div>
           </div>
           <label class="toggle">
-            <input type="checkbox" id="animeSkipEnabled">
+            <input type="checkbox" id="animeSkipEnabled" aria-label="Enable AnimeSkip">
             <span class="slider"></span>
           </label>
         </div>
@@ -330,9 +330,9 @@
         </div>
         <div class="source-pills">
           <span>Source:</span>
-          <span class="source-pill" data-source="local" id="srcLocal">Local</span>
-          <span class="source-pill" data-source="cloud" id="srcCloud">Cloud</span>
-          <span class="source-pill active" data-source="merged" id="srcMerged">Merged</span>
+          <button type="button" class="source-pill" data-source="local" id="srcLocal">Local</button>
+          <button type="button" class="source-pill" data-source="cloud" id="srcCloud">Cloud</button>
+          <button type="button" class="source-pill active" data-source="merged" id="srcMerged">Merged</button>
         </div>
         <div class="sync-row" id="syncStatus">
           <div style="display:flex;align-items:center;gap:5px">

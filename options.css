@@ -75,40 +75,84 @@
   --md-sys-motion-easing-standard:               cubic-bezier(0.2, 0, 0, 1);
   --md-sys-motion-duration-emphasized:  500ms;
   --md-sys-motion-duration-standard:    300ms;
+
+  /* ---- Spacing scale (4px base grid) ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+
+  /* ---- M3 type scale (subset used by a settings/dashboard surface) ---- */
+  --md-sys-typescale-headline-small-size:   22px;
+  --md-sys-typescale-headline-small-weight: 700;
+  --md-sys-typescale-title-large-size:      18px;
+  --md-sys-typescale-title-large-weight:    700;
+  --md-sys-typescale-title-medium-size:     15px;
+  --md-sys-typescale-title-medium-weight:   700;
+  --md-sys-typescale-body-large-size:       14px;
+  --md-sys-typescale-body-large-weight:     400;
+  --md-sys-typescale-body-medium-size:      13px;
+  --md-sys-typescale-body-medium-weight:    400;
+  --md-sys-typescale-body-small-size:       11.5px;
+  --md-sys-typescale-body-small-weight:     400;
+  --md-sys-typescale-label-large-size:      13px;
+  --md-sys-typescale-label-large-weight:    600;
+  --md-sys-typescale-label-medium-size:     11px;
+  --md-sys-typescale-label-medium-weight:   600;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg:           #10140F;  /* surface (dark) */
-    --sidebar-bg:   rgba(28,33,27,0.72);
-    --card:         rgba(28,33,27,0.82);
-    --card-border:  rgba(193,201,187,0.08);
-    --surface:      rgba(193,201,187,0.05);
-    --surface2:     rgba(193,201,187,0.08);
-    --divider:      rgba(193,201,187,0.07);
-    --input-bg:     rgba(193,201,187,0.06);
-    --input-border: rgba(193,201,187,0.13);
-    --text:         #DFE4DA;
-    --text2:        #C1C9BB;
-    --text3:        #8B9388;
-    --accent:       #57A860;  /* matches popup.css dark accent */
-    --on-accent:    #FFFFFF;
-    --accent-dim:   rgba(87,168,96,0.14);
-    --accent-h:     #6FBD68;
-    --ok:           #3ddf94;
-    --ok-dim:       rgba(61,223,148,0.12);
-    --ok-border:    rgba(61,223,148,0.24);
-    --warn:         #f5b04a;
-    --warn-dim:     rgba(245,176,74,0.11);
-    --warn-border:  rgba(245,176,74,0.24);
-    --danger:       #FFB4AB;
-    --danger-dim:   rgba(255,180,171,0.11);
-    --danger-border:rgba(255,180,171,0.24);
-    --toggle-off:   rgba(193,201,187,0.15);
-    --shadow:       0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.45), 0 16px 40px rgba(0,0,0,0.35);
-    --shadow-sm:    0 1px 3px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.35);
-    --shadow-lg:    0 2px 6px rgba(0,0,0,0.45), 0 12px 28px rgba(0,0,0,0.45), 0 24px 56px rgba(0,0,0,0.4);
-  }
+/* Manual overrides mirroring popup.css's stored theme choice.
+   No toggle control lives on this page; this just keeps options.html
+   consistent with whatever the user picked in the popup, instead of
+   silently ignoring it and always following the OS setting. */
+body.theme-light {
+  --bg:           #F7FBF1;
+  --sidebar-bg:   rgba(255,255,255,0.62);
+  --card:         rgba(255,255,255,0.74);
+  --card-border:  rgba(255,255,255,0.92);
+  --surface:      rgba(24,29,23,0.04);
+  --surface2:     rgba(24,29,23,0.065);
+  --divider:      rgba(65,73,66,0.10);
+  --input-bg:     rgba(255,255,255,0.92);
+  --input-border: rgba(65,73,66,0.16);
+  --text:         #181D17;
+  --text2:        #414942;
+  --text3:        #717970;
+  --accent:       #35693A;
+  --on-accent:    #FFFFFF;
+  --accent-dim:   rgba(53,105,58,0.11);
+  --accent-h:     #1F4A22;
+  --toggle-off:   rgba(24,29,23,0.16);
+  --shadow:       0 1px 2px rgba(24,29,23,0.06), 0 4px 14px rgba(24,29,23,0.08), 0 10px 30px rgba(24,29,23,0.06);
+  --shadow-sm:    0 1px 2px rgba(24,29,23,0.09), 0 2px 6px rgba(24,29,23,0.07);
+  --shadow-lg:    0 2px 4px rgba(24,29,23,0.07), 0 10px 24px rgba(24,29,23,0.10), 0 20px 48px rgba(24,29,23,0.08);
+}
+
+body.theme-dark {
+  --bg:           #10140F;
+  --sidebar-bg:   rgba(28,33,27,0.72);
+  --card:         rgba(28,33,27,0.82);
+  --card-border:  rgba(193,201,187,0.08);
+  --surface:      rgba(193,201,187,0.05);
+  --surface2:     rgba(193,201,187,0.08);
+  --divider:      rgba(193,201,187,0.07);
+  --input-bg:     rgba(193,201,187,0.06);
+  --input-border: rgba(193,201,187,0.13);
+  --text:         #DFE4DA;
+  --text2:        #C1C9BB;
+  --text3:        #8B9388;
+  --accent:       #57A860;
+  --on-accent:    #FFFFFF;
+  --accent-dim:   rgba(87,168,96,0.14);
+  --accent-h:     #6FBD68;
+  --toggle-off:   rgba(193,201,187,0.15);
+  --shadow:       0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.45), 0 16px 40px rgba(0,0,0,0.35);
+  --shadow-sm:    0 1px 3px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.35);
+  --shadow-lg:    0 2px 6px rgba(0,0,0,0.45), 0 12px 28px rgba(0,0,0,0.45), 0 24px 56px rgba(0,0,0,0.4);
 }
 
 /* ---------- Reset ---------- */
@@ -548,10 +592,6 @@ select:focus { border-color: var(--accent); }
   padding: 1px 4px;
 }
 
-@media (prefers-color-scheme: dark) {
-  .alert code { background: rgba(255,255,255,0.10); }
-}
-
 .alert.ok   { background: var(--ok-dim);     color: var(--ok);     border: 1px solid var(--ok-border); }
 .alert.warn { background: var(--warn-dim);   color: var(--warn);   border: 1px solid var(--warn-border); }
 .alert.err  { background: var(--danger-dim); color: var(--danger); border: 1px solid var(--danger-border); }
@@ -581,7 +621,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   flex: 1;
   min-width: 120px;
   box-shadow: var(--shadow-sm);
@@ -612,12 +652,6 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-danger:hover:not(:disabled) {
   background: rgba(211,55,74,0.16);
   box-shadow: 0 0 0 3px var(--danger-dim);
-}
-
-@media (prefers-color-scheme: dark) {
-  .btn-danger:hover:not(:disabled) {
-    background: rgba(245,112,127,0.18);
-  }
 }
 
 .spinner {
@@ -1069,5 +1103,46 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   *, *::before, *::after {
     transition-duration: 0ms !important;
     animation-duration: 0ms !important;
+  }
+}
+
+/* ---------- Dark mode (consolidated - was 3 separate blocks) ---------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:           #10140F;  /* surface (dark) */
+    --sidebar-bg:   rgba(28,33,27,0.72);
+    --card:         rgba(28,33,27,0.82);
+    --card-border:  rgba(193,201,187,0.08);
+    --surface:      rgba(193,201,187,0.05);
+    --surface2:     rgba(193,201,187,0.08);
+    --divider:      rgba(193,201,187,0.07);
+    --input-bg:     rgba(193,201,187,0.06);
+    --input-border: rgba(193,201,187,0.13);
+    --text:         #DFE4DA;
+    --text2:        #C1C9BB;
+    --text3:        #8B9388;
+    --accent:       #57A860;  /* matches popup.css dark accent */
+    --on-accent:    #FFFFFF;
+    --accent-dim:   rgba(87,168,96,0.14);
+    --accent-h:     #6FBD68;
+    --ok:           #3ddf94;
+    --ok-dim:       rgba(61,223,148,0.12);
+    --ok-border:    rgba(61,223,148,0.24);
+    --warn:         #f5b04a;
+    --warn-dim:     rgba(245,176,74,0.11);
+    --warn-border:  rgba(245,176,74,0.24);
+    --danger:       #FFB4AB;
+    --danger-dim:   rgba(255,180,171,0.11);
+    --danger-border:rgba(255,180,171,0.24);
+    --toggle-off:   rgba(193,201,187,0.15);
+    --shadow:       0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.45), 0 16px 40px rgba(0,0,0,0.35);
+    --shadow-sm:    0 1px 3px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.35);
+    --shadow-lg:    0 2px 6px rgba(0,0,0,0.45), 0 12px 28px rgba(0,0,0,0.45), 0 24px 56px rgba(0,0,0,0.4);
+  }
+
+  .alert code { background: rgba(255,255,255,0.10); }
+
+  .btn-danger:hover:not(:disabled) {
+    background: rgba(245,112,127,0.18);
   }
 }

@@ -65,6 +65,33 @@
   /* Spring physics have no Material Web equivalent; an overshoot easing
      curve is the spec-recommended fallback for expressive motion on web. */
   --md-sys-motion-easing-expressive-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ---- Spacing scale (4px base grid) ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* ---- M3 type scale (subset used by a compact popup surface) ---- */
+  --md-sys-typescale-title-medium-size:    16px;
+  --md-sys-typescale-title-medium-weight:  600;
+  --md-sys-typescale-title-small-size:     14px;
+  --md-sys-typescale-title-small-weight:   600;
+  --md-sys-typescale-body-large-size:      14px;
+  --md-sys-typescale-body-large-weight:    400;
+  --md-sys-typescale-body-medium-size:     13px;
+  --md-sys-typescale-body-medium-weight:   400;
+  --md-sys-typescale-body-small-size:      11.5px;
+  --md-sys-typescale-body-small-weight:    400;
+  --md-sys-typescale-label-large-size:     13px;
+  --md-sys-typescale-label-large-weight:   600;
+  --md-sys-typescale-label-medium-size:    11.5px;
+  --md-sys-typescale-label-medium-weight:  600;
+  --md-sys-typescale-label-small-size:     10.5px;
+  --md-sys-typescale-label-small-weight:   600;
 }
 
 body {
