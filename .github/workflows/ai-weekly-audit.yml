@@ -93,7 +93,28 @@ jobs:
           Only include real findings. If no issues found, return empty findings array."""
 
           try:
-              if anthropic_key:
+              if openrouter_key:
+                  p = json.dumps({"model":"google/gemini-2.0-flash-exp:free","max_tokens":2000,"messages":[{"role":"user","content":prompt}]}).encode()
+                  req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=p,
+                      headers={"Content-Type":"application/json","Authorization":f"Bearer {openrouter_key}",
+                               "HTTP-Referer":"https://github.com/govinda-rajulu/openskip","X-Title":"openskip-audit"}, method="POST")
+                  with urllib.request.urlopen(req, timeout=120) as r:
+                      text = json.load(r)["choices"][0]["message"]["content"].strip()
+                  print("Audit via OpenRouter free")
+              elif gemini_key:
+                  p = json.dumps({"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0.1,"maxOutputTokens":2000}}).encode()
+                  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
+                  for attempt in range(4):
+                      try:
+                          req = urllib.request.Request(url, data=p, headers={"Content-Type": "application/json"}, method="POST")
+                          with urllib.request.urlopen(req, timeout=90) as r:
+                              text = json.load(r)["candidates"][0]["content"]["parts"][0]["text"].strip()
+                          break
+                      except urllib.error.HTTPError as e:
+                          if e.code == 429: time.sleep(30*(attempt+1))
+                          else: raise
+                  print("Audit via Gemini")
+              elif anthropic_key:
                   p = json.dumps({"model":"claude-sonnet-4-6","max_tokens":2000,"messages":[{"role":"user","content":prompt}]}).encode()
                   req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=p,
                       headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"}, method="POST")
