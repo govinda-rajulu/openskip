@@ -56,7 +56,7 @@ jobs:
           pr_title      = os.environ.get("PR_TITLE","")
           pr_body       = os.environ.get("PR_BODY","")
 
-          if not anthropic_key and not gemini_key:
+          if not openrouter_key and not anthropic_key and not gemini_key:
               open("/tmp/ai_review.txt","w").write("NO_KEY")
               exit(0)
 
@@ -88,14 +88,15 @@ jobs:
           Be direct and specific. Skip praise for obvious things. Max 400 words."""
 
           try:
-              if anthropic_key:
-                  p = json.dumps({"model":"claude-sonnet-4-6","max_tokens":1000,"messages":[{"role":"user","content":prompt}]}).encode()
-                  req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=p,
-                      headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"}, method="POST")
+              if openrouter_key:
+                  p = json.dumps({"model":"google/gemini-2.0-flash-exp:free","max_tokens":1000,"messages":[{"role":"user","content":prompt}]}).encode()
+                  req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=p,
+                      headers={"Content-Type":"application/json","Authorization":f"Bearer {openrouter_key}",
+                               "HTTP-Referer":"https://github.com/govinda-rajulu/openskip","X-Title":"openskip-review"}, method="POST")
                   with urllib.request.urlopen(req, timeout=60) as r:
-                      text = json.load(r)["content"][0]["text"].strip()
-                  print("Review via Claude")
-              else:
+                      text = json.load(r)["choices"][0]["message"]["content"].strip()
+                  print("Review via OpenRouter free")
+              elif gemini_key:
                   p = json.dumps({"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0.2,"maxOutputTokens":1000}}).encode()
                   url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
                   for attempt in range(3):
@@ -108,6 +109,13 @@ jobs:
                           if e.code == 429: time.sleep(20*(attempt+1))
                           else: raise
                   print("Review via Gemini")
+              else:
+                  p = json.dumps({"model":"claude-sonnet-4-6","max_tokens":1000,"messages":[{"role":"user","content":prompt}]}).encode()
+                  req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=p,
+                      headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"}, method="POST")
+                  with urllib.request.urlopen(req, timeout=60) as r:
+                      text = json.load(r)["content"][0]["text"].strip()
+                  print("Review via Claude")
               open("/tmp/ai_review.txt","w").write(text)
           except Exception as e:
               open("/tmp/ai_review.txt","w").write(f"ERROR:{e}")
