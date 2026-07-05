@@ -48,7 +48,8 @@ jobs:
           assert 'activeTab' not in m.get('permissions',[]), 'activeTab must not be present'
           assert 'content_security_policy' in m, 'CSP missing'
           gecko = m['browser_specific_settings']['gecko']
-          assert 'update_url' in gecko, 'gecko.update_url missing'
+          # update_url must NOT be present for AMO-distributed extensions (AMO manages updates)
+          assert 'update_url' not in gecko, 'gecko.update_url must be absent for AMO submission'
           print('✅ manifest.json valid')
           "
           python3 -c "
