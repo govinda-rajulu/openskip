@@ -118,7 +118,7 @@ jobs:
               raise RuntimeError("Gemini rate limit exceeded")
 
           def call_openrouter(p, max_tokens=8192):
-              data = json.dumps({"model":"meta-llama/llama-3.3-70b-instruct:free","max_tokens":max_tokens,"messages":[{"role":"user","content":p}]}).encode()
+              data = json.dumps({"model":"google/gemini-2.0-flash-exp:free","max_tokens":max_tokens,"messages":[{"role":"user","content":p}]}).encode()
               req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=data,
                   headers={"Content-Type":"application/json","Authorization":f"Bearer {openrouter_key}",
                            "HTTP-Referer":"https://github.com/govinda-rajulu/openskip","X-Title":"openskip-agent"}, method="POST")
@@ -127,7 +127,7 @@ jobs:
 
 
           try:
-              text = call_claude(prompt) if anthropic_key else (call_openrouter(prompt) if openrouter_key else call_gemini(prompt))
+              text = call_openrouter(prompt) if openrouter_key else (call_gemini(prompt) if gemini_key else call_claude(prompt))
               print(f"AI response: {len(text)} chars")
               if text.startswith("```"):
                   text = text.split("\n",1)[1].rsplit("```",1)[0].strip()
@@ -367,7 +367,7 @@ jobs:
               raise RuntimeError("Gemini rate limit exceeded")
 
           def call_openrouter(p, max_tokens=8192):
-              data = json.dumps({"model":"meta-llama/llama-3.3-70b-instruct:free","max_tokens":max_tokens,"messages":[{"role":"user","content":p}]}).encode()
+              data = json.dumps({"model":"google/gemini-2.0-flash-exp:free","max_tokens":max_tokens,"messages":[{"role":"user","content":p}]}).encode()
               req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=data,
                   headers={"Content-Type":"application/json","Authorization":f"Bearer {openrouter_key}",
                            "HTTP-Referer":"https://github.com/govinda-rajulu/openskip","X-Title":"openskip-agent"}, method="POST")
@@ -376,7 +376,7 @@ jobs:
 
 
           try:
-              text = call_claude(prompt) if anthropic_key else (call_openrouter(prompt) if openrouter_key else call_gemini(prompt))
+              text = call_openrouter(prompt) if openrouter_key else (call_gemini(prompt) if gemini_key else call_claude(prompt))
               # Determine if response is JSON (code change) or markdown (explanation)
               stripped = text.strip()
               if stripped.startswith("```"): stripped = stripped.split("\n",1)[1].rsplit("```",1)[0].strip()
