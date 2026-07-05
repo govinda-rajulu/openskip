@@ -72,7 +72,7 @@ jobs:
                   print("Triage via Claude")
               elif openrouter_key:
                   p = json.dumps({
-                      "model": "meta-llama/llama-3.3-70b-instruct:free", "max_tokens": 500,
+                      "model": "google/gemini-2.0-flash-exp:free", "max_tokens": 500,
                       "messages": [{"role": "user", "content": prompt}]
                   }).encode()
                   req = urllib.request.Request(
