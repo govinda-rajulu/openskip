@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.7.9] - 2026-07-05
+
+### Fixed
+- Real Material 3 tokens: `--md-sys-shape-corner-*`, `--md-sys-motion-*` added. Prior v1.7.8 pass only reskinned hex values on the old var architecture.
+- Unified popup.css + options.css onto same green accent (was indigo vs green).
+- Fixed `body.theme-light`/`theme-dark` manual toggle classes, never updated in v1.7.8, still had v1.0 hex values.
+
 ## [1.7.8] - 2026-07-05
 
 ### Fixed
