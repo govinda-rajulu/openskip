@@ -121,6 +121,7 @@ function apiRequest(method, urlPath, { json, formData, retries = 3 } = {}) {
         headers: {
           Authorization: `JWT ${jwt}`,
           'User-Agent': `SkipStream-CI/1.0 (${ADDON_SLUG})`,
+          Accept: 'application/json',
           ...(contentType ? { 'Content-Type': contentType } : {}),
           ...(body ? { 'Content-Length': body.length } : {}),
         },
@@ -138,7 +139,7 @@ function apiRequest(method, urlPath, { json, formData, retries = 3 } = {}) {
             setTimeout(() => attempt(n + 1), 2000 * n);
             return;
           }
-          resolve({ status: res.statusCode, data });
+          resolve({ status: res.statusCode, data, headers: res.headers });
         });
       });
       req.on('error', err => {
@@ -280,11 +281,13 @@ async function main() {
       });
       if (createRes.status !== 201) {
         process.stderr.write(`❌  Create add-on failed (HTTP ${createRes.status}):\n${JSON.stringify(createRes.data, null, 2)}\n`);
+        process.stderr.write(`    Response headers: ${JSON.stringify(createRes.headers, null, 2)}\n`);
         process.exit(1);
       }
       process.stdout.write(`    ✅  New add-on created (id: ${createRes.data.id})\n`);
     } else {
       process.stderr.write(`❌  Version create failed (HTTP ${versionRes.status}):\n${JSON.stringify(versionRes.data, null, 2)}\n`);
+      process.stderr.write(`    Response headers: ${JSON.stringify(versionRes.headers, null, 2)}\n`);
       process.exit(1);
     }
   }

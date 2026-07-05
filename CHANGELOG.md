@@ -2,6 +2,11 @@
 
 # Changelog
 
+## [1.7.7] - 2026-07-05
+
+### Fixed
+- **AMO submission 406 on version create.** `scripts/amo-update.js` never sent an `Accept` header on any request. `curl` (used in Mozilla's own API examples) sends `Accept: */*` by default; Node's `https.request` sends none at all. AMO's version-create endpoint returned `406 Not Acceptable` with an empty body for the bare request. Added `Accept: application/json` to every request. Also now logs response headers alongside the body on version/add-on-create failures, since AMO can return an empty body on error.
+
 ## [1.7.6] - 2026-07-05
 
 ### Fixed
