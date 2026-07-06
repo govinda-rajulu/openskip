@@ -17,7 +17,7 @@
   --input-border: rgba(65,73,66,0.16);
   --text:         #181D17;  /* on-surface */
   --text2:        #414942;  /* on-surface-variant */
-  --text3:        #717970;  /* outline */
+  --text3:        #5E655A;  /* darkened from #717970, WCAG AA fix */
   --accent:       #35693A;  /* primary (light), matches popup.css brand green */
   --on-accent:    #FFFFFF;
   --accent-dim:   rgba(53,105,58,0.11);
@@ -124,6 +124,15 @@
   --fs-px-10: 10px;
   --fs-px-12: 12px;
   --fs-px-26: 26px;
+
+  /* line-height scale, literal values already in use */
+  --lh-100: 1;
+  --lh-140: 1.4;
+  --lh-150: 1.5;
+  --lh-155: 1.55;
+  --lh-160: 1.6;
+  --lh-165: 1.65;
+  --lh-170: 1.7;
 }
 
 /* Manual overrides mirroring popup.css's stored theme choice.
@@ -142,7 +151,7 @@ body.theme-light {
   --input-border: rgba(65,73,66,0.16);
   --text:         #181D17;
   --text2:        #414942;
-  --text3:        #717970;
+  --text3:        #5E655A;  /* darkened from #717970, WCAG AA fix */
   --accent:       #35693A;
   --on-accent:    #FFFFFF;
   --accent-dim:   rgba(53,105,58,0.11);
@@ -187,7 +196,7 @@ html {
 body {
   font-family: var(--font);
   font-size: var(--fs-body);
-  line-height: 1.5;
+  line-height: var(--lh-150);
   color: var(--text);
   background: var(--bg);
   min-height: 100vh;
@@ -251,7 +260,7 @@ body {
   font-size: var(--fs-px-9); font-weight: 700;
   background: var(--accent-dim);
   color: var(--accent);
-  border-radius: 4px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
   padding: var(--sp-px-2) var(--sp-px-5);
   flex-shrink: 0;
 }
@@ -278,7 +287,8 @@ body {
   gap: var(--sp-px-9);
   padding: clamp(7px,0.6vw,9px) clamp(9px,0.8vw,12px);
   border-radius: var(--r-full);
-  font-size: clamp(11.5px,0.5vw,13px); font-weight: 500;
+  font-size: clamp(11.5px,0.5vw,13px); font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--text2);
   cursor: pointer;
   border: none;
@@ -343,7 +353,7 @@ body {
   font-size: clamp(11.5px, 0.2vw + 11px, 13px);
   color: var(--text2);
   margin-bottom: var(--sp-6);
-  line-height: 1.6;
+  line-height: var(--lh-160);
 }
 
 /* ---------- Card ---------- */
@@ -458,7 +468,7 @@ select:focus { border-color: var(--accent); }
   font-size: var(--md-sys-typescale-label-medium-size);
   color: var(--text3);
   margin-top: var(--sp-px-5);
-  line-height: 1.6;
+  line-height: var(--lh-160);
 }
 
 .help a { color: var(--accent); text-decoration: none; }
@@ -505,7 +515,7 @@ select:focus { border-color: var(--accent); }
   position: absolute;
   inset: 0;
   background: var(--toggle-off);
-  border-radius: 22px;
+  border-radius: var(--md-sys-shape-corner-full); /* 22px already >= half of 22px track height, renders identically as pill */
   cursor: pointer;
   transition: background var(--ease), box-shadow var(--ease);
 }
@@ -585,7 +595,7 @@ select:focus { border-color: var(--accent); }
 .status-msg {
   font-size: var(--md-sys-typescale-label-medium-size);
   color: var(--text3);
-  line-height: 1.55;
+  line-height: var(--lh-155);
   word-break: break-word;
   transition: color 320ms cubic-bezier(0.4,0,0.2,1);
 }
@@ -596,7 +606,7 @@ select:focus { border-color: var(--accent); }
 
 /* ---------- Alert ---------- */
 .alert {
-  font-size: var(--fs-px-12); line-height: 1.65;
+  font-size: var(--fs-px-12); line-height: var(--lh-165);
   border-radius: var(--r-md);
   padding: var(--sp-px-11) var(--sp-px-14);
   margin-top: var(--sp-3);
@@ -609,7 +619,7 @@ select:focus { border-color: var(--accent); }
 .alert code {
   font-size: var(--md-sys-typescale-label-medium-size);
   background: rgba(0,0,0,0.08);
-  border-radius: 4px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
   padding: var(--sp-px-1) var(--sp-1);
 }
 
@@ -632,7 +642,7 @@ button {
   cursor: pointer;
   border: none;
   font-family: var(--font);
-  line-height: 1;
+  line-height: var(--lh-100);
   white-space: nowrap;
   transition: background var(--ease), transform var(--ease), opacity var(--ease), box-shadow var(--ease);
 }
@@ -727,7 +737,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .mode-chip-desc {
   font-size: var(--fs-px-10);
   color: var(--text3);
-  line-height: 1.4;
+  line-height: var(--lh-140);
 }
 
 .mode-chip.selected .mode-chip-name { color: var(--accent); }
@@ -756,9 +766,9 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   all: unset;
   cursor: pointer;
   color: var(--text3);
-  font-size: var(--md-sys-typescale-title-medium-size); line-height: 1;
+  font-size: var(--md-sys-typescale-title-medium-size); line-height: var(--lh-100);
   padding: 0 4px;
-  border-radius: 4px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
   transition: color var(--ease);
 }
 
@@ -799,7 +809,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   font-size: var(--fs-px-26); font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--text);
-  line-height: 1;
+  line-height: var(--lh-100);
   margin-bottom: var(--sp-1);
   font-variant-numeric: tabular-nums;
 }
@@ -856,7 +866,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .source-pill {
   padding: var(--sp-px-3) var(--sp-px-10);
-  border-radius: 20px;
+  border-radius: var(--md-sys-shape-corner-full); /* 20px already exceeds half the pill height, renders identically */
   font-size: var(--md-sys-typescale-label-medium-size); font-weight: 600;
   cursor: pointer;
   border: 1.5px solid var(--divider);
@@ -912,7 +922,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   width: 36px;
   height: 54px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
   flex-shrink: 0;
   background: var(--surface2);
   display: none;
@@ -967,7 +977,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .h-bar {
   width: 100%; height: 2px;
   background: var(--divider);
-  border-radius: 1px;
+  border-radius: var(--md-sys-shape-corner-full); /* 1px already == half of 2px bar height, renders identically as pill */
   margin-top: var(--sp-px-6);
   overflow: hidden;
 }
@@ -975,7 +985,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .h-fill {
   height: 100%;
   background: var(--accent);
-  border-radius: 1px;
+  border-radius: var(--md-sys-shape-corner-full); /* 1px already == half of 2px bar height, renders identically as pill */
   transition: width 0.3s ease;
 }
 
@@ -984,7 +994,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   padding: var(--sp-px-36) var(--sp-4);
   color: var(--text3);
   font-size: var(--fs-px-12);
-  line-height: 1.7;
+  line-height: var(--lh-170);
 }
 
 .h-loading {
@@ -1027,7 +1037,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--divider);
-  border-radius: 4px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text3);

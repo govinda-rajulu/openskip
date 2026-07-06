@@ -116,6 +116,10 @@
   --fs-px-12:  12px;
   --fs-px-15:  15px;
   --fs-px-20:  20px;
+
+  /* line-height scale, literal values already in use */
+  --lh-100: 1;
+  --lh-145: 1.45;
 }
 
 body {
@@ -127,7 +131,7 @@ body {
   max-width: 380px;
   width: 100%;
   -webkit-font-smoothing: antialiased;
-  line-height: 1.45;
+  line-height: var(--lh-145);
 }
 
 /* ---------- Outer Card ---------- */
@@ -379,7 +383,7 @@ body {
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--accent);
-  line-height: 1;
+  line-height: var(--lh-100);
   font-variant-numeric: tabular-nums;
 }
 
@@ -574,9 +578,12 @@ body {
     box-shadow var(--transition);
 }
 
+.action-btn svg { opacity: 0.75; transition: opacity var(--transition); }
+.action-btn:hover svg { opacity: 1; }
+
 .action-btn:hover {
   background: var(--bg-hover);
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: var(--border-strong);
   color: var(--text-primary);
 }
 
@@ -631,7 +638,7 @@ footer a:hover {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
-  border-radius: 4px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
 }
 
 /* ---------- Light Mode ---------- */
@@ -648,7 +655,7 @@ footer a:hover {
     --danger:         #BA1A1A;
     --text-primary:   #181D17;
     --text-secondary: #414942;
-    --text-muted:     #717970;
+    --text-muted:     #5E655A;  /* darkened from #717970, WCAG AA fix, 4.29->5.75 ratio */
     --border:         rgba(65, 73, 66, 0.10);
     --border-strong:  rgba(65, 73, 66, 0.18);
     --shadow-card:    0 4px 24px rgba(0,0,0,0.10);
@@ -669,7 +676,7 @@ body.theme-light {
   --bg-hover:       #EBEFE5;
   --text-primary:   #181D17;
   --text-secondary: #414942;
-  --text-muted:     #717970;
+  --text-muted:     #5E655A;  /* darkened from #717970, WCAG AA fix, 4.29->5.75 ratio */
   --border:         rgba(65, 73, 66, 0.10);
   --border-strong:  rgba(65, 73, 66, 0.18);
   --shadow-card:    0 4px 24px rgba(0,0,0,0.10);
@@ -766,7 +773,7 @@ body.theme-dark {
   padding: var(--sp-px-7) var(--sp-2);
   background: var(--bg-surface);
   border: 1.5px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--md-sys-shape-corner-small);
   cursor: pointer;
   font-family: var(--font-ui);
   text-align: left;
@@ -825,7 +832,7 @@ body.theme-dark {
   inset: 0;
   background: var(--bg-hover);
   border: 1.5px solid var(--border-strong);
-  border-radius: 19px;
+  border-radius: var(--md-sys-shape-corner-full); /* 19px already >= half of 27px track height, renders identically as pill */
   cursor: pointer;
   transition: background 200ms ease-out, border-color 200ms ease-out;
 }
