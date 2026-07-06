@@ -527,7 +527,7 @@ body {
   background: var(--text-muted);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   transition:
-    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 200ms var(--md-sys-motion-easing-expressive-spring),
     background 200ms ease;
 }
 
@@ -639,7 +639,7 @@ footer a:hover {
 }
 
 /* ---------- Thin Scrollbar ---------- */
-::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
