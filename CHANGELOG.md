@@ -2,6 +2,20 @@
 
 # Changelog
 
+## [1.7.10] - 2026-07-06
+
+### Fixed
+- Accessibility: aria-label on toggles/icon buttons that had none (masterToggle, AnimeSkip toggle, subClearBtn, themeBtn, settingsBtn).
+- Skip Mode / Playback Speed chips: role=radiogroup/radio + aria-checked, kept synced in JS.
+- Tab bar: role=tablist/tab + aria-selected. options.html nav-items: aria-current.
+- source-pill filter chips were `<span>`, keyboard-inert. Now `<button>`.
+- options.css: consolidated 3 scattered dark-mode media blocks into 1.
+- options.css `.btn-primary` had hardcoded `color:#fff`, now uses `--on-accent`.
+
+### Added
+- `--sp-*` spacing scale, `--md-sys-typescale-*` type scale tokens (both files).
+- options.html now reads `skipstream_theme` and applies it, previously ignored the popup's manual theme choice and always followed OS setting. No new toggle added to options page.
+
 ## [1.7.9] - 2026-07-05
 
 ### Fixed
