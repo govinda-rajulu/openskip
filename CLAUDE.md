@@ -146,3 +146,178 @@ will prefer Claude (`claude-sonnet-4-6`) over Gemini when the key is present.
 
 **Debug in Chrome:**
 `chrome://extensions` → Developer mode → Load unpacked → select repo folder (with `manifest-chrome.json` renamed to `manifest.json`)
+---
+
+# UI SYSTEM (OpenSkip)
+
+## UI ROLE
+
+The UI is responsible for:
+- popup.html
+- options.html
+- popup.css
+- options.css
+- minimal UI inside content scripts
+
+UI MUST NOT interfere with extension logic.
+
+---
+
+## DESIGN GOAL
+
+The UI must feel:
+- native to the browser
+- lightweight and fast
+- consistent across popup + options
+- structured, not decorative
+- accessible by default
+
+NOT:
+- flashy
+- animated-heavy
+- framework-driven
+- design-tool aesthetic
+
+---
+
+## MATERIAL 3 EXPRESSIVE (CONSTRAINED USE)
+
+Material 3 Expressive is used ONLY as inspiration.
+
+DO NOT:
+- import Material libraries
+- use Android-specific behavior
+- assume dynamic wallpaper / Monet system
+
+ONLY USE:
+- design principles (spacing, hierarchy, shape, tone)
+- semantic color roles
+- responsive layout ideas
+
+---
+
+## THEMING MODEL
+
+Supported themes:
+- light
+- dark
+- system (prefers-color-scheme)
+
+Rules:
+- theme toggle in popup is source of truth
+- options page must follow stored theme
+- no divergence between popup and options
+
+NO:
+- OS wallpaper color extraction
+- external theme systems
+
+---
+
+## DESIGN TOKENS (MANDATORY)
+
+All UI values must use tokens:
+
+- spacing scale (no random px)
+- typography scale
+- radius scale
+- color roles
+- motion tokens
+
+If a value is missing:
+- extend token system
+- do NOT introduce one-off values
+
+---
+
+## RESPONSIVENESS RULES
+
+- Popup must adapt to width changes
+- Options page must scale cleanly across screen sizes
+- Use flex/grid only
+- Avoid fixed layouts
+
+---
+
+## TYPOGRAPHY RULES
+
+- rem + clamp() preferred
+- consistent type hierarchy:
+  title → section → body → label → meta
+- no arbitrary font-size values
+
+---
+
+## ACCESSIBILITY RULES
+
+Mandatory:
+- semantic HTML (button, label, heading)
+- keyboard navigation support
+- visible focus states
+- WCAG AA contrast
+- reduced motion support
+
+Avoid:
+- div-based interactive controls unless necessary
+- color-only state indicators
+
+---
+
+## CROSS-BROWSER RULES
+
+Must behave identically in:
+- Chrome
+- Firefox
+- Edge
+- Brave
+
+No browser-specific UI differences.
+
+---
+
+## COMPONENT CONSISTENCY RULE
+
+Popup and Options must:
+- share the same visual language
+- differ only in layout density
+- not have separate design systems
+
+---
+
+## FORBIDDEN PRACTICES (UI)
+
+- UI redesign without instruction
+- introducing frameworks (React/Vue/etc)
+- introducing build tools
+- duplicating components across popup/options
+- hardcoded spacing or colors
+- changing extension logic during UI work
+
+---
+
+## UI WORKFLOW RULE
+
+Before any UI change:
+
+1. Inspect existing pattern
+2. Reuse if possible
+3. Modify minimally
+4. Avoid behavior changes
+5. Keep diff small
+
+After change:
+
+- verify no layout regressions
+- verify theme consistency
+- verify accessibility
+
+---
+
+## FINAL UI PRINCIPLE
+
+If unsure:
+
+→ choose consistency  
+→ choose simplicity  
+→ preserve behavior  
+→ improve only measurable UX issues
