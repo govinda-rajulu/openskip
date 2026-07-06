@@ -462,7 +462,7 @@ select {
   transition: border-color var(--ease);
 }
 
-select:focus { border-color: var(--accent); }
+select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 
 .help {
   font-size: var(--md-sys-typescale-label-medium-size);
@@ -644,11 +644,16 @@ button {
   font-family: var(--font);
   line-height: var(--lh-100);
   white-space: nowrap;
-  transition: background var(--ease), transform var(--ease), opacity var(--ease), box-shadow var(--ease);
+  transition: background var(--ease), transform var(--ease), opacity var(--ease), box-shadow var(--ease), outline var(--ease);
 }
 
 button:active   { transform: scale(0.97); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 .btn-primary {
   background: var(--accent);
@@ -721,6 +726,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .mode-chip:hover {
   border-color: var(--accent);
   background: var(--accent-dim);
+}
+
+.mode-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .mode-chip.selected {
@@ -1033,6 +1043,15 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 
 /* ---------- Scrollbar ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--divider) transparent;
+}
+
+*:hover {
+  scrollbar-color: var(--text3) transparent;
+}
+
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
