@@ -1,6 +1,15 @@
 # Changelog
 
-# Changelog
+## [1.7.11] - 2026-07-06
+
+### Fixed
+- UI accessibility: :focus-visible outline rings on all interactive elements (tabs, chips, buttons, selects).
+- Cross-browser: Firefox scrollbar-width + scrollbar-color fallback added to options.css.
+- Token enforcement: replaced 4x hardcoded border-radius values with design tokens.
+- Theme consistency: added OS dark mode @media fallback to popup.css, unified warn color light theme.
+- Sync button: removed inline all:unset, replaced with btn-ghost class.
+- Motion tokens: toggle thumb spring easing now uses var(--md-sys-motion-easing-expressive-spring).
+- Scrollbar width: standardized to 5px across both files.
 
 ## [1.7.10] - 2026-07-06
 
