@@ -664,7 +664,7 @@ footer a:hover {
     --border:         rgba(65, 73, 66, 0.10);
     --border-strong:  rgba(65, 73, 66, 0.18);
     --shadow-card:    0 4px 24px rgba(0,0,0,0.10);
-    --warn:           #38656A;
+    --warn:           #b5720a;
     --ok:             #8A5A2C;
   }
 }
@@ -690,7 +690,7 @@ body.theme-light {
   --accent-dim:     #1F4A22;
   --accent-glow:    rgba(53, 105, 58, 0.14);
   --danger:         #BA1A1A;
-  --warn:           #38656A;
+  --warn:           #b5720a;
   --ok:             #8A5A2C;
 }
 
