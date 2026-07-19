@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.9.0 (2026-07-19)
+## [1.9.0] - 2026-07-19
 
 ### Security
 - Fix GraphQL injection in AnimeSkip provider (input validation)
