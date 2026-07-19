@@ -1012,6 +1012,8 @@ if (exportBtn) {
     if (!confirm('This file will contain your API keys and Supabase credentials in plain text. Keep it private. Continue?')) return;
     try {
       const data = await br.storage.local.get(null);
+      const EXPORT_EXCLUDE = ['osub_password', 'osub_session'];
+      for (const key of EXPORT_EXCLUDE) { delete data[key]; }
       data._exportVersion = br.runtime.getManifest().version;
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const objUrl = URL.createObjectURL(blob);
