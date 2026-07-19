@@ -36,6 +36,11 @@
     };
   }
 
+  function clampSE(info) {
+    if (info.season && (info.season < 1 || info.season > 100)) info.season = null;
+    if (info.episode && (info.episode < 1 || info.episode > 9999)) info.episode = null;
+  }
+
   // ── User prefs ─────────────────────────────────────────────────────────────
 
   const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipEnabled: true, autoNextEpisode: false, deviceName: '' };
@@ -487,7 +492,8 @@
       } catch { /* fall through */ }
     }
     if (!saved) saved = await cacheRead(mediaId);
-    if (!saved || saved.p < 10 || (saved.d && saved.p / saved.d > 0.95)) return;
+    if (!saved || saved.p < 10) return;
+    if (saved.d && saved.p / saved.d > 0.95 && saved.d - saved.p < 60) return;
 
     const doPrompt = () => {
       if (video.currentTime > 3 || (video.played && video.played.length > 0)) return;
@@ -539,6 +545,7 @@
     const sp = new URLSearchParams(location.search);
     if (!info.season)  { const s = sp.get('season') || sp.get('s'); if (s && /^\d+$/.test(s)) info.season  = parseInt(s, 10); }
     if (!info.episode) { const e = sp.get('episode') || sp.get('ep') || sp.get('e'); if (e && /^\d+$/.test(e)) info.episode = parseInt(e, 10); }
+    clampSE(info);
   }
 
   function parsePageInfo(info) {
@@ -602,6 +609,7 @@
         }
       }
     }
+    clampSE(info);
   }
 
   function titleFromSlug(slug) {
@@ -634,6 +642,7 @@
     }
     if (!info.season  && season)  info.season  = season;
     if (!info.episode && episode) info.episode = episode;
+    clampSE(info);
     return titleFromSlug(slug);
   }
 
@@ -915,6 +924,35 @@
   let _nativeBtnInterval = null;
   let _nextEpTriggered   = false;
 
+  const NATIVE_SKIP_SITES = {
+    'netflix.com': ['.watch-video--skip-content-button', '[data-uia="player-skip-intro"]', '[data-uia="next-episode-seamless-button"]'],
+    'primevideo.com': ['.atvwebplayersdk-skipelement-button', '.skipElement'],
+    'amazon.com': ['.atvwebplayersdk-skipelement-button', '.skipElement'],
+    'disneyplus.com': ['.skip__button', '[data-testid="SkipIntroButton"]'],
+    'hulu.com': ['.SkipButton'],
+    'max.com': ['[data-testid="SkipButton"]'],
+    'crunchyroll.com': ['[data-testid="skipIntroText"]', '.skip-button'],
+    'peacocktv.com': ['.skip-button'],
+    'paramountplus.com': ['.skip-button'],
+    'tubi.tv': ['.skip-button'],
+  };
+
+  function clickNativeSkipButton() {
+    const host = location.hostname.replace(/^www\./, '');
+    let selectors = null;
+    for (const [domain, sels] of Object.entries(NATIVE_SKIP_SITES)) {
+      if (host === domain || host.endsWith('.' + domain)) { selectors = sels; break; }
+    }
+    if (!selectors) return false;
+    for (const sel of selectors) {
+      try {
+        const btn = document.querySelector(sel);
+        if (btn && btn.offsetParent !== null && !btn.disabled) { btn.click(); return true; }
+      } catch { /* invalid selector */ }
+    }
+    return false;
+  }
+
   function clickFirst(selectors) {
     for (const sel of selectors) {
       try {
@@ -942,7 +980,7 @@
       const ep = getSitePrefs(prefs);
       if (ep.skipEnabled) {
         const now = Date.now();
-        if (now - _lastNativeSkipTs > 10000 && clickFirst(SKIP_SELECTORS)) {
+        if (now - _lastNativeSkipTs > 10000 && clickNativeSkipButton()) {
           _lastNativeSkipTs = now;
           recordSkipStat(60);
         }
@@ -1387,6 +1425,10 @@
         segments = null;
         activeSegmentKey = '';
         hideSkipBtn();
+        br.storage.local.get('playbackSpeed').then(s => {
+          const rate = parseFloat(s.playbackSpeed) || 1;
+          if (rate !== 1 && video && video.isConnected) video.playbackRate = rate;
+        }).catch(() => {});
         return;
       }
       if (!video.isConnected) return;
