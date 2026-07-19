@@ -38,6 +38,9 @@ const USERID_CACHE_KEY = 'ss_userid_cache';
 let _tmdbCache  = null;  // null = not yet loaded from storage
 let _cachedUserId = null;
 let _flushingQueue = false;  // Mutex: prevent concurrent offline queue flushes
+let _configCache = null;
+let _configCacheTs = 0;
+const CONFIG_CACHE_TTL = 30000;  // 30 seconds
 
 async function getTmdbCache() {
   if (_tmdbCache) return _tmdbCache;
@@ -82,12 +85,14 @@ async function logError(context, error) {
 // ── Config ────────────────────────────────────────────────────────────────────
 
 async function getConfig() {
+  const now = Date.now();
+  if (_configCache && (now - _configCacheTs) < CONFIG_CACHE_TTL) return _configCache;
   try {
     const r = await br.storage.local.get([
       'supabaseUrl','supabaseAnonKey','tmdbApiKey','introdbApiKey',
       'animeSkipClientId','animeSkipAuthToken','animeSkipEnabled',
     ]);
-    return {
+    _configCache = {
       supabaseUrl:        r.supabaseUrl        || null,
       supabaseAnonKey:    r.supabaseAnonKey    || null,
       tmdbApiKey:         r.tmdbApiKey         || null,
@@ -96,8 +101,10 @@ async function getConfig() {
       animeSkipAuthToken: r.animeSkipAuthToken || null,
       animeSkipEnabled:   r.animeSkipEnabled   ?? false,
     };
+    _configCacheTs = now;
+    return _configCache;
   } catch {
-    return {
+    return _configCache || {
       supabaseUrl:null,supabaseAnonKey:null,tmdbApiKey:null,
       introdbApiKey:null,
       animeSkipClientId:null,animeSkipAuthToken:null,animeSkipEnabled:false,
@@ -507,6 +514,17 @@ br.runtime.onInstalled.addListener(async ({ reason }) => {
     }
     // Flush any offline queue that accumulated while extension was off
     await flushOfflineQueue();
+  }
+});
+
+// ── Config cache invalidation on storage changes ───────────────────────────────────
+
+br.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  const configKeys = ['supabaseUrl','supabaseAnonKey','tmdbApiKey','introdbApiKey','animeSkipClientId','animeSkipAuthToken','animeSkipEnabled'];
+  if (configKeys.some(k => k in changes)) {
+    _configCache = null;
+    _configCacheTs = 0;
   }
 });
 
