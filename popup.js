@@ -283,3 +283,29 @@ br.storage.onChanged.addListener((changes, area) => {
 // -- Init --
 detectDomain();
 loadState();
+
+// ── Easter egg: 5-click version badge ──────────────────────────────────────────
+(() => {
+  let clickCount = 0;
+  let lastClickTime = 0;
+  let easterEggTriggered = false;
+  const vBadge = $('versionBadge');
+  if (!vBadge) return;
+  
+  vBadge.style.cursor = 'pointer';
+  vBadge.addEventListener('click', () => {
+    const now = Date.now();
+    if (now - lastClickTime > 1000) clickCount = 0; // Reset if >1sec between clicks
+    clickCount++;
+    lastClickTime = now;
+    
+    if (clickCount === 5 && !easterEggTriggered) {
+      easterEggTriggered = true;
+      const overlay = document.createElement('div');
+      overlay.className = 'easter-egg-overlay';
+      overlay.textContent = 'Made with ❤️ for you';
+      document.body.appendChild(overlay);
+      setTimeout(() => overlay.remove(), 3800); // Remove after animation
+    }
+  });
+})();

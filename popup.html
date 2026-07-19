@@ -5,6 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SkipStream</title>
 <link rel="stylesheet" href="popup.css">
+<style>
+.easter-egg-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.6);
+  font-size: 14px;
+  color: #fff;
+  font-weight: 400;
+  text-align: center;
+  z-index: 9999;
+  animation: easterEggFade 3.8s ease-in-out forwards;
+}
+@keyframes easterEggFade {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+</style>
 </head>
 <body>
 <div class="card">
