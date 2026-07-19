@@ -62,7 +62,7 @@ Free account at [opensubtitles.com](https://www.opensubtitles.com/#modal-registe
 ## Privacy
 
 - All credentials are stored locally in your browser
-- Your sync identity is a SHA-256 hash of your own Supabase key - no account required
+- Your sync identity is a random UUID generated per browser installation - no account required
 - No telemetry, no ads, no third-party tracking
 
 ---
@@ -75,7 +75,7 @@ manifest-chrome.json       - Chrome MV3 manifest (must match manifest.json versi
 updates.json               - Firefox Android update feed
 background.js              - Service worker: all API calls, retry logic, offline queue
 content-scripts/
-  content.js               - Injected into all frames: skip polling, resume, speed, site rules
+  content.js               - Injected into all frames: skip detection via timeupdate, resume, speed, site rules
 popup.html / popup.js      - Popup: history, skip settings, stats, speed, sync, theme toggle
 options.html / options.js  - Settings: credentials, per-site rules, import/export, cloud restore
 scripts/
@@ -96,7 +96,7 @@ docs/                      - Additional documentation
 1. Content script detects any `<video>` element on the page
 2. Identifies the show/episode from the URL, page metadata, or JSON-LD
 3. Fetches skip segment timestamps from IntroDB (falling back to AnimeSkip); also clicks the platform's native Skip Intro button
-4. Polls every 500ms - shows a 3-second countdown toast with Undo before auto-skipping
+4. Listens for video timeupdate events - shows a 3-second countdown toast with Undo before auto-skipping
 5. If configured, fetches subtitles from OpenSubtitles by IMDb ID and overlays them on the video
 6. Saves playback position locally every 2.5s and syncs to Supabase; queues saves when offline
 7. On next load, restores your position from local cache or cloud, whichever is newer
