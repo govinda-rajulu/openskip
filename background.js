@@ -6,6 +6,17 @@ const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chr
 const IS_SW = typeof ServiceWorkerGlobalScope !== 'undefined' &&
               self instanceof ServiceWorkerGlobalScope;
 
+// ── Magic number constants ─────────────────────────────────────────────────────
+
+const TMDB_CACHE_MAX = 200;
+const OFFLINE_QUEUE_MAX = 50;
+const OSUB_CACHE_MAX = 20;
+const FETCH_RETRY_COUNT = 3;
+const FETCH_RETRY_BASE_MS = 1000;
+const QUEUE_FLUSH_INTERVAL_MIN = 5;
+const HEARTBEAT_INTERVAL_MIN = 25 / 60;
+const CONFIG_CACHE_TTL_MS = 30000;
+
 // ── SW keepalive alarm ────────────────────────────────────────────────────────
 // Chrome SW dies after ~30s idle. An alarm fires every 25s to keep it awake
 // for pending operations. Only registered in SW context (Chrome MV3).
@@ -14,8 +25,8 @@ const ALARM_HEARTBEAT   = 'ss_heartbeat';
 const ALARM_QUEUE_FLUSH = 'ss_queue_flush';
 
 if (IS_SW) {
-  br.alarms.create(ALARM_HEARTBEAT,   { periodInMinutes: 25 / 60 }); // ~25s
-  br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: 5 });        // retry offline queue every 5min
+  br.alarms.create(ALARM_HEARTBEAT,   { periodInMinutes: HEARTBEAT_INTERVAL_MIN });
+  br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: QUEUE_FLUSH_INTERVAL_MIN });
 }
 
 br.alarms.onAlarm.addListener(async (alarm) => {
@@ -40,7 +51,6 @@ let _cachedUserId = null;
 let _flushingQueue = false;  // Mutex: prevent concurrent offline queue flushes
 let _configCache = null;
 let _configCacheTs = 0;
-const CONFIG_CACHE_TTL = 30000;  // 30 seconds
 
 async function getTmdbCache() {
   if (_tmdbCache) return _tmdbCache;
@@ -57,7 +67,7 @@ async function setTmdbCache(key, value) {
   // Cap at 200 entries; evict oldest by insertion order (Map would be better
   // but storage round-trips don't need insertion-order guarantees)
   const keys = Object.keys(cache);
-  if (keys.length > 200) {
+  if (keys.length > TMDB_CACHE_MAX) {
     delete cache[keys[0]];
   }
   try { await br.storage.local.set({ [TMDB_CACHE_KEY]: cache }); } catch { /* ok */ }
@@ -86,7 +96,7 @@ async function logError(context, error) {
 
 async function getConfig() {
   const now = Date.now();
-  if (_configCache && (now - _configCacheTs) < CONFIG_CACHE_TTL) return _configCache;
+  if (_configCache && (now - _configCacheTs) < CONFIG_CACHE_TTL_MS) return _configCache;
   try {
     const r = await br.storage.local.get([
       'supabaseUrl','supabaseAnonKey','tmdbApiKey','introdbApiKey',
@@ -144,7 +154,7 @@ async function getDerivedUserId() {
 
 // ── Retry helper ──────────────────────────────────────────────────────────────
 
-async function fetchWithRetry(url, options = {}, retries = 3) {
+async function fetchWithRetry(url, options = {}, retries = FETCH_RETRY_COUNT) {
   let lastErr;
   for (let i = 0; i < retries; i++) {
     try {
@@ -153,7 +163,7 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
       if (res.ok) return res;
       lastErr = new Error(`Status ${res.status}`);
     } catch (e) { lastErr = e; }
-    if (i < retries - 1) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
+    if (i < retries - 1) await new Promise(r => setTimeout(r, FETCH_RETRY_BASE_MS * Math.pow(2, i)));
   }
   throw lastErr;
 }
@@ -224,7 +234,7 @@ async function supabaseUpsert(body, { keepalive = false } = {}) {
       const queue = stored[QUEUE_KEY] || [];
       const idx = queue.findIndex(q => q.user_id === body.user_id && q.media_id === body.media_id);
       if (idx >= 0) queue[idx] = body; else queue.push(body);
-      if (queue.length > 50) queue.splice(0, queue.length - 50);
+      if (queue.length > OFFLINE_QUEUE_MAX) queue.splice(0, queue.length - OFFLINE_QUEUE_MAX);
       await br.storage.local.set({ [QUEUE_KEY]: queue });
     } catch { /* storage unavailable */ }
     return { ok: false, err: String(e) };
@@ -477,7 +487,7 @@ async function osubDownload(file_id, sess) {
       const c = await br.storage.local.get(OSUB_SUB_CACHE);
       const cache = c[OSUB_SUB_CACHE] || {};
       const keys = Object.keys(cache);
-      if (keys.length >= 20) delete cache[keys[0]];
+      if (keys.length >= OSUB_CACHE_MAX) delete cache[keys[0]];
       cache[file_id] = text;
       await br.storage.local.set({ [OSUB_SUB_CACHE]: cache });
     } catch { /* ok */ }
