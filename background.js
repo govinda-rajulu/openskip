@@ -85,25 +85,33 @@ async function getConfig() {
   }
 }
 
-// ── Deterministic user ID ─────────────────────────────────────────────────────
-// Storage-backed: survives SW termination without recompute.
+// ── Unique per-install user ID (UUID v4, persisted in storage) ────────────────
+// Each browser installation gets a random UUID v4. Survives SW termination.
 
-async function getDerivedUserId(anonKey) {
+const INSTALL_ID_KEY = 'skipstream_install_id';
+
+async function getDerivedUserId() {
   if (_cachedUserId) return _cachedUserId;
-  // Try storage first (avoids SHA-256 recompute on SW wake)
+  
+  // Try storage first (avoid UUID regenerate on SW wake)
   try {
-    const s = await br.storage.local.get(USERID_CACHE_KEY);
-    if (s[USERID_CACHE_KEY]) { _cachedUserId = s[USERID_CACHE_KEY]; return _cachedUserId; }
+    const s = await br.storage.local.get(INSTALL_ID_KEY);
+    if (s[INSTALL_ID_KEY]) { 
+      _cachedUserId = s[INSTALL_ID_KEY]; 
+      return _cachedUserId; 
+    }
   } catch { /* compute fresh */ }
+  
   try {
-    const enc = new TextEncoder();
-    const buf = await crypto.subtle.digest('SHA-256', enc.encode('skipstream:uid:' + anonKey));
-    const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-    _cachedUserId = `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`;
-    // Persist so next SW wake skips recompute
-    await br.storage.local.set({ [USERID_CACHE_KEY]: _cachedUserId });
-    return _cachedUserId;
-  } catch { return null; }
+    // Generate random UUID v4
+    const uuid = crypto.randomUUID();
+    _cachedUserId = uuid;
+    // Persist so next SW wake uses same ID
+    await br.storage.local.set({ [INSTALL_ID_KEY]: uuid });
+    return uuid;
+  } catch { 
+    return null; 
+  }
 }
 
 // ── Retry helper ──────────────────────────────────────────────────────────────
@@ -468,15 +476,14 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (msg.type === 'INVALIDATE_USER_ID') {
     _cachedUserId = null;
-    br.storage.local.remove(USERID_CACHE_KEY).catch(() => {});
+    br.storage.local.remove(INSTALL_ID_KEY).catch(() => {});
     sendResponse({ ok: true });
     return true;
   }
 
   if (msg.type === 'GET_USER_ID') {
-    getConfig().then(async ({ supabaseAnonKey }) => {
-      if (!supabaseAnonKey) { sendResponse({ userId: null }); return; }
-      sendResponse({ userId: await getDerivedUserId(supabaseAnonKey) });
+    getDerivedUserId().then(userId => {
+      sendResponse({ userId });
     });
     return true;
   }
