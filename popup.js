@@ -183,7 +183,8 @@ function applyStats(data) {
   const st = data[KEYS.stats] || {};
   const today = new Date().toDateString();
   $('statSkips').textContent = st.statsDate === today ? (st.skipsToday || 0) : 0;
-  $('statTime').textContent  = fmtTime(st.timeSavedSec || 0);
+  const todayTime = (st.statsDate === today) ? (st.timeSavedToday || 0) : 0;
+  $('statTime').textContent = fmtTime(todayTime);
 }
 
 // -- Master toggle --

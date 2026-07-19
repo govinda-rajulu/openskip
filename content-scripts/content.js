@@ -787,12 +787,27 @@
 
   function recordSkipStat(timeSavedSec) {
     br.storage.local.get('skipstream_stats').then(s => {
-      const st = s.skipstream_stats || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0, skipsToday: 0, statsDate: '' };
+      const st = s.skipstream_stats || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0, skipsToday: 0, statsDate: '', timeSavedToday: 0, skipsBySite: {} };
       const today = new Date().toDateString();
-      if (st.statsDate !== today) { st.statsDate = today; st.skipsToday = 0; }
-      st.skipsTotal++;
+      const site = location.hostname.replace(/^www\./, '');
+      
+      // Reset daily counters if new day
+      if (st.statsDate !== today) {
+        st.statsDate = today;
+        st.skipsToday = 0;
+        st.timeSavedToday = 0;
+      }
+      
+      const savedSec = Math.max(0, Math.round(timeSavedSec));
       st.skipsToday = (st.skipsToday || 0) + 1;
-      st.timeSavedSec += Math.max(0, Math.round(timeSavedSec));
+      st.timeSavedToday = (st.timeSavedToday || 0) + savedSec;
+      st.skipsTotal = (st.skipsTotal || 0) + 1;
+      st.timeSavedSec = (st.timeSavedSec || 0) + savedSec;
+      
+      // Per-site tracking
+      if (!st.skipsBySite) st.skipsBySite = {};
+      st.skipsBySite[site] = (st.skipsBySite[site] || 0) + 1;
+      
       br.storage.local.set({ skipstream_stats: st });
     }).catch(() => {});
   }
