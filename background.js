@@ -37,6 +37,7 @@ const USERID_CACHE_KEY = 'ss_userid_cache';
 
 let _tmdbCache  = null;  // null = not yet loaded from storage
 let _cachedUserId = null;
+let _flushingQueue = false;  // Mutex: prevent concurrent offline queue flushes
 
 async function getTmdbCache() {
   if (_tmdbCache) return _tmdbCache;
@@ -227,18 +228,24 @@ async function supabaseUpsert(body, { keepalive = false } = {}) {
 // Called on 'online' event AND on ALARM_QUEUE_FLUSH (every 5 min in Chrome SW).
 
 async function flushOfflineQueue() {
-  const QUEUE_KEY = 'skipstream_offline_queue';
+  if (_flushingQueue) return;
+  _flushingQueue = true;
   try {
-    const stored = await br.storage.local.get(QUEUE_KEY);
-    const queue = stored[QUEUE_KEY];
-    if (!queue || queue.length === 0) return;
-    const remaining = [];
-    for (const body of queue) {
-      const result = await supabaseUpsert(body);
-      if (!result.ok && result.err !== 'not_configured') remaining.push(body);
-    }
-    await br.storage.local.set({ [QUEUE_KEY]: remaining });
-  } catch (e) { logError('queue_flush', e); }
+    const QUEUE_KEY = 'skipstream_offline_queue';
+    try {
+      const stored = await br.storage.local.get(QUEUE_KEY);
+      const queue = stored[QUEUE_KEY];
+      if (!queue || queue.length === 0) return;
+      const remaining = [];
+      for (const body of queue) {
+        const result = await supabaseUpsert(body);
+        if (!result.ok && result.err !== 'not_configured') remaining.push(body);
+      }
+      await br.storage.local.set({ [QUEUE_KEY]: remaining });
+    } catch (e) { logError('queue_flush', e); }
+  } finally {
+    _flushingQueue = false;
+  }
 }
 
 self.addEventListener('online', flushOfflineQueue);
