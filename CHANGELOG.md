@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.9.0 (2026-07-19)
+
+### Security
+- Fix GraphQL injection in AnimeSkip provider (input validation)
+- Fix URL parameter injection in IntroDB provider (URLSearchParams encoding)
+- Fix TMDB API key exposure (moved from URL param to Authorization header)
+- Fix XSS vector in history rendering (href validation)
+- Import/restore uses key whitelist (blocks credential overwrite attacks)
+- Exclude passwords and sessions from backup export
+- Native skip button clicks gated to known streaming sites only
+- Supabase URL validated before use
+- Season/episode bounds checking (rejects absurd values)
+
+### Fixed
+- User ID now per-install random UUID (no more shared identity collision)
+- SPA navigation resets skip segments and re-detects episodes
+- Resume threshold fixed for long content (movies at 95% with >60s remaining still resume)
+- Playback speed re-applied on SPA episode transitions
+- Stale save closure prevented on SPA navigation
+- Tab ID recycling phantom saves prevented
+- Offline queue flush race condition fixed (mutex lock)
+- Data cleanup paginated to prevent Supabase timeout
+- Store-check workflow deduplicates issues (no more spam)
+
+### Performance
+- Skip detection via timeupdate events (replaces 500ms setInterval polling)
+- Config cached in memory with storage.onChanged invalidation
+- Content script early-exit on iframes without video elements
+- innerText replaced with textContent in episode detection (no layout thrash)
+
+### Added
+- Error logging ring buffer (last 20 errors accessible via GET_ERROR_LOG)
+- Orange badge indicator when segment providers are unreachable
+- 90-day automatic playback data cleanup
+- Easter egg in popup (5x click version badge)
+- INSTALL_GUIDE.md with friendly setup instructions
+
+### UI
+- Popup CSS polished (hover transitions, depth, tactile chips)
+
 ## [1.7.11] - 2026-07-06
 
 ### Fixed

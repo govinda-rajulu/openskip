@@ -76,6 +76,11 @@
           "version": "1.8.0",
           "update_link": "https://github.com/govinda-rajulu/openskip/releases/download/v1.8.0/skipstream-1.8.0-firefox.zip",
           "update_info_url": "https://github.com/govinda-rajulu/openskip/releases/tag/v1.8.0"
+        },
+        {
+          "version": "1.9.0",
+          "update_link": "https://github.com/govinda-rajulu/openskip/releases/download/v1.9.0/skipstream-1.9.0-firefox.zip",
+          "update_info_url": "https://github.com/govinda-rajulu/openskip/releases/tag/v1.9.0"
         }
       ]
     }
