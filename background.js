@@ -37,6 +37,7 @@ br.alarms.onAlarm.addListener(async (alarm) => {
   }
   if (alarm.name === ALARM_QUEUE_FLUSH) {
     await flushOfflineQueue();
+    await cleanupOldData();
   }
 });
 
@@ -264,6 +265,31 @@ async function flushOfflineQueue() {
   } finally {
     _flushingQueue = false;
   }
+}
+
+async function cleanupOldData() {
+  const { supabaseUrl, supabaseAnonKey } = await getConfig();
+  if (!supabaseUrl || !supabaseAnonKey) return;
+  const userId = await getDerivedUserId();
+  if (!userId) return;
+  try {
+    const stored = await br.storage.local.get('skipstream_last_cleanup');
+    const last = stored.skipstream_last_cleanup || 0;
+    if (Date.now() - last < 24 * 60 * 60 * 1000) return;
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    await fetch(
+      `${supabaseUrl}/rest/v1/playback_states?user_id=eq.${userId}&updated_at=lt.${cutoff}`,
+      {
+        method: 'DELETE',
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+          Prefer: 'return=minimal',
+        },
+      }
+    );
+    await br.storage.local.set({ skipstream_last_cleanup: Date.now() });
+  } catch (e) { logError('data_cleanup', e); }
 }
 
 self.addEventListener('online', flushOfflineQueue);
@@ -525,6 +551,7 @@ br.runtime.onInstalled.addListener(async ({ reason }) => {
     }
     // Flush any offline queue that accumulated while extension was off
     await flushOfflineQueue();
+    await cleanupOldData();
   }
 });
 
