@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.9.2] - 2026-07-19
+
+### Added
+- Multiple SponsorBlock segments per video (all sponsors skipped, not just first)
+- Self-promotion category skipping on YouTube
+- Keyboard shortcuts: Alt+Right (skip segment), Alt+Z (undo/go back 15s)
+- Per-site skip counts in stats
+- Daily "time saved today" counter (resets each day)
+
 ## [1.9.1] - 2026-07-19
 
 ### Added
