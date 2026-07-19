@@ -5,6 +5,7 @@
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 const IS_SW = typeof ServiceWorkerGlobalScope !== 'undefined' &&
               self instanceof ServiceWorkerGlobalScope;
+const badgeAPI = br.action || br.browserAction;
 
 // ── Magic number constants ─────────────────────────────────────────────────────
 
@@ -577,8 +578,27 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (msg.type === 'FETCH_SEGMENTS') {
     fetchSegmentsMulti(msg.imdbId, msg.season, msg.episode)
-      .then(data => sendResponse({ data: data || null, err: data ? null : 'no_data' }))
-      .catch(e => { logError('fetch_segments', e); sendResponse({ data: null, err: String(e) }); });
+      .then(data => {
+        const tabId = sender?.tab?.id;
+        if (tabId && badgeAPI?.setBadgeText) {
+          if (data) {
+            badgeAPI.setBadgeText({ text: '', tabId });
+          } else {
+            badgeAPI.setBadgeText({ text: '!', tabId });
+            badgeAPI.setBadgeBackgroundColor({ color: '#F59E0B', tabId });
+          }
+        }
+        sendResponse({ data: data || null, err: data ? null : 'no_data' });
+      })
+      .catch(e => {
+        const tabId = sender?.tab?.id;
+        if (tabId && badgeAPI?.setBadgeText) {
+          badgeAPI.setBadgeText({ text: '!', tabId });
+          badgeAPI.setBadgeBackgroundColor({ color: '#F59E0B', tabId });
+        }
+        logError('fetch_segments', e);
+        sendResponse({ data: null, err: String(e) });
+      });
     return true;
   }
 
