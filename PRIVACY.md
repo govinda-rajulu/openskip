@@ -32,7 +32,7 @@ Each service has its own privacy policy. SkipStream only sends the minimum data 
 
 ## Your sync identity
 
-Your cloud sync ID is a SHA-256 hash of your own Supabase anon key. No account is required. No email. No personal information. If multiple people configure the same Supabase anon key, they will share the same sync identity and see each other's history - use a private Supabase project with a key you do not share.
+Your cloud sync ID is a random UUID generated when you first install the extension. No account is required. No email. No personal information. Each browser installation gets its own unique identity automatically.
 
 ## Contact
 

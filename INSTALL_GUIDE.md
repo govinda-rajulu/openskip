@@ -27,7 +27,7 @@ Optional: Want to sync your watch history across devices? Check the Supabase sec
 
 ## What Does It Do?
 
-- Skips intros, recaps, and outros automatically (with a 3-second countdown to undo)
+- Skips intros, recaps, and outros automatically (instantly in auto mode, or with a 3-second countdown in prompt mode)
 - Remembers where you stopped watching, even across devices
 - Works on Netflix, Prime Video, Disney+, Hulu, Crunchyroll, and basically any site with video
 - Pop open the extension to control playback speed, toggle skipping, or check your watch stats

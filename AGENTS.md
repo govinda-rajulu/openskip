@@ -48,7 +48,7 @@ Files to update on every version bump: `manifest.json`, `manifest-chrome.json`, 
 - No `localStorage` in content script - use `browser.storage.local` only
 - No `innerHTML` anywhere - use DOM API: `createElement`, `textContent`, `appendChild`
 - No `console.log` - use `console.warn` only for diagnostics
-- User ID: SHA-256 hash of `"skipstream:uid:" + supabaseAnonKey` - never random, never stored raw
+- User ID: random UUID v4 generated per browser installation, stored in `skipstream_install_id` key
 
 ## Supabase schema
 Tables:
@@ -72,13 +72,12 @@ Prefer: resolution=merge-duplicates
 ## Message passing API (content script <-> background)
 | type | direction | purpose |
 |------|-----------|---------|
-| `GET_USER_ID` | content→bg | get SHA-256 derived user ID |
+| `GET_USER_ID` | content→bg | get per-install UUID |
 | `SUPABASE_UPSERT` | content→bg | upsert playback state row |
 | `SUPABASE_GET` | content→bg | fetch single playback row by userId + mediaId |
 | `SUPABASE_GET_ALL` | popup→bg | fetch all rows for history display |
 | `FETCH_SEGMENTS` | content→bg | fetch skip segments from IntroDB/AnimeSkip |
 | `TMDB_TO_IMDB` | content→bg | convert TMDB numeric ID to IMDb tt-ID |
-| `CHECK_CONFIG` | options→bg | verify all configured services respond |
 | `GET_VIDEO_TIME` | popup→content | get current video currentTime |
 | `GET_SHOW_INFO` | popup→content | get resolved show/episode/mediaId metadata |
 | `REPORT_SEGMENT` | popup→bg | submit a new segment to IntroDB/AnimeSkip |

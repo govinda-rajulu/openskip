@@ -15,7 +15,7 @@ All Supabase REST API calls enforce `user_id` filtering at the application layer
 
 ## Design Rationale
 
-- Shared anon key (same for all users) → cannot use JWT-based RLS
+- Per-install UUID (unique per browser) → app-layer user_id filtering on all queries
 - Application-level filtering ensures each user_id constraint is enforced upstream
 - RLS policies are permissive (`using (true)`) but unreachable without user_id filter
 - Multiple users sharing same Supabase project remain data-isolated

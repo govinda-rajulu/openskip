@@ -21,7 +21,7 @@
 
 ## What it does
 
-- **Skips** intros, recaps, and outros - 3-second countdown toast with Undo (powered by [IntroDB](https://introdb.app) and AnimeSkip)
+- **Skips** intros, recaps, and outros - instant skip in auto mode, 3-second countdown with Undo in prompt mode (powered by [IntroDB](https://introdb.app) and AnimeSkip)
 - **Native button clicking** - also clicks the platform's own Skip Intro button on Netflix, Prime Video, Disney+, Hulu, Max, Crunchyroll, Peacock, Paramount+, Apple TV+, and Tubi
 - **Subtitles** - auto-fetches from OpenSubtitles by IMDb ID, with a draggable CC overlay, sync offset, offline .srt/.vtt upload, and language selection
 - **Resumes** playback where you left off, on any device
@@ -96,7 +96,7 @@ docs/                      - Additional documentation
 1. Content script detects any `<video>` element on the page
 2. Identifies the show/episode from the URL, page metadata, or JSON-LD
 3. Fetches skip segment timestamps from IntroDB (falling back to AnimeSkip); also clicks the platform's native Skip Intro button
-4. Listens for video timeupdate events - shows a 3-second countdown toast with Undo before auto-skipping
+4. Listens for video timeupdate events - in auto mode skips instantly; in prompt mode shows a 3-second countdown toast with Undo
 5. If configured, fetches subtitles from OpenSubtitles by IMDb ID and overlays them on the video
 6. Saves playback position locally every 2.5s and syncs to Supabase; queues saves when offline
 7. On next load, restores your position from local cache or cloud, whichever is newer

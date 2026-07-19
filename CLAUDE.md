@@ -25,8 +25,8 @@ updates.json           Firefox auto-update manifest.
 | No `localStorage` in `content-scripts/` | Use `browser.storage.local` via message |
 | No `innerHTML` anywhere | XSS prevention |
 | No `console.log` anywhere | Use `console.warn` for diagnostics |
-| `userId` = `SHA-256("skipstream:uid:" + supabaseAnonKey)` | Deterministic cross-device identity |
-| SPA nav: intercept `pushState`/`replaceState` + `popstate` | No `setInterval` polling |
+| `userId` = `crypto.randomUUID()` per install | Stored in `skipstream_install_id` |
+| SPA nav: `checkUrlChange()` in timeupdate handler | Resets segments on URL change |
 | Video detection: width ≥ 25%, height ≥ 20%, aspect ratio 1.2–3.0 | Avoids thumbnails |
 
 ## Message Protocol (content → background)
@@ -35,16 +35,10 @@ All content script → network calls go through `browser.runtime.sendMessage`:
 
 ```js
 // Save playback position
-{ type: 'SAVE_PROGRESS', body: { user_id, media_id, playback_time, ... } }
+{ type: 'SUPABASE_UPSERT', body: { user_id, media_id, playback_time, ... } }
 
 // Fetch skip segments
 { type: 'FETCH_SEGMENTS', imdbId, season, episode }
-
-// Check credentials
-{ type: 'CHECK_CONFIG' }  // → { supabase, tmdb, introdb }
-
-// Verify Supabase schema exists
-{ type: 'SUPABASE_VERIFY_SETUP' }  // → { ok, data, message }
 
 // Get user ID
 { type: 'GET_USER_ID' }  // → { userId }
@@ -53,9 +47,6 @@ All content script → network calls go through `browser.runtime.sendMessage`:
 ## Supabase Setup
 
 Users run `supabase_setup.sql` once in their project SQL Editor.
-- Options page detects missing tables (`needsManualSetup: true` from `CHECK_CONFIG`)
-- Shows "Copy SQL" button + deep link to SQL editor + "Verify Setup" button
-- `SUPABASE_VERIFY_SETUP` message calls `public.ss_verify_setup()` RPC to confirm
 
 To manually apply: `psql "$SUPABASE_DB_URL" -f supabase_setup.sql`
 

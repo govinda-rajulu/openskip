@@ -28,8 +28,8 @@ Enter keys in the extension's Settings page (gear icon in popup).
 
 - Open any video site - extension auto-detects `<video>` elements
 - Playback position saves to `browser.storage.local` on pause, seek, and page close
-- Skip segments appear as a 3-second countdown toast with Undo button
-- Resume prompt appears on revisit if a position was saved
+- In auto mode, segments are skipped instantly. In prompt mode, a 3-second countdown toast appears with an Undo button
+- Playback silently resumes from saved position with a brief toast notification
 - Speed control (1x/1.25x/1.5x/2x) applies to active video and persists on reload
 - Skip mode dropdown (Off / Prompt / Auto Intro / Auto Recap / Auto Outro / Auto All)
 - Per-site rules in Settings override the global skip mode for specific domains
