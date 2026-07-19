@@ -30,6 +30,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check CWS secrets configured
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+        run: |
+          if [ -z "$CWS_CLIENT_ID" ]; then
+            echo "CWS not configured, skipping"
+            exit 0
+          fi
+
       - name: Get repo version
         id: repo
         run: |
@@ -296,6 +305,12 @@ jobs:
           AMO_LIVE:  ${{ steps.decide.outputs.amo_live }}
           CWS_LIVE:  ${{ steps.decide.outputs.cws_live }}
         run: |
+          EXISTING=$(gh issue list --search "in:title [store-check] Store version unknown" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$EXISTING" ]; then
+            echo "Issue #$EXISTING already open, skipping"
+            exit 0
+          fi
+          
           python3 << 'PYEOF'
           import os, json, urllib.request
 
