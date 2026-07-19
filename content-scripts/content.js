@@ -8,6 +8,14 @@
 
   const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
+  // ── SPA navigation tracking ────────────────────────────────────────────────────
+  let _lastHref = location.href;
+  function checkUrlChange() {
+    if (location.href === _lastHref) return false;
+    _lastHref = location.href;
+    return true;
+  }
+
   // ── Module state ───────────────────────────────────────────────────────────
   let _masterJustEnabled = false;
   const _promptedVideos = new WeakSet();
@@ -290,6 +298,7 @@
 
     clearTimeout(saveTimer.id);
     saveTimer.id = setTimeout(async () => {
+      if (getMediaId() !== mediaId) return;
       const userId = await getUserId();
       if (!userId) return;
       try {
@@ -576,7 +585,7 @@
       }
     });
     if (!info.season || !info.episode) {
-      const text = document.title + ' ' + (document.body?.innerText?.slice(0, 4000) || '');
+      const text = document.title + ' ' + (document.body?.textContent?.slice(0, 4000) || '');
       const textPatterns = [
         [/Season\s+(\d+)[,\s·•\-]+Episode\s+(\d+)/i, false],
         [SE_REGEX, false],
@@ -1374,6 +1383,12 @@
     
     // Segment check logic - called on timeupdate
     const checkSkipSegments = () => {
+      if (checkUrlChange()) {
+        segments = null;
+        activeSegmentKey = '';
+        hideSkipBtn();
+        return;
+      }
       if (!video.isConnected) return;
       if (video.paused || !segments) return;
       if (video._ssCooldownUntil && Date.now() < video._ssCooldownUntil) return;
