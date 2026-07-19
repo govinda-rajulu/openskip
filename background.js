@@ -186,7 +186,7 @@ async function setTabState(tabId, value) {
   try {
     const state = await getTabState();
     if (value === null) delete state[tabId];
-    else state[String(tabId)] = value;
+    else state[String(tabId)] = { ...value, _ts: Date.now() };
     await br.storage.local.set({ [TAB_STATE_KEY]: state });
   } catch { /* best-effort */ }
 }
@@ -302,6 +302,7 @@ if (br.tabs && br.tabs.onRemoved) {
     const state = await getTabState();
     const entry = state[String(tabId)];
     await setTabState(tabId, null);
+    if (entry._ts && Date.now() - entry._ts > 60000) return;
     if (!entry?.body) return;
     try {
       await supabaseUpsert(entry.body, { keepalive: true });
@@ -326,6 +327,7 @@ async function providerIntroDB(imdbId, season, episode, { introdbApiKey }) {
 
 async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, animeSkipClientId, animeSkipAuthToken }) {
   if (!animeSkipEnabled || !animeSkipClientId) return null;
+  if (!/^tt\d{7,8}$/.test(imdbId)) return null;
 
   const headers = {
     'Content-Type': 'application/json',
@@ -344,6 +346,7 @@ async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, an
     const shows = searchData?.data?.searchShowsByExternalId;
     if (!shows?.length) return null;
     const showId = shows[0].id;
+    if (!/^[a-zA-Z0-9_-]+$/.test(showId)) return null;
 
     const epQuery = `{
       findEpisodesByShowId(showId: "${showId}", season: ${season}) {
@@ -410,7 +413,7 @@ async function checkSupabase(supabaseUrl, supabaseAnonKey) {
 // ── OpenSubtitles ─────────────────────────────────────────────────────────────
 
 const OSUB_API_KEY   = 'bBSwDAWRcnDjnw12mKLGHHu0SMSAUL34';
-const OSUB_UA        = 'SkipStream v1.8.0';
+const OSUB_UA        = 'SkipStream v' + (br.runtime?.getManifest?.()?.version || '1.8.0');
 const OSUB_SESS_KEY  = 'osub_session';
 const OSUB_SUB_CACHE = 'osub_sub_cache'; // file_id → srt text, capped 20 entries
 
@@ -587,13 +590,16 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (msg.type === 'TMDB_TO_IMDB') {
+    if (!/^\d+$/.test(String(msg.tmdbId))) { sendResponse({ imdbId: null }); return; }
     const cacheKey = `tv:${msg.tmdbId}`;
     getTmdbCache().then(async (cache) => {
       if (cacheKey in cache) { sendResponse({ imdbId: cache[cacheKey] }); return; }
       const { tmdbApiKey } = await getConfig();
       if (!tmdbApiKey) { await setTmdbCache(cacheKey, null); sendResponse({ imdbId: null }); return; }
       try {
-        const r = await fetchWithRetry(`https://api.themoviedb.org/3/tv/${msg.tmdbId}/external_ids?api_key=${tmdbApiKey}`);
+        const r = await fetchWithRetry(`https://api.themoviedb.org/3/tv/${msg.tmdbId}/external_ids`, {
+          headers: { Authorization: `Bearer ${tmdbApiKey}` }
+        });
         const data = await r.json();
         const id = data.imdb_id || null;
         await setTmdbCache(cacheKey, id);
