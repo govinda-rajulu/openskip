@@ -368,6 +368,40 @@
     return h ? `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}` : `${m}:${String(ss).padStart(2,'0')}`;
   }
 
+  function showResumeToast(video, position) {
+    // Brief non-interactive toast for silent resume (2 sec auto-fade)
+    const existing = document.getElementById('skipstream-resume-toast');
+    if (existing) existing.remove();
+
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    const container = fsEl || document.body || document.documentElement;
+
+    const toast = document.createElement('div');
+    toast.id = 'skipstream-resume-toast';
+    Object.assign(toast.style, {
+      all: 'unset', position: fsEl ? 'absolute' : 'fixed',
+      top: '12%', left: '50%', transform: 'translateX(-50%)',
+      zIndex: '2147483647', 
+      padding: '10px 16px',
+      background: 'rgba(10,10,18,0.88)', color: '#fff',
+      border: '1.5px solid rgba(255,255,255,0.18)', borderRadius: '10px',
+      boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
+      backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+      fontFamily: 'system-ui,-apple-system,sans-serif', 
+      fontSize: '12px', fontWeight: '600',
+      pointerEvents: 'none',
+      transition: 'opacity 0.3s ease-out',
+    });
+    toast.textContent = `Resumed from ${fmtTime(position)}`;
+    container.appendChild(toast);
+
+    // Fade out and remove after 2 seconds
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => { if (toast.isConnected) toast.remove(); }, 300);
+    }, 2000);
+  }
+
   function showResumePrompt(video, position) {
     const existing = document.getElementById('skipstream-resume-prompt');
     if (existing) existing.remove();
@@ -495,14 +529,18 @@
     if (!saved || saved.p < 10) return;
     if (saved.d && saved.p / saved.d > 0.95 && saved.d - saved.p < 60) return;
 
-    const doPrompt = () => {
+    const doResume = () => {
       if (video.currentTime > 3 || (video.played && video.played.length > 0)) return;
-      if (document.getElementById('skipstream-resume-prompt')) return;
-      try { showResumePrompt(video, saved.p); } catch { /* ok */ }
+      // Silent resume: just seek and show brief toast, no prompt
+      try {
+        video.currentTime = saved.p;
+        video.play().catch(() => { /* autoplay policy */ });
+        showResumeToast(video, saved.p);
+      } catch { /* ok */ }
     };
 
-    if (video.readyState >= 1) doPrompt();
-    else video.addEventListener('loadedmetadata', doPrompt, { once: true });
+    if (video.readyState >= 1) doResume();
+    else video.addEventListener('loadedmetadata', doResume, { once: true });
   }
 
   // ── Show / episode detection ───────────────────────────────────────────────
@@ -746,7 +784,20 @@
     const existing = document.getElementById(COUNTDOWN_ID);
     if (existing) existing.remove();
 
-    const label = { intro: 'Intro', recap: 'Recap', outro: 'Outro' }[segKey] || segKey;
+    const prefKey = PREF_FOR_SEGMENT[segKey];
+    const isAutoMode = prefs[prefKey] === true; // true = auto (instant), false/other = prompt
+
+    // FIX 1: Auto mode = instant skip, no countdown
+    if (isAutoMode) {
+      const prevTime = video.currentTime;
+      video.currentTime = segment.end_sec;
+      video._ssCooldownUntil = Date.now() + 1500;
+      recordSkipStat(segment.end_sec - prevTime);
+      onDone();
+      return;
+    }
+
+    // Prompt mode = show countdown with undo button
     const fullLabel = segmentLabel(segKey, segment);
     let secs = 3;
 
@@ -1102,18 +1153,19 @@
 
   // ── Subtitle system ────────────────────────────────────────────────────────
 
-  let _subState = { enabled: true, language: 'en', fontSize: 18, position: 12, sync: 0, subs: [], loading: false };
+  let _subState = { enabled: true, language: 'en', fontSize: 18, position: 12, sync: 0, subs: [], loading: false, dragPos: { x: 50, bottom: 10 } };
   let _subOverlay = null;
   let _subCCBtn   = null;
 
   async function loadSubPrefs() {
     try {
-      const s = await br.storage.local.get(['subtitle_enabled','subtitle_language','subtitle_font_size','subtitle_position','subtitle_sync']);
+      const s = await br.storage.local.get(['subtitle_enabled','subtitle_language','subtitle_font_size','subtitle_position','subtitle_sync','subtitle_drag_pos']);
       if (s.subtitle_enabled !== undefined) _subState.enabled  = !!s.subtitle_enabled;
       if (s.subtitle_language)              _subState.language  = s.subtitle_language;
       if (s.subtitle_font_size)             _subState.fontSize  = parseInt(s.subtitle_font_size) || 18;
       if (s.subtitle_position !== undefined) _subState.position = parseFloat(s.subtitle_position) ?? 12;
       if (s.subtitle_sync     !== undefined) _subState.sync     = parseFloat(s.subtitle_sync) || 0;
+      if (s.subtitle_drag_pos) _subState.dragPos = s.subtitle_drag_pos;
     } catch { /* defaults ok */ }
   }
 
@@ -1144,11 +1196,26 @@
     const r    = video.getBoundingClientRect();
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     el.style.position  = fsEl ? 'absolute' : 'fixed';
-    el.style.left      = (r.left + r.width * 0.5) + 'px';
-    el.style.bottom    = (window.innerHeight - r.bottom + r.height * _subState.position / 100) + 'px';
-    el.style.transform = 'translateX(-50%)';
-    const scale = Math.max(0.6, Math.min(1.8, r.width / 640));
-    el.style.fontSize  = Math.max(12, Math.min(42, _subState.fontSize * scale)) + 'px';
+    
+    // Use dragPos for x% and bottom% positioning (or fallback to video center)
+    const xPos = _subState.dragPos?.x ?? 50;
+    const bottomPos = _subState.dragPos?.bottom ?? 10;
+    
+    if (fsEl) {
+      // Fullscreen: absolute positioning within fullscreen element
+      el.style.left   = (xPos) + '%';
+      el.style.bottom = (bottomPos) + '%';
+      el.style.transform = 'translateX(-50%)';
+    } else {
+      // Normal: fixed positioning relative to viewport, accounting for video rect
+      el.style.left   = (r.left + r.width * xPos / 100) + 'px';
+      el.style.bottom = (window.innerHeight - r.bottom + r.height * bottomPos / 100) + 'px';
+      el.style.transform = 'translateX(-50%)';
+    }
+    
+    // Responsive font: scale based on video width, clamp 10-60px
+    const scale = Math.max(0.6, Math.min(2.0, r.width / 640));
+    el.style.fontSize  = Math.max(10, Math.min(60, _subState.fontSize * scale)) + 'px';
   }
 
   function ensureSubOverlay(video) {
@@ -1158,7 +1225,7 @@
     el.id = 'skipstream-subs';
     Object.assign(el.style, {
       zIndex:'2147483645', fontFamily:'system-ui,-apple-system,sans-serif', fontWeight:'700',
-      color:'#fff', textShadow:'0 2px 6px rgba(0,0,0,0.95),0 0 2px #000', textAlign:'center',
+      color:'#fff', textShadow:'0 2px 8px rgba(0,0,0,0.7), 0 0 3px rgba(0,0,0,0.9)', textAlign:'center',
       pointerEvents:'auto', userSelect:'none', maxWidth:'80%', lineHeight:'1.4',
       cursor:'grab', whiteSpace:'pre-wrap', display:'none',
       padding:'3px 10px', borderRadius:'4px', background:'rgba(0,0,0,0.38)',
@@ -1166,15 +1233,65 @@
     subContainer(video).appendChild(el);
     _subOverlay = el;
 
-    // Drag
-    let drag = false, sx = 0, sy = 0, sp = 0;
-    el.addEventListener('pointerdown', e => { drag=true; sx=e.clientX; sy=e.clientY; sp=_subState.position; el.style.cursor='grabbing'; el.setPointerCapture(e.pointerId); e.preventDefault(); });
-    el.addEventListener('pointermove', e => { if (!drag) return; const r=video.getBoundingClientRect(); _subState.position=Math.max(2,Math.min(60,sp-(e.clientY-sy)/r.height*100)); positionSub(el,video); });
-    el.addEventListener('pointerup',   e => { drag=false; el.style.cursor='grab'; el.releasePointerCapture(e.pointerId); br.storage.local.set({subtitle_position:_subState.position}).catch(()=>{}); });
+    // Drag: full x/y control with pointer capture
+    let drag = false, sx = 0, sy = 0, sp = { x: _subState.dragPos.x, bottom: _subState.dragPos.bottom };
+    el.addEventListener('pointerdown', e => { 
+      if (e.pointerType === 'touch' || e.pointerType === 'pen') e.preventDefault();
+      drag = true; sx = e.clientX; sy = e.clientY; 
+      sp = { x: _subState.dragPos.x, bottom: _subState.dragPos.bottom };
+      el.style.cursor = 'grabbing'; 
+      el.setPointerCapture(e.pointerId); 
+    });
+    
+    el.addEventListener('pointermove', e => { 
+      if (!drag) return; 
+      const r = video.getBoundingClientRect();
+      const vw = r.width;
+      const vh = r.height;
+      const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+      
+      if (fsEl) {
+        // In fullscreen: move by viewport %
+        const dxPx = e.clientX - sx;
+        const dyPx = e.clientY - sy;
+        _subState.dragPos.x = Math.max(5, Math.min(95, sp.x + (dxPx / window.innerWidth * 100)));
+        _subState.dragPos.bottom = Math.max(2, Math.min(60, sp.bottom - (dyPx / window.innerHeight * 100)));
+      } else {
+        // Normal: move by video %
+        const dxPx = e.clientX - sx;
+        const dyPx = e.clientY - sy;
+        _subState.dragPos.x = Math.max(5, Math.min(95, sp.x + (dxPx / vw * 100)));
+        _subState.dragPos.bottom = Math.max(2, Math.min(60, sp.bottom - (dyPx / vh * 100)));
+      }
+      positionSub(el, video);
+    });
+    
+    el.addEventListener('pointerup', e => { 
+      drag = false; 
+      el.style.cursor = 'grab'; 
+      el.releasePointerCapture(e.pointerId);
+      br.storage.local.set({ subtitle_drag_pos: _subState.dragPos }).catch(() => {});
+    });
 
-    const onFs = () => { if (!_subOverlay?.isConnected) return; _subOverlay.style.position=(document.fullscreenElement||document.webkitFullscreenElement)?'absolute':'fixed'; subContainer(video).appendChild(_subOverlay); positionSub(_subOverlay,video); };
+    // Fullscreen: move overlay into/out of fullscreen container
+    const onFs = () => {
+      if (!_subOverlay?.isConnected) return;
+      const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+      const newContainer = fsEl || document.body;
+      if (_subOverlay.parentElement !== newContainer) {
+        newContainer.appendChild(_subOverlay);
+      }
+      positionSub(_subOverlay, video);
+    };
     document.addEventListener('fullscreenchange', onFs);
     document.addEventListener('webkitfullscreenchange', onFs);
+    
+    // ResizeObserver: reposition on video resize
+    if (typeof ResizeObserver !== 'undefined') {
+      const resizeObs = new ResizeObserver(() => positionSub(el, video));
+      try { resizeObs.observe(video); } catch { /* ok */ }
+    }
+    
     return el;
   }
 
@@ -1287,7 +1404,7 @@
     _subState.loading = false; syncCCBtn();
   }
 
-  // Listen for subtitle file uploaded from popup/options
+  // Listen for subtitle file uploaded from popup/options, or any settings change
   br.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     if ('subtitle_override_srt' in changes) {
@@ -1299,9 +1416,22 @@
     if ('subtitle_enabled' in changes) {
       _subState.enabled = !!changes.subtitle_enabled.newValue;
       syncCCBtn();
+      if (_subVideo) renderSubFrame(_subVideo);
     }
     if ('subtitle_language' in changes) {
       _subState.language = changes.subtitle_language.newValue || 'en';
+    }
+    if ('subtitle_font_size' in changes) {
+      _subState.fontSize = parseInt(changes.subtitle_font_size.newValue) || 18;
+      if (_subOverlay && _subVideo) positionSub(_subOverlay, _subVideo);
+    }
+    if ('subtitle_sync' in changes) {
+      _subState.sync = parseFloat(changes.subtitle_sync.newValue) || 0;
+      if (_subVideo) renderSubFrame(_subVideo);
+    }
+    if ('subtitle_drag_pos' in changes) {
+      _subState.dragPos = changes.subtitle_drag_pos.newValue || { x: 50, bottom: 10 };
+      if (_subOverlay && _subVideo) positionSub(_subOverlay, _subVideo);
     }
   });
 
