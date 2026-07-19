@@ -46,7 +46,6 @@ br.alarms.onAlarm.addListener(async (alarm) => {
 // storage on wake so we avoid redundant API calls across SW restarts.
 
 const TMDB_CACHE_KEY   = 'ss_tmdb_cache';
-const USERID_CACHE_KEY = 'ss_userid_cache';
 
 let _tmdbCache  = null;  // null = not yet loaded from storage
 let _cachedUserId = null;
@@ -278,7 +277,7 @@ async function cleanupOldData() {
     if (Date.now() - last < 24 * 60 * 60 * 1000) return;
     const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
     await fetch(
-      `${supabaseUrl}/rest/v1/playback_states?user_id=eq.${userId}&updated_at=lt.${cutoff}`,
+      `${supabaseUrl}/rest/v1/playback_states?user_id=eq.${userId}&updated_at=lt.${cutoff}&limit=100`,
       {
         method: 'DELETE',
         headers: {
@@ -317,9 +316,8 @@ async function providerIntroDB(imdbId, season, episode, { introdbApiKey }) {
   // introdbApiKey is intentionally not sent here; it's only used for POST /submit.
   if (!introdbApiKey) return null;
   try {
-    const r = await fetchWithRetry(
-      `https://api.introdb.app/segments?imdb_id=${imdbId}&season=${season}&episode=${episode}`
-    );
+    const params = new URLSearchParams({ imdb_id: imdbId, season: String(season), episode: String(episode) });
+    const r = await fetchWithRetry(`https://api.introdb.app/segments?${params}`);
     if (!r.ok) return null;
     return await r.json();
   } catch { return null; }
