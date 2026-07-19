@@ -1370,10 +1370,11 @@
     // Start native platform button poller (skip intro buttons, next episode)
     startNativeBtnPoller(video);
 
-    // ── Skip polling (tracked so navigation cleanup can clear it) ──
-    let _videoPollInterval;
-    _videoPollInterval = setInterval(() => {
-      if (!video.isConnected) { clearInterval(_videoPollInterval); return; }
+    // ── Skip detection: timeupdate event + throttle (replaces 500ms polling) ──
+    
+    // Segment check logic - called on timeupdate
+    const checkSkipSegments = () => {
+      if (!video.isConnected) return;
       if (video.paused || !segments) return;
       if (video._ssCooldownUntil && Date.now() < video._ssCooldownUntil) return;
 
@@ -1409,7 +1410,16 @@
         activeSegmentKey = '';
         hideSkipBtn();
       }
-    }, 500);
+    };
+
+    // Throttled check: fires at most once per 500ms on timeupdate
+    const throttledCheckSkip = throttle(checkSkipSegments, 500);
+    
+    // Listen for timeupdate event (fires ~4x/sec during playback, 0x when paused)
+    video.addEventListener('timeupdate', throttledCheckSkip);
+    
+    // Cleanup: remove listener when video is disconnected or on navigation
+    // (existing observer/mutation handlers will call cleanup logic)
   }
 
   // ── DOM scanning + SPA navigation ─────────────────────────────────────────
