@@ -377,6 +377,42 @@ async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, an
   } catch { return null; }
 }
 
+async function providerSponsorBlock(videoId) {
+  // Only for YouTube (11-char video ID)
+  if (!videoId || videoId.length !== 11) return null;
+  try {
+    // Privacy: hash videoID, send only first 4 chars (k-anonymity)
+    const enc = new TextEncoder();
+    const buf = await crypto.subtle.digest('SHA-256', enc.encode(videoId));
+    const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const prefix = hex.slice(0, 4);
+
+    const r = await fetchWithRetry(
+      `https://sponsor.ajay.app/api/skipSegments/${prefix}?categories=["sponsor","intro","outro","selfpromo"]`
+    );
+    if (!r.ok) return null;
+    const results = await r.json();
+
+    // Find our video in results (multiple videos returned for privacy)
+    const match = results.find(v => v.videoID === videoId);
+    if (!match || !match.segments?.length) return null;
+
+    // Convert to SkipStream format
+    const segments = {};
+    for (const seg of match.segments) {
+      const [start, end] = seg.segment;
+      if (seg.category === 'intro' && !segments.intro) {
+        segments.intro = { start_sec: start, end_sec: end };
+      } else if (seg.category === 'outro' && !segments.outro) {
+        segments.outro = { start_sec: start, end_sec: end };
+      } else if ((seg.category === 'sponsor' || seg.category === 'selfpromo') && !segments.sponsor) {
+        segments.sponsor = { start_sec: start, end_sec: end };
+      }
+    }
+    return Object.keys(segments).length ? segments : null;
+  } catch { return null; }
+}
+
 async function fetchSegmentsMulti(imdbId, season, episode) {
   const config = await getConfig();
   const [introdb, animeskip] = await Promise.all([
@@ -628,6 +664,22 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
           badgeAPI.setBadgeBackgroundColor({ color: '#F59E0B', tabId });
         }
         logError('fetch_segments', e);
+        sendResponse({ data: null, err: String(e) });
+      });
+    return true;
+  }
+
+  if (msg.type === 'FETCH_SEGMENTS_YT') {
+    providerSponsorBlock(msg.videoId)
+      .then(data => {
+        const tabId = sender?.tab?.id;
+        if (tabId && badgeAPI?.setBadgeText) {
+          badgeAPI.setBadgeText({ text: data ? '' : '', tabId });
+        }
+        sendResponse({ data: data || null, err: data ? null : 'no_data' });
+      })
+      .catch(e => {
+        logError('sponsorblock', e);
         sendResponse({ data: null, err: String(e) });
       });
     return true;

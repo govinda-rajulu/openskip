@@ -726,6 +726,20 @@
   async function fetchSegments(imdbId, season, episode) {
     const key = `${imdbId}:${season}:${episode}`;
     if (segmentCache.has(key)) return segmentCache.get(key);
+    
+    // If this is a YouTube video, try SponsorBlock first
+    if (imdbId.startsWith('yt/')) {
+      const ytVideoId = imdbId.slice(3); // extract 11-char ID
+      try {
+        const res = await br.runtime.sendMessage({ type: 'FETCH_SEGMENTS_YT', videoId: ytVideoId });
+        if (res?.data) {
+          segmentCache.set(key, res.data);
+          return res.data;
+        }
+      } catch { /* fall through to regular path */ }
+    }
+    
+    // Regular IntroDB/AnimeSkip path for non-YouTube
     try {
       const res = await br.runtime.sendMessage({ type: 'FETCH_SEGMENTS', imdbId, season, episode });
       if (res.err === 'not_configured') {
@@ -740,7 +754,7 @@
   }
 
   function findActiveSegment(segments, currentTime) {
-    for (const key of ['intro', 'recap', 'outro']) {
+    for (const key of ['intro', 'recap', 'outro', 'sponsor']) {
       const seg = segments[key];
       // -2s grace before start; +1s grace after end to catch near-end seeks
       if (seg && currentTime >= seg.start_sec - 2 && currentTime < seg.end_sec + 1) {
@@ -750,8 +764,8 @@
     return null;
   }
 
-  const PREF_FOR_SEGMENT = { intro: 'skipIntro', recap: 'skipRecap', outro: 'skipOutro' };
-  const SEGMENT_LABELS   = { intro: '⏭ Skip Intro', recap: '⏭ Skip Recap', outro: '⏭ Skip Outro' };
+  const PREF_FOR_SEGMENT = { intro: 'skipIntro', recap: 'skipRecap', outro: 'skipOutro', sponsor: 'skipIntro' };
+  const SEGMENT_LABELS   = { intro: '⏭ Skip Intro', recap: '⏭ Skip Recap', outro: '⏭ Skip Outro', sponsor: '⏭ Skip Sponsor' };
 
   function segmentLabel(key, segment) {
     const base  = SEGMENT_LABELS[key] || `⏭ Skip ${key}`;

@@ -19,7 +19,7 @@
     "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://api.themoviedb.org https://image.tmdb.org https://api.introdb.app https://api.anime-skip.com https://*.supabase.co https://i.ytimg.com https://open.spotify.com https://soundcloud.com https://api.opensubtitles.com https://vip-api.opensubtitles.com https://dl.opensubtitles.org https://*.opensubtitles.org"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://api.themoviedb.org https://image.tmdb.org https://api.introdb.app https://api.anime-skip.com https://sponsor.ajay.app https://*.supabase.co https://i.ytimg.com https://open.spotify.com https://soundcloud.com https://api.opensubtitles.com https://vip-api.opensubtitles.com https://dl.opensubtitles.org https://*.opensubtitles.org"
   },
   "background": {
     "service_worker": "background.js"
