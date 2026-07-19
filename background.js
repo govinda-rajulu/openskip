@@ -59,6 +59,25 @@ async function setTmdbCache(key, value) {
   try { await br.storage.local.set({ [TMDB_CACHE_KEY]: cache }); } catch { /* ok */ }
 }
 
+// ── Error logging ring buffer ─────────────────────────────────────────────────────
+
+const ERROR_LOG_KEY = 'skipstream_error_log';
+
+async function logError(context, error) {
+  try {
+    const s = await br.storage.local.get(ERROR_LOG_KEY);
+    const log = Array.isArray(s[ERROR_LOG_KEY]) ? s[ERROR_LOG_KEY] : [];
+    log.push({
+      ts: Date.now(),
+      ctx: context,
+      msg: String(error).slice(0, 200),
+    });
+    // Keep last 20 entries
+    if (log.length > 20) log.shift();
+    await br.storage.local.set({ [ERROR_LOG_KEY]: log });
+  } catch { /* fail silently */ }
+}
+
 // ── Config ────────────────────────────────────────────────────────────────────
 
 async function getConfig() {
@@ -109,7 +128,8 @@ async function getDerivedUserId() {
     // Persist so next SW wake uses same ID
     await br.storage.local.set({ [INSTALL_ID_KEY]: uuid });
     return uuid;
-  } catch { 
+  } catch (e) { 
+    logError('get_user_id', e);
     return null; 
   }
 }
@@ -175,6 +195,7 @@ async function supabaseUpsert(body, { keepalive = false } = {}) {
     try { detail = await res.text(); } catch (_) {}
     return { ok: false, err: `HTTP ${res.status}${detail ? ' - ' + detail.slice(0, 200) : ''}` };
   } catch (e) {
+    logError('supabase_upsert', e);
     // Network failure - queue for retry
     const QUEUE_KEY = 'skipstream_offline_queue';
     try {
@@ -204,7 +225,7 @@ async function flushOfflineQueue() {
       if (!result.ok && result.err !== 'not_configured') remaining.push(body);
     }
     await br.storage.local.set({ [QUEUE_KEY]: remaining });
-  } catch { /* best-effort */ }
+  } catch (e) { logError('queue_flush', e); }
 }
 
 self.addEventListener('online', flushOfflineQueue);
@@ -434,7 +455,7 @@ async function osubDownload(file_id, sess) {
     } catch { /* ok */ }
 
     return { ok: true, text, remaining: data.remaining };
-  } catch (e) { return { ok: false, err: String(e) }; }
+  } catch (e) { logError('osub_download', e); return { ok: false, err: String(e) }; }
 }
 
 // ── First install / update handler ───────────────────────────────────────────
@@ -508,7 +529,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (msg.type === 'FETCH_SEGMENTS') {
     fetchSegmentsMulti(msg.imdbId, msg.season, msg.episode)
       .then(data => sendResponse({ data: data || null, err: data ? null : 'no_data' }))
-      .catch(e => sendResponse({ data: null, err: String(e) }));
+      .catch(e => { logError('fetch_segments', e); sendResponse({ data: null, err: String(e) }); });
     return true;
   }
 
@@ -766,6 +787,14 @@ if (msg.type === 'OSUB_LOGIN') {
       const dl = await osubDownload(result.file_id, sess);
       sendResponse({ ...dl, file_id: result.file_id, name: result.name });
     })();
+    return true;
+  }
+
+  if (msg.type === 'GET_ERROR_LOG') {
+    br.storage.local.get(ERROR_LOG_KEY).then(s => {
+      const log = Array.isArray(s[ERROR_LOG_KEY]) ? s[ERROR_LOG_KEY] : [];
+      sendResponse({ log });
+    }).catch(() => sendResponse({ log: [] }));
     return true;
   }
 
