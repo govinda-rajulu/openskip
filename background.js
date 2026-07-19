@@ -171,11 +171,24 @@ async function setTabState(tabId, value) {
   } catch { /* best-effort */ }
 }
 
+// ── Supabase URL validation ───────────────────────────────────────────────────────
+
+function isValidSupabaseUrl(url) {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    if (!parsed.hostname.endsWith('.supabase.co')) return false;
+    return true;
+  } catch { return false; }
+}
+
 // ── Supabase upsert ───────────────────────────────────────────────────────────
 
 async function supabaseUpsert(body, { keepalive = false } = {}) {
   const { supabaseUrl, supabaseAnonKey } = await getConfig();
   if (!supabaseUrl || !supabaseAnonKey) return { ok: false, err: 'not_configured' };
+  if (!isValidSupabaseUrl(supabaseUrl)) return { ok: false, err: 'invalid_url' };
   try {
     const res = await fetchWithRetry(
       `${supabaseUrl}/rest/v1/playback_states?on_conflict=user_id,media_id`,
@@ -327,6 +340,7 @@ async function fetchSegmentsMulti(imdbId, season, episode) {
 
 async function checkSupabase(supabaseUrl, supabaseAnonKey) {
   if (!supabaseUrl || !supabaseAnonKey) return { ok: false, message: 'Not configured' };
+  if (!isValidSupabaseUrl(supabaseUrl)) return { ok: false, message: 'Invalid URL - must be https://*.supabase.co' };
   try {
     const res = await fetch(`${supabaseUrl}/rest/v1/playback_states?limit=0`, {
       method: 'HEAD',
@@ -602,6 +616,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (msg.type === 'SUPABASE_GET') {
     getConfig().then(({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
+      if (!isValidSupabaseUrl(supabaseUrl)) { sendResponse({ data: null, err: 'invalid_url' }); return; }
       const url = `${supabaseUrl}/rest/v1/playback_states` +
         `?user_id=eq.${encodeURIComponent(msg.userId)}` +
         `&media_id=eq.${encodeURIComponent(msg.mediaId)}` +
@@ -617,6 +632,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (msg.type === 'SUPABASE_SETTINGS_UPSERT') {
     getConfig().then(async ({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ ok: false, err: 'not_configured' }); return; }
+      if (!isValidSupabaseUrl(supabaseUrl)) { sendResponse({ ok: false, err: 'invalid_url' }); return; }
       try {
         const res = await fetchWithRetry(
           `${supabaseUrl}/rest/v1/user_settings?on_conflict=user_id`,
@@ -645,6 +661,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (msg.type === 'SUPABASE_SETTINGS_GET') {
     getConfig().then(async ({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
+      if (!isValidSupabaseUrl(supabaseUrl)) { sendResponse({ data: null, err: 'invalid_url' }); return; }
       try {
         const url = `${supabaseUrl}/rest/v1/user_settings` +
           `?user_id=eq.${encodeURIComponent(msg.userId)}` +
@@ -662,6 +679,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (msg.type === 'SUPABASE_GET_ALL') {
     getConfig().then(({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
+      if (!isValidSupabaseUrl(supabaseUrl)) { sendResponse({ data: null, err: 'invalid_url' }); return; }
       const url = `${supabaseUrl}/rest/v1/playback_states` +
         `?user_id=eq.${encodeURIComponent(msg.userId)}` +
         `&select=media_id,playback_time,duration,site,site_name,video_title,device_name,page_url,updated_at` +
