@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.9.1] - 2026-07-19
+
+### Added
+- SponsorBlock integration: auto-skip sponsors, intros, outros on YouTube (privacy-preserving hash prefix lookup)
+- MutationObserver for native skip button detection (catches buttons appearing while video is paused)
+- Instant auto-skip mode (no countdown toast when auto enabled)
+- Silent auto-resume with brief toast (no prompt dialog)
+- Full subtitle overlay: draggable, responsive font, sync offset, fullscreen support
+
+### Fixed
+- All documentation updated to reflect UUID identity (not SHA-256)
+- Removed dead test files (test-ai.mjs, package.json)
+- Cleaned updates.json of deleted release versions
+
 ## [1.9.0] - 2026-07-19
 
 ### Security
