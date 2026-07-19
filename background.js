@@ -397,17 +397,13 @@ async function providerSponsorBlock(videoId) {
     const match = results.find(v => v.videoID === videoId);
     if (!match || !match.segments?.length) return null;
 
-    // Convert to SkipStream format
+    // Convert to SkipStream format - collect ALL segments as arrays
     const segments = {};
     for (const seg of match.segments) {
       const [start, end] = seg.segment;
-      if (seg.category === 'intro' && !segments.intro) {
-        segments.intro = { start_sec: start, end_sec: end };
-      } else if (seg.category === 'outro' && !segments.outro) {
-        segments.outro = { start_sec: start, end_sec: end };
-      } else if ((seg.category === 'sponsor' || seg.category === 'selfpromo') && !segments.sponsor) {
-        segments.sponsor = { start_sec: start, end_sec: end };
-      }
+      const key = seg.category; // sponsor, intro, outro, selfpromo
+      if (!segments[key]) segments[key] = [];
+      segments[key].push({ start_sec: start, end_sec: end });
     }
     return Object.keys(segments).length ? segments : null;
   } catch { return null; }

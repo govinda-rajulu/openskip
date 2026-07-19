@@ -754,18 +754,23 @@
   }
 
   function findActiveSegment(segments, currentTime) {
-    for (const key of ['intro', 'recap', 'outro', 'sponsor']) {
-      const seg = segments[key];
-      // -2s grace before start; +1s grace after end to catch near-end seeks
-      if (seg && currentTime >= seg.start_sec - 2 && currentTime < seg.end_sec + 1) {
-        return { key, segment: seg };
+    function isInSegment(time, segmentOrArray) {
+      if (!segmentOrArray) return null;
+      if (Array.isArray(segmentOrArray)) {
+        return segmentOrArray.find(s => time >= s.start_sec - 2 && time < s.end_sec + 1) || null;
       }
+      return (time >= segmentOrArray.start_sec - 2 && time < segmentOrArray.end_sec + 1) ? segmentOrArray : null;
+    }
+    for (const key of ['intro', 'recap', 'outro', 'sponsor', 'selfpromo']) {
+      const seg = segments[key];
+      const active = isInSegment(currentTime, seg);
+      if (active) return { key, segment: active };
     }
     return null;
   }
 
-  const PREF_FOR_SEGMENT = { intro: 'skipIntro', recap: 'skipRecap', outro: 'skipOutro', sponsor: 'skipIntro' };
-  const SEGMENT_LABELS   = { intro: '⏭ Skip Intro', recap: '⏭ Skip Recap', outro: '⏭ Skip Outro', sponsor: '⏭ Skip Sponsor' };
+  const PREF_FOR_SEGMENT = { intro: 'skipIntro', recap: 'skipRecap', outro: 'skipOutro', sponsor: 'skipIntro', selfpromo: 'skipIntro' };
+  const SEGMENT_LABELS   = { intro: '⏭ Skip Intro', recap: '⏭ Skip Recap', outro: '⏭ Skip Outro', sponsor: '⏭ Skip Sponsor', selfpromo: '⏭ Skip Self-promo' };
 
   function segmentLabel(key, segment) {
     const base  = SEGMENT_LABELS[key] || `⏭ Skip ${key}`;
@@ -1618,6 +1623,40 @@
     
     // Listen for timeupdate event (fires ~4x/sec during playback, 0x when paused)
     video.addEventListener('timeupdate', throttledCheckSkip);
+    
+    // Keyboard shortcuts: Alt+Right (skip segment), Alt+Z (undo/go back 15s)
+    document.addEventListener('keydown', (e) => {
+      if (!video || !video.isConnected) return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+      
+      // Alt+Right: skip current segment manually
+      if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (segments) {
+          for (const [key, seg] of Object.entries(segments)) {
+            function isInSegment(time, segmentOrArray) {
+              if (!segmentOrArray) return null;
+              if (Array.isArray(segmentOrArray)) {
+                return segmentOrArray.find(s => time >= s.start_sec && time < s.end_sec) || null;
+              }
+              return (time >= segmentOrArray.start_sec && time < segmentOrArray.end_sec) ? segmentOrArray : null;
+            }
+            const active = isInSegment(video.currentTime, seg);
+            if (active) {
+              video.currentTime = active.end_sec;
+              recordSkipStat(active.end_sec - video.currentTime);
+              break;
+            }
+          }
+        }
+      }
+      
+      // Alt+Z: undo last skip (go back 15 seconds)
+      if (e.altKey && e.key === 'z') {
+        e.preventDefault();
+        video.currentTime = Math.max(0, video.currentTime - 15);
+      }
+    });
     
     // Cleanup: remove listener when video is disconnected or on navigation
     // (existing observer/mutation handlers will call cleanup logic)
