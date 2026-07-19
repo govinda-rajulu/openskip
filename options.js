@@ -245,7 +245,9 @@ async function verifyTmdb(key) {
   }
 
   try {
-    const r = await fetch('https://api.themoviedb.org/3/configuration?api_key=' + encodeURIComponent(key));
+    const r = await fetch('https://api.themoviedb.org/3/configuration', {
+      headers: { Authorization: 'Bearer ' + key }
+    });
     if (r.ok) {
       setDot(dotMain, 'ok', 'Connected - TMDB metadata active', msgMain);
       setDot(dotCard, 'ok');
@@ -775,7 +777,7 @@ function renderHistory(items) {
 
     const el = document.createElement('a');
     el.className = 'h-item';
-    el.href = url;
+    el.href = (url && (url.startsWith('http://') || url.startsWith('https://'))) ? url : '#';
     el.target = '_blank';
     el.rel = 'noopener';
 
@@ -1105,19 +1107,57 @@ if (importBtn && importFile) {
       // Run migration shim before merging
       parsed = migrateImportData(parsed);
 
-      const existing = await br.storage.local.get(null);
+      // Filter imported data by whitelist
+      const IMPORT_ALLOWED = [
+        'skipstream_cache', 'skipstream_stats', 'skipstream_site_rules',
+        'skipMode', 'skipIntro', 'skipRecap', 'skipOutro',
+        'resumePlayback', 'autoNextEpisode', 'playbackSpeed',
+        'skipstream_theme', 'subtitle_language', 'subtitle_font_size',
+        'subtitle_enabled', 'deviceName',
+      ];
 
-      if (parsed.supabaseUrl && parsed.supabaseUrl !== existing.supabaseUrl) {
-        const msg = existing.supabaseUrl
-          ? `Backup has a different Supabase project (${parsed.supabaseUrl}). Your current one (${existing.supabaseUrl}) stays active, this won't override it. Continue importing the rest?`
-          : `This backup will set your Supabase project to ${parsed.supabaseUrl}. Only continue if you trust this file. Continue?`;
-        if (!confirm(msg)) { delete parsed.supabaseUrl; delete parsed.supabaseAnonKey; }
+      const IMPORT_BLOCKED = [
+        'skipstream_install_id', 'ss_userid_cache',
+        'supabaseUrl', 'supabaseAnonKey',
+        'introdbApiKey', 'tmdbApiKey',
+        'animeSkipClientId', 'animeSkipAuthToken',
+        'osub_username', 'osub_password', 'osub_session',
+        'skipstream_offline_queue', 'ss_tab_state',
+        'skipstream_error_log',
+      ];
+
+      const safeData = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        if (IMPORT_BLOCKED.includes(key)) continue;
+        if (!IMPORT_ALLOWED.includes(key)) continue;
+        safeData[key] = value;
       }
 
-      const merged = { ...parsed, ...existing };
+      // Type validation
+      if (safeData.skipstream_site_rules && typeof safeData.skipstream_site_rules !== 'object') {
+        delete safeData.skipstream_site_rules;
+      }
+      if (safeData.skipstream_cache && typeof safeData.skipstream_cache !== 'object') {
+        delete safeData.skipstream_cache;
+      }
+      if (safeData.skipstream_stats && typeof safeData.skipstream_stats !== 'object') {
+        delete safeData.skipstream_stats;
+      }
+
+      // Size guard
+      if (JSON.stringify(safeData).length > 1048576) {
+        showAlert($('alert-export'), 'err', 'Import too large (max 1MB).');
+        importFile.value = '';
+        return;
+      }
+
+      const existing = await br.storage.local.get(null);
+
+      // Note: Filtered data no longer has supabaseUrl/Key, but keep existing creds
+      const merged = { ...safeData, ...existing };
 
       // Combine stats additively (skipstream_stats blob)
-      const pStats = parsed[S.stats]   || {};
+      const pStats = safeData[S.stats]   || {};
       const eStats = existing[S.stats] || {};
       merged[S.stats] = {
         skipsTotal:    (pStats.skipsTotal    || 0) + (eStats.skipsTotal    || 0),
