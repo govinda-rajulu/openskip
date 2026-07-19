@@ -1422,27 +1422,31 @@
     // (existing observer/mutation handlers will call cleanup logic)
   }
 
-  // ── DOM scanning + SPA navigation ─────────────────────────────────────────
+  // ── Early-exit for iframes without video ────────────────────────────────────
+  // Wrap main init logic in a function so iframes can skip if no video present
 
-  function scanVideos() {
-    document.querySelectorAll('video').forEach(v => attachVideo(v));
-  }
+  function initSkipStream() {
+    // ── DOM scanning + SPA navigation ─────────────────────────────────────────
 
-  const debouncedScan = debounce(scanVideos, 400);
-  const _domObserver = new MutationObserver(debouncedScan);
-  _domObserver.observe(document.documentElement, { childList: true, subtree: true });
-  window.addEventListener('load', () => setTimeout(scanVideos, 1000));
+    function scanVideos() {
+      document.querySelectorAll('video').forEach(v => attachVideo(v));
+    }
 
-  let lastHref = location.href;
+    const debouncedScan = debounce(scanVideos, 400);
+    const _domObserver = new MutationObserver(debouncedScan);
+    _domObserver.observe(document.documentElement, { childList: true, subtree: true });
+    window.addEventListener('load', () => setTimeout(scanVideos, 1000));
 
-  function onNavigation() {
-    if (location.href === lastHref) return;
-    lastHref = location.href;
-    hideSkipBtn();
-    _userIdFetched    = false;
-    _userIdCache      = null;
-    _nextEpTriggered  = false;
-    // Clear and restart still-watching poller (picks up new page's video elements)
+    let lastHref = location.href;
+
+    function onNavigation() {
+      if (location.href === lastHref) return;
+      lastHref = location.href;
+      hideSkipBtn();
+      _userIdFetched    = false;
+      _userIdCache      = null;
+      _nextEpTriggered  = false;
+      // ... existing navigation logic (lines 1445-1497) ...
     clearInterval(_stillWatchingInterval);
     _stillWatchingInterval = setInterval(() => {
       const vid = document.querySelector('video');
@@ -1495,50 +1499,76 @@
     return false;
   });
 
-  // ── Boot ───────────────────────────────────────────────────────────────────
-  // Boot: load prefs + scan, then async bulk-pull cloud positions into local cache
-  loadPrefs().then(scanVideos);
+    // ── Boot ───────────────────────────────────────────────────────────────────
+    // Boot: load prefs + scan, then async bulk-pull cloud positions into local cache
+    loadPrefs().then(scanVideos);
 
-  // Cloud->local background sync: pull all cloud positions into skipstream_cache
-  // Runs once per page load. Means resume works offline after first sync.
-  (async () => {
-    try {
-      const userId = await getUserId();
-      if (!userId) return;
-      // Throttle: only sync every 5 min per tab
-      const tsKey = '_ss_cloud_sync_ts';
-      const stored = await br.storage.local.get(tsKey);
-      if (stored[tsKey] && Date.now() - stored[tsKey] < 5 * 60 * 1000) return;
-      await br.storage.local.set({ [tsKey]: Date.now() });
+    // Cloud->local background sync: pull all cloud positions into skipstream_cache
+    // Runs once per page load. Means resume works offline after first sync.
+    (async () => {
+      try {
+        const userId = await getUserId();
+        if (!userId) return;
+        // Throttle: only sync every 5 min per tab
+        const tsKey = '_ss_cloud_sync_ts';
+        const stored = await br.storage.local.get(tsKey);
+        if (stored[tsKey] && Date.now() - stored[tsKey] < 5 * 60 * 1000) return;
+        await br.storage.local.set({ [tsKey]: Date.now() });
 
-      const result = await br.runtime.sendMessage({ type: 'SUPABASE_GET_ALL', userId });
-      if (!result?.data?.length) return;
+        const result = await br.runtime.sendMessage({ type: 'SUPABASE_GET_ALL', userId });
+        if (!result?.data?.length) return;
 
-      const cacheStored = await br.storage.local.get(CACHE_KEY);
-      const cache = cacheStored[CACHE_KEY] || {};
-      let updated = false;
-      for (const row of result.data) {
-        const mid = row.media_id;
-        if (!mid) continue;
-        const existing = cache[mid];
-        const cloudTs = new Date(row.updated_at || 0).getTime() || 0;
-        // Compare by recency (timestamp), not playback position - position alone
-        // can't tell "user rewound on purpose" apart from "stale data".
-        if (!existing || cloudTs > (existing.t || 0)) {
-          cache[mid] = {
-            p:         row.playback_time || 0,
-            d:         row.duration      || 0,
-            t:         cloudTs || Date.now(),
-            url:       row.media_id,
-            title:     row.video_title   || '',
-            site:      row.site          || '',
-            site_name: row.site_name     || '',
-          };
-          updated = true;
+        const cacheStored = await br.storage.local.get(CACHE_KEY);
+        const cache = cacheStored[CACHE_KEY] || {};
+        let updated = false;
+        for (const row of result.data) {
+          const mid = row.media_id;
+          if (!mid) continue;
+          const existing = cache[mid];
+          const cloudTs = new Date(row.updated_at || 0).getTime() || 0;
+          // Compare by recency (timestamp), not playback position - position alone
+          // can't tell "user rewound on purpose" apart from "stale data".
+          if (!existing || cloudTs > (existing.t || 0)) {
+            cache[mid] = {
+              p:         row.playback_time || 0,
+              d:         row.duration      || 0,
+              t:         cloudTs || Date.now(),
+              url:       row.media_id,
+              title:     row.video_title   || '',
+              site:      row.site          || '',
+              site_name: row.site_name     || '',
+            };
+            updated = true;
+          }
         }
-      }
-      if (updated) await br.storage.local.set({ [CACHE_KEY]: cache });
-    } catch { /* best-effort, never block */ }
-  })();
+        if (updated) await br.storage.local.set({ [CACHE_KEY]: cache });
+      } catch { /* best-effort, never block */ }
+    })();
+  } // End initSkipStream()
+
+  // ── Conditional init: skip iframe startup if no video present ────────────────
+
+  if (window === window.top) {
+    // Top-level window: init immediately
+    initSkipStream();
+  } else {
+    // In an iframe: check for video element
+    const existingVideo = document.querySelector('video');
+    if (existingVideo) {
+      // Video present: init now
+      initSkipStream();
+    } else {
+      // No video yet: wait up to 5 seconds
+      const _waitObs = new MutationObserver(() => {
+        if (document.querySelector('video')) {
+          _waitObs.disconnect();
+          clearTimeout(_waitTimeout);
+          initSkipStream();
+        }
+      });
+      _waitObs.observe(document.documentElement, { childList: true, subtree: true });
+      const _waitTimeout = setTimeout(() => { _waitObs.disconnect(); }, 5000);
+    }
+  }
 
 })();
