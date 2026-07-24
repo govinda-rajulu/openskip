@@ -1085,6 +1085,23 @@
     }, 800);
   }
 
+  let _skipBtnObserver = null;
+  function startNativeSkipObserver(video) {
+    if (_skipBtnObserver) return;
+    _skipBtnObserver = new MutationObserver(() => {
+      if (!video || !video.isConnected) return;
+      const ep = getSitePrefs(prefs);
+      if (ep.skipEnabled) {
+        const now = Date.now();
+        if (now - _lastNativeSkipTs > 10000 && clickNativeSkipButton()) {
+          _lastNativeSkipTs = now;
+          recordSkipStat(60);
+        }
+      }
+    });
+    _skipBtnObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
 
 
   // ── Skip button ────────────────────────────────────────────────────────────
@@ -1580,6 +1597,7 @@
 
     // Start native platform button poller (skip intro buttons, next episode)
     startNativeBtnPoller(video);
+    startNativeSkipObserver(video);
 
     // ── Skip detection: timeupdate event + throttle (replaces 500ms polling) ──
     
@@ -1589,6 +1607,8 @@
         segments = null;
         activeSegmentKey = '';
         hideSkipBtn();
+        if (_skipBtnObserver) { _skipBtnObserver.disconnect(); _skipBtnObserver = null; }
+        startNativeSkipObserver(video);
         br.storage.local.get('playbackSpeed').then(s => {
           const rate = parseFloat(s.playbackSpeed) || 1;
           if (rate !== 1 && video && video.isConnected) video.playbackRate = rate;
