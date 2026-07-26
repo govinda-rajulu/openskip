@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.9.3] - 2026-07-24
+
+### Fixed
+- History links: normalized page_url field across local cache and cloud sources (snake_case vs camelCase mismatch)
+- History items no longer open extension pages when URL is missing or invalid
+- Native skip buttons now detected via MutationObserver (fires even when video is paused)
+- SKIP_SELECTORS wired to MutationObserver + SPA navigation cleanup
+
 ## [1.9.2] - 2026-07-19
 
 ### Added
