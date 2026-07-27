@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.9.4] - 2026-07-28
+
+### Performance
+- Removed paint-triggering CSS transitions (background, border-color, color, box-shadow)
+- Flat background replaces linear-gradient on popup body
+- Single lightweight shadow replaces 3-layer box-shadow
+- GPU-promoted toggle thumbs (will-change: transform)
+- Reduced motion on touch devices (@media pointer: coarse)
+- Removed backdrop-filter from options.css
+
+### Added
+- Dynamic Material You theming from user-chosen seed color (OKLCH palette generation)
+- Theme color picker with 6 presets in popup Settings tab
+- Theme engine applies consistently across popup and options page
+
 ## [1.9.3] - 2026-07-24
 
 ### Fixed
