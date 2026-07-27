@@ -185,13 +185,25 @@
         </div>
       </div>
 
-      <button class="save-btn" id="saveSettingsBtn">Save Settings</button>
+      <div class="skip-section">
+        <span class="skip-label">Theme Color</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <input type="color" id="seedColorPicker" value="#57A860" style="width:36px;height:36px;border:none;border-radius:50%;cursor:pointer;padding:0;">
+          <button type="button" class="color-dot" data-color="#57A860" style="width:24px;height:24px;border-radius:50%;border:2px solid transparent;background:#57A860;cursor:pointer;padding:0;"></button>
+          <button type="button" class="color-dot" data-color="#4285F4" style="width:24px;height:24px;border-radius:50%;border:2px solid transparent;background:#4285F4;cursor:pointer;padding:0;"></button>
+          <button type="button" class="color-dot" data-color="#EA4335" style="width:24px;height:24px;border-radius:50%;border:2px solid transparent;background:#EA4335;cursor:pointer;padding:0;"></button>
+          <button type="button" class="color-dot" data-color="#FBBC04" style="width:24px;height:24px;border-radius:50%;border:2px solid transparent;background:#FBBC04;cursor:pointer;padding:0;"></button>
+          <button type="button" class="color-dot" data-color="#9C27B0" style="width:24px;height:24px;border-radius:50%;border:2px solid transparent;background:#9C27B0;cursor:pointer;padding:0;"></button>
+          <button type="button" class="color-dot" data-color="#FF6D00" style="width:24px;height:24px;border-radius:50%;border:2px solid transparent;background:#FF6D00;cursor:pointer;padding:0;"></button>
+        </div>
+      </div>
 
     </div>
   </div>
 
 </div>
 <footer><a href="https://github.com/govinda-rajulu/openskip" target="_blank">SkipStream</a></footer>
+<script src="theme-engine.js"></script>
 <script src="popup.js"></script>
 </body>
 </html>
