@@ -40,6 +40,7 @@ $('themeBtn').addEventListener('click', () => {
   currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
   applyTheme(currentTheme);
   br.storage.local.set({ [KEYS.theme]: currentTheme });
+  if (window.applyThemeFromSeed) applyThemeFromSeed(null, currentTheme);
 });
 
 // -- Tabs --
@@ -220,6 +221,7 @@ async function loadState() {
   currentTheme   = data[KEYS.theme] || 'dark';
 
   applyTheme(currentTheme);
+  if (window.applyThemeFromSeed) applyThemeFromSeed(data.skipstream_seed_color || '#57A860', currentTheme);
   $('masterToggle').checked = enabled;
   $('masterSub').textContent = enabled ? 'Extension is active' : 'Extension is paused';
 
@@ -308,5 +310,30 @@ loadState();
       document.body.appendChild(overlay);
       setTimeout(() => overlay.remove(), 3800); // Remove after animation
     }
+  });
+})();
+
+// -- Theme color picker --
+(() => {
+  const picker = document.getElementById('seedColorPicker');
+  if (!picker) return;
+  const br2 = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
+
+  br2.storage.local.get(['skipstream_seed_color']).then(data => {
+    if (data.skipstream_seed_color) picker.value = data.skipstream_seed_color;
+  }).catch(() => {});
+
+  picker.addEventListener('input', () => {
+    br2.storage.local.set({ skipstream_seed_color: picker.value });
+    if (window.applyThemeFromSeed) applyThemeFromSeed(picker.value, null);
+  });
+
+  document.querySelectorAll('.color-dot').forEach(dot => {
+    dot.addEventListener('click', () => {
+      const color = dot.dataset.color;
+      picker.value = color;
+      br2.storage.local.set({ skipstream_seed_color: color });
+      if (window.applyThemeFromSeed) applyThemeFromSeed(color, null);
+    });
   });
 })();
