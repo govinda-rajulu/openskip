@@ -210,8 +210,6 @@ body {
   width: var(--sidebar-w);
   min-height: 100vh;
   background: var(--sidebar-bg);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
   border-right: 1px solid var(--divider);
   display: flex;
   flex-direction: column;
@@ -297,7 +295,6 @@ body {
   text-align: left;
   width: 100%;
   text-decoration: none;
-  transition: background var(--ease), color var(--ease);
 }
 
 .nav-item svg { flex-shrink: 0; opacity: 0.7; }
@@ -322,7 +319,6 @@ body {
   background: var(--text3);
   margin-left: auto;
   flex-shrink: 0;
-  transition: background var(--ease), box-shadow var(--ease);
 }
 
 .nav-dot.ok   { background: var(--ok);     box-shadow: 0 0 0 2px var(--ok-dim); }
@@ -359,14 +355,12 @@ body {
 /* ---------- Card ---------- */
 .card {
   background: var(--card);
-  backdrop-filter: blur(24px) saturate(170%);
-  -webkit-backdrop-filter: blur(24px) saturate(170%);
   border: 1px solid var(--card-border);
   border-radius: var(--r-card);
   box-shadow: var(--shadow);
   margin-bottom: clamp(14px,1.2vw,18px);
   overflow: hidden;
-  transition: box-shadow 200ms cubic-bezier(0.2,0,0,1), transform 200ms cubic-bezier(0.2,0,0,1);
+  transition: transform 200ms cubic-bezier(0.2,0,0,1);
 }
 
 .card:hover {
@@ -439,7 +433,6 @@ input[type=password] {
   font-size: var(--fs-body);
   font-family: var(--font);
   outline: none;
-  transition: border-color var(--ease), box-shadow var(--ease);
 }
 
 input[type=text]:focus,
@@ -459,7 +452,6 @@ select {
   font-family: var(--font);
   outline: none;
   cursor: pointer;
-  transition: border-color var(--ease);
 }
 
 select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
@@ -517,7 +509,6 @@ select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--
   background: var(--toggle-off);
   border-radius: var(--md-sys-shape-corner-full); /* 22px already >= half of 22px track height, renders identically as pill */
   cursor: pointer;
-  transition: background var(--ease), box-shadow var(--ease);
 }
 
 .slider::before {
@@ -566,8 +557,6 @@ select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--
   flex-shrink: 0;
   margin-top: var(--sp-1);
   background: var(--text3);
-  transition: background 320ms cubic-bezier(0.4,0,0.2,1),
-              box-shadow 320ms cubic-bezier(0.4,0,0.2,1);
 }
 
 .status-dot.ok       { background: var(--ok);     box-shadow: 0 0 0 3px var(--ok-dim); }
@@ -597,7 +586,6 @@ select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--
   color: var(--text3);
   line-height: var(--lh-155);
   word-break: break-word;
-  transition: color 320ms cubic-bezier(0.4,0,0.2,1);
 }
 
 .status-msg.ok   { color: var(--ok); }
@@ -644,7 +632,7 @@ button {
   font-family: var(--font);
   line-height: var(--lh-100);
   white-space: nowrap;
-  transition: background var(--ease), transform var(--ease), opacity var(--ease), box-shadow var(--ease), outline var(--ease);
+  transition: transform var(--ease), opacity var(--ease);
 }
 
 button:active   { transform: scale(0.97); }
@@ -720,7 +708,6 @@ button:focus-visible {
   cursor: pointer;
   font-family: var(--font);
   text-align: left;
-  transition: border-color var(--ease), background var(--ease), box-shadow var(--ease);
 }
 
 .mode-chip:hover {
@@ -763,7 +750,6 @@ button:focus-visible {
   border-radius: var(--r-sm);
   margin-bottom: var(--sp-px-6);
   font-size: var(--fs-px-12);
-  transition: border-color var(--ease);
 }
 
 .site-rule-row:hover { border-color: var(--accent); }
@@ -779,7 +765,6 @@ button:focus-visible {
   font-size: var(--md-sys-typescale-title-medium-size); line-height: var(--lh-100);
   padding: 0 4px;
   border-radius: var(--md-sys-shape-corner-extra-small);
-  transition: color var(--ease);
 }
 
 .site-rule-del:hover { color: var(--danger); }
@@ -807,7 +792,6 @@ button:focus-visible {
   border: 1px solid var(--divider);
   border-radius: var(--r-md);
   padding: var(--sp-px-14) var(--sp-4);
-  transition: border-color var(--ease), background var(--ease);
 }
 
 .stat-card:hover {
@@ -847,7 +831,6 @@ button:focus-visible {
   font-family: var(--font); font-size: var(--fs-px-12);
   color: var(--text);
   outline: none;
-  transition: border-color var(--ease), box-shadow var(--ease);
 }
 
 .hist-input:focus {
@@ -882,7 +865,6 @@ button:focus-visible {
   border: 1.5px solid var(--divider);
   background: var(--surface);
   color: var(--text2);
-  transition: background var(--ease), border-color var(--ease), color var(--ease);
 }
 
 .source-pill.active {
@@ -909,7 +891,6 @@ button:focus-visible {
   border: 1px solid var(--divider);
   border-radius: var(--r-md);
   padding: var(--sp-px-10) var(--sp-3);
-  transition: border-color var(--ease), background var(--ease);
 }
 
 .h-item:hover {
@@ -996,7 +977,6 @@ button:focus-visible {
   height: 100%;
   background: var(--accent);
   border-radius: var(--md-sys-shape-corner-full); /* 1px already == half of 2px bar height, renders identically as pill */
-  transition: width 0.3s ease;
 }
 
 .h-empty {
@@ -1034,7 +1014,6 @@ button:focus-visible {
   border-radius: 50%;
   background: var(--text3);
   flex-shrink: 0;
-  transition: background var(--ease), box-shadow var(--ease);
 }
 
 .sync-dot.ok {
@@ -1084,7 +1063,6 @@ button:focus-visible {
   box-shadow: var(--shadow-sm);
   padding: 0;
   font-family: var(--font);
-  transition: background var(--ease), color var(--ease);
 }
 .sidebar-toggle:hover { background: var(--surface2); color: var(--text); }
 
@@ -1093,8 +1071,6 @@ button:focus-visible {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.48);
   z-index: 9;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
 }
 
 /* ---------- Responsive ---------- */

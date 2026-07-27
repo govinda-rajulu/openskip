@@ -28,7 +28,7 @@
   --text-muted:     #8B9388;  /* outline */
   --border:         rgba(193, 201, 187, 0.10);   /* outline-variant tint */
   --border-strong:  rgba(193, 201, 187, 0.18);
-  --shadow-card:    0 1px 2px rgba(0,0,0,0.35), 0 8px 24px rgba(0,0,0,0.40), 0 18px 44px rgba(0,0,0,0.30);
+  --shadow-card:    0 2px 8px rgba(0,0,0,0.25);
   --radius-card:    var(--md-sys-shape-corner-extra-large);
   --radius-pill:    var(--md-sys-shape-corner-full);
   --radius-sm:      var(--md-sys-shape-corner-medium);
@@ -125,7 +125,7 @@
 body {
   font-family: var(--font-ui);
   font-size: var(--fs-body);
-  background: linear-gradient(180deg, var(--bg-base) 0%, #0d0c0a 100%);
+  background: var(--bg-base);
   color: var(--text-primary);
   min-width: 320px;
   max-width: 380px;
@@ -205,7 +205,6 @@ body {
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background var(--transition), color var(--transition);
 }
 
 .icon-btn:hover {
@@ -243,7 +242,6 @@ body {
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--text-muted);
-  transition: background var(--transition), box-shadow var(--transition);
 }
 
 #domainDot.active {
@@ -314,10 +312,6 @@ body {
   border: 1.5px solid var(--border-strong);
   border-radius: var(--radius-pill);
   cursor: pointer;
-  transition:
-    background 200ms ease-out,
-    border-color 200ms ease-out,
-    box-shadow 200ms ease-out;
 }
 
 .slider-lg::before {
@@ -331,10 +325,8 @@ body {
   border-radius: 50%;
   background: var(--text-muted);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  transition:
-    transform 200ms ease-out,
-    background 200ms ease-out,
-    box-shadow 200ms ease-out;
+  will-change: transform;
+  transition: transform 200ms ease-out;
 }
 
 .toggle-lg input:checked + .slider-lg {
@@ -439,7 +431,6 @@ body {
   align-items: center;
   padding: var(--sp-px-9) var(--sp-4);
   gap: var(--sp-px-11);
-  transition: background var(--transition);
 }
 
 .seg-row:hover {
@@ -511,10 +502,6 @@ body {
   border: 1.5px solid var(--border-strong);
   border-radius: var(--radius-pill);
   cursor: pointer;
-  transition:
-    background 200ms cubic-bezier(0.4, 0, 0.2, 1),
-    border-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .slider-sm::before {
@@ -528,9 +515,8 @@ body {
   border-radius: 50%;
   background: var(--text-muted);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  transition:
-    transform 200ms var(--md-sys-motion-easing-expressive-spring),
-    background 200ms ease;
+  will-change: transform;
+  transition: transform 200ms var(--md-sys-motion-easing-expressive-spring);
 }
 
 .toggle-sm input:checked + .slider-sm {
@@ -573,12 +559,7 @@ body {
   border-radius: var(--radius-sm);
   cursor: pointer;
   letter-spacing: 0.01em;
-  transition:
-    background 150ms ease-out,
-    border-color 150ms ease-out,
-    color 150ms ease-out,
-    box-shadow 150ms ease-out,
-    transform 80ms ease-out;
+  transition: transform 80ms ease-out;
 }
 
 .action-btn svg { opacity: 0.75; transition: opacity 150ms ease-out; }
@@ -623,7 +604,6 @@ footer a {
   color: var(--text-muted);
   text-decoration: none;
   letter-spacing: 0.02em;
-  transition: color var(--transition);
 }
 
 footer a:hover {
@@ -731,7 +711,6 @@ body.theme-dark {
   cursor: pointer;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
-  transition: color var(--transition), border-color var(--transition), outline var(--transition);
   letter-spacing: 0.01em;
   outline: none;
 }
@@ -788,7 +767,7 @@ body.theme-dark {
   cursor: pointer;
   font-family: var(--font-ui);
   text-align: left;
-  transition: border-color 150ms ease-out, background 150ms ease-out, transform 80ms ease-out;
+  transition: transform 80ms ease-out;
 }
 
 .smode-chip:hover { border-color: var(--accent); background: var(--bg-hover); }
@@ -855,7 +834,6 @@ body.theme-dark {
   border: 1.5px solid var(--border-strong);
   border-radius: var(--md-sys-shape-corner-full); /* 19px already >= half of 27px track height, renders identically as pill */
   cursor: pointer;
-  transition: background 200ms ease-out, border-color 200ms ease-out;
 }
 
 .stog-slider::before {
@@ -866,7 +844,7 @@ body.theme-dark {
   width: 12px; height: 12px;
   border-radius: 50%;
   background: var(--text-muted);
-  transition: transform 200ms ease-out, background 200ms ease-out;
+  transition: transform 200ms ease-out;
 }
 
 .stog-right input:checked + .stog-slider { background: var(--accent); border-color: var(--accent-dim); }
@@ -886,7 +864,7 @@ body.theme-dark {
   font-weight: 700;
   border-radius: var(--md-sys-shape-corner-small);
   cursor: pointer;
-  transition: border-color 150ms ease-out, background 150ms ease-out, color 150ms ease-out, transform 80ms ease-out;
+  transition: transform 80ms ease-out;
 }
 
 .speed-chip:hover { border-color: var(--accent); color: var(--text-primary); }
@@ -919,7 +897,7 @@ body.theme-dark {
   font-size: var(--md-sys-typescale-body-medium-size);
   font-weight: 700;
   cursor: pointer;
-  transition: background 150ms ease-out, box-shadow 150ms ease-out, transform 150ms ease-out;
+  transition: transform 150ms ease-out;
   margin-top: var(--sp-px-2);
 }
 
@@ -954,7 +932,6 @@ body.theme-dark {
   font-weight: 600;
   border-radius: var(--md-sys-shape-corner-small);
   cursor: pointer;
-  transition: border-color var(--transition), background var(--transition);
 }
 
 .sub-upload-btn:hover { border-color: var(--accent); background: var(--bg-hover); color: var(--text-primary); }
@@ -970,7 +947,6 @@ body.theme-dark {
   display: flex; align-items: center; justify-content: center;
   padding: 0;
   font-family: var(--font-ui);
-  transition: color var(--transition), border-color var(--transition);
 }
 
 .sub-clear-btn:hover { color: var(--danger); border-color: var(--danger); }
@@ -1005,7 +981,6 @@ body.theme-dark {
   font-size: var(--fs-px-12);
   cursor: pointer;
   outline: none;
-  transition: border-color var(--transition), box-shadow var(--transition);
 }
 
 .sub-lang-select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
@@ -1037,5 +1012,13 @@ body.theme-dark {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 0ms !important;
+  }
+}
+
+/* ---------- Coarse Input (Touch/Mobile) ---------- */
+@media (pointer: coarse) {
+  :root {
+    --md-sys-motion-easing-expressive-spring: cubic-bezier(0.2, 0, 0, 1);
+    --md-sys-motion-duration-standard: 200ms;
   }
 }
