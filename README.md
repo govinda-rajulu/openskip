@@ -31,9 +31,9 @@
 - **Per-site rules** - override skip mode for specific domains in Settings
 - **Watch stats** - segments skipped, time saved, session count tracked locally
 - **Dismisses "Are you still watching?"** overlays automatically
-- **Dark/light theme toggle** in the popup - persists across sessions
+- **Dark/light theme toggle** in the popup - persists across sessions, works with any accent color
 - **Full backup/restore** - export all history, stats, credentials, and settings as JSON; import merges history
-- **Android auto-update** - Firefox for Android checks for updates via `updates.json`
+- **Dynamic theming** - pick any accent color, the whole UI regenerates an OKLCH palette to match
 - **Works on any site** with a standard HTML5 video element
 
 ---
@@ -72,11 +72,12 @@ Free account at [opensubtitles.com](https://www.opensubtitles.com/#modal-registe
 ```
 manifest.json              - Firefox MV2 manifest (authoritative version source)
 manifest-chrome.json       - Chrome MV3 manifest (must match manifest.json version)
-updates.json               - Firefox Android update feed
-background.js              - Service worker: all API calls, retry logic, offline queue
+updates.json               - Version manifest (informational, not wired to auto-update)
+background.js              - Background script (MV2) / service worker (MV3): all API calls, retry logic, offline queue
 content-scripts/
   content.js               - Injected into all frames: skip detection via timeupdate, resume, speed, site rules
 popup.html / popup.js      - Popup: history, skip settings, stats, speed, sync, theme toggle
+theme-engine.js            - OKLCH palette generator, injects color vars into both pages
 options.html / options.js  - Settings: credentials, per-site rules, import/export, cloud restore
 scripts/
   amo-update.js            - CI: uploads signed ZIP to AMO and updates listing metadata
