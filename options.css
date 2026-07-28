@@ -34,9 +34,9 @@
   --toggle-off:   rgba(24,29,23,0.16);
 
   /* MD3 elevation - layered, soft, tonal shadows */
-  --shadow:       0 1px 2px rgba(24,29,23,0.06), 0 4px 14px rgba(24,29,23,0.08), 0 10px 30px rgba(24,29,23,0.06);
-  --shadow-sm:    0 1px 2px rgba(24,29,23,0.09), 0 2px 6px rgba(24,29,23,0.07);
-  --shadow-lg:    0 2px 4px rgba(24,29,23,0.07), 0 10px 24px rgba(24,29,23,0.10), 0 20px 48px rgba(24,29,23,0.08);
+  --shadow:       0 2px 8px rgba(0,0,0,0.18);
+  --shadow-sm:    0 1px 4px rgba(0,0,0,0.14);
+  --shadow-lg:    0 4px 16px rgba(0,0,0,0.22);
 
   /* MD3 shape scale (semantic aliases, kept for existing selectors) */
   --r-card:       var(--md-sys-shape-corner-extra-large);
@@ -157,9 +157,9 @@ body.theme-light {
   --accent-dim:   rgba(53,105,58,0.11);
   --accent-h:     #1F4A22;
   --toggle-off:   rgba(24,29,23,0.16);
-  --shadow:       0 1px 2px rgba(24,29,23,0.06), 0 4px 14px rgba(24,29,23,0.08), 0 10px 30px rgba(24,29,23,0.06);
-  --shadow-sm:    0 1px 2px rgba(24,29,23,0.09), 0 2px 6px rgba(24,29,23,0.07);
-  --shadow-lg:    0 2px 4px rgba(24,29,23,0.07), 0 10px 24px rgba(24,29,23,0.10), 0 20px 48px rgba(24,29,23,0.08);
+  --shadow:       0 2px 8px rgba(0,0,0,0.18);
+  --shadow-sm:    0 1px 4px rgba(0,0,0,0.14);
+  --shadow-lg:    0 4px 16px rgba(0,0,0,0.22);
 }
 
 body.theme-dark {
@@ -180,9 +180,9 @@ body.theme-dark {
   --accent-dim:   rgba(87,168,96,0.14);
   --accent-h:     #6FBD68;
   --toggle-off:   rgba(193,201,187,0.15);
-  --shadow:       0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.45), 0 16px 40px rgba(0,0,0,0.35);
-  --shadow-sm:    0 1px 3px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.35);
-  --shadow-lg:    0 2px 6px rgba(0,0,0,0.45), 0 12px 28px rgba(0,0,0,0.45), 0 24px 56px rgba(0,0,0,0.4);
+  --shadow:       0 2px 8px rgba(0,0,0,0.18);
+  --shadow-sm:    0 1px 4px rgba(0,0,0,0.14);
+  --shadow-lg:    0 4px 16px rgba(0,0,0,0.22);
 }
 
 /* ---------- Reset ---------- */
@@ -1161,14 +1161,20 @@ button:focus-visible {
     --danger-dim:   rgba(255,180,171,0.11);
     --danger-border:rgba(255,180,171,0.24);
     --toggle-off:   rgba(193,201,187,0.15);
-    --shadow:       0 1px 2px rgba(0,0,0,0.4), 0 6px 20px rgba(0,0,0,0.45), 0 16px 40px rgba(0,0,0,0.35);
-    --shadow-sm:    0 1px 3px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.35);
-    --shadow-lg:    0 2px 6px rgba(0,0,0,0.45), 0 12px 28px rgba(0,0,0,0.45), 0 24px 56px rgba(0,0,0,0.4);
+    --shadow:       0 2px 8px rgba(0,0,0,0.18);
+    --shadow-sm:    0 1px 4px rgba(0,0,0,0.14);
+    --shadow-lg:    0 4px 16px rgba(0,0,0,0.22);
   }
 
   .alert code { background: rgba(255,255,255,0.10); }
 
   .btn-danger:hover:not(:disabled) {
     background: rgba(245,112,127,0.18);
+  }
+}
+
+@media (pointer: coarse) {
+  :root {
+    --md-sys-motion-duration-standard: 200ms;
   }
 }
