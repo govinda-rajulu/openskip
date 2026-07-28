@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.9.6] - 2026-07-28
+
+### Fixed
+- Options page only half-themed: theme-engine now sets the options.css token namespace too
+- Accent tint rendered as a solid block on options nav items and card icons
+
+### Performance
+- options.css three-layer shadows reduced to single layer
+- Reduced motion on touch devices in options.css
+
 ## [1.9.5] - 2026-07-28
 
 ### Fixed

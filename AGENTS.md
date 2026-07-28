@@ -9,10 +9,13 @@ Flat-structure vanilla-JS browser extension. No build step. No npm. No TypeScrip
 ```
 manifest.json              - Firefox MV2 manifest (authoritative version source)
 manifest-chrome.json       - Chrome MV3 manifest (must always match manifest.json version)
+updates.json               - Version manifest (informational, not wired to auto-update)
 background.js              - Service worker: all external API calls, retry logic, user ID derivation
 content-scripts/
   content.js               - Injected into all frames: video detection, skip polling, resume prompt, playback sync
 popup.html / popup.js      - Extension toolbar popup: history, skip toggles, segment reporting
+popup.css / options.css    - Stylesheets for both pages
+theme-engine.js            - OKLCH palette generator, injects color vars into both pages
 options.html / options.js  - Settings page: credential input, connection verification
 scripts/
   amo-update.js            - CI script: uploads signed ZIP to AMO via REST API
@@ -85,14 +88,24 @@ Prefer: resolution=merge-duplicates
 | `SUPABASE_SETTINGS_UPSERT` | options→bg | save stats/prefs/site_rules/theme to `user_settings` |
 | `SUPABASE_SETTINGS_GET` | options→bg | fetch `user_settings` row for restore prompt |
 
+## Packaging - CRITICAL
+Any file that ships inside the extension must be listed in the zip/cp file list of ALL FOUR workflows:
+`.github/workflows/release.yml` (two places: Firefox zip and Chrome cp), `amo-submit.yml`, `cws-submit.yml`, `validate.yml`.
+Adding a file to the repo alone does NOT ship it. This bug has shipped twice: popup.css missing in v1.7.6, theme-engine.js missing in v1.9.4.
+`validate.yml` now fails the build if popup.css, options.css, or theme-engine.js is absent from either ZIP. Extend that guard whenever a new shipped file is added.
+
 ## CI/CD pipeline
 1. Commit all version files, push tag `vX.Y.Z`
 2. `release.yml` triggers: validates JS syntax, security checks, tag==manifest version, CHANGELOG entry, builds ZIP, uploads to GitHub Release
 3. `amo-submit.yml` triggers on release: downloads ZIP artifact, submits to AMO, updates listing metadata
-4. `validate.yml` runs on every push to `main` and every PR
+4. `cws-submit.yml` triggers on release: submits the Chrome ZIP to the Chrome Web Store
+5. `validate.yml` runs on every push to `main` and every PR
 
 ## Common mistakes to avoid
 - Never push a tag before bumping all version files - CI will fail with "tag does not match manifest version"
 - Never use `fetch()` or `XMLHttpRequest` in `content-scripts/content.js`
 - Never use `localStorage` in content script
+- Never add a shipped file without updating all four workflow file lists
+- popup.css and options.css use different CSS variable namespaces - do not assume a token exists in both
+- Only animate transform and opacity. No backdrop-filter (open Firefox Android bug), no multi-layer shadows
 - The constraint name in `supabase_setup.sql` is `playback_states_user_id_media_id_key` - do not rename it
