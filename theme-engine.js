@@ -66,6 +66,44 @@
       el.setProperty('--border', oklchCSS(0.30, 0.04, h, 0.10));
       el.setProperty('--border-strong', oklchCSS(0.30, 0.04, h, 0.18));
     }
+
+    // options.css uses a separate token namespace
+    const isOptions = !!document.querySelector('.sidebar');
+    if (isOptions) {
+      if (mode === 'dark') {
+        el.setProperty('--bg', oklchCSS(0.06, 0.02, h));
+        el.setProperty('--sidebar-bg', oklchCSS(0.12, 0.02, h));
+        el.setProperty('--card', oklchCSS(0.12, 0.02, h));
+        el.setProperty('--card-border', oklchCSS(0.80, 0.04, h, 0.08));
+        el.setProperty('--surface', oklchCSS(0.80, 0.04, h, 0.05));
+        el.setProperty('--surface2', oklchCSS(0.80, 0.04, h, 0.08));
+        el.setProperty('--divider', oklchCSS(0.80, 0.04, h, 0.07));
+        el.setProperty('--input-bg', oklchCSS(0.80, 0.04, h, 0.06));
+        el.setProperty('--input-border', oklchCSS(0.80, 0.04, h, 0.13));
+        el.setProperty('--text', oklchCSS(0.90, 0.02, h));
+        el.setProperty('--text2', oklchCSS(0.80, 0.04, h));
+        el.setProperty('--text3', oklchCSS(0.60, 0.04, h));
+        el.setProperty('--accent-dim', oklchCSS(0.75, c, h, 0.14));
+        el.setProperty('--accent-h', oklchCSS(0.85, c, h));
+        el.setProperty('--toggle-off', oklchCSS(0.80, 0.04, h, 0.15));
+      } else {
+        el.setProperty('--bg', oklchCSS(0.98, 0.02, h));
+        el.setProperty('--sidebar-bg', oklchCSS(1.00, 0.00, h));
+        el.setProperty('--card', oklchCSS(1.00, 0.00, h));
+        el.setProperty('--card-border', oklchCSS(0.30, 0.04, h, 0.08));
+        el.setProperty('--surface', oklchCSS(0.30, 0.04, h, 0.04));
+        el.setProperty('--surface2', oklchCSS(0.30, 0.04, h, 0.065));
+        el.setProperty('--divider', oklchCSS(0.30, 0.04, h, 0.10));
+        el.setProperty('--input-bg', oklchCSS(1.00, 0.00, h));
+        el.setProperty('--input-border', oklchCSS(0.30, 0.04, h, 0.16));
+        el.setProperty('--text', oklchCSS(0.10, 0.02, h));
+        el.setProperty('--text2', oklchCSS(0.30, 0.04, h));
+        el.setProperty('--text3', oklchCSS(0.50, 0.04, h));
+        el.setProperty('--accent-dim', oklchCSS(0.45, c, h, 0.11));
+        el.setProperty('--accent-h', oklchCSS(0.30, c, h));
+        el.setProperty('--toggle-off', oklchCSS(0.30, 0.04, h, 0.16));
+      }
+    }
   }
   br.storage.local.get(['skipstream_seed_color', 'skipstream_theme']).then(data => {
     applyThemeFromSeed(data.skipstream_seed_color || '#57A860', data.skipstream_theme || 'dark');
