@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.5] - 2026-07-28
+
+### Fixed
+- theme-engine.js was missing from every packaged build, dynamic theming was inert in v1.9.4
+- Chosen theme color reset to default green on every popup open (seed key absent from storage read)
+- CI now fails the build if theme-engine.js is missing from the ZIP
+
 ## [1.9.4] - 2026-07-28
 
 ### Performance
