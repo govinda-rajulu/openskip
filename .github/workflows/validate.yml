@@ -194,6 +194,8 @@ jobs:
           fi
           echo "✅ No hardcoded secrets detected"
 
+      - name: DOM contract check
+        run: python3 scripts/dom-contract.py
       - name: Build Firefox release ZIP
         run: |
           zip -r skipstream-firefox.zip \

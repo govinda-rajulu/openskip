@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.9.7] - 2026-07-28
+
+### Fixed
+- Popup was half-dead: a listener bound to a removed Save Settings button threw at load and killed every handler after it, including the History, Stats and gear buttons, state loading, tab detection, subtitle controls and the accent picker
+- Playback speed and the resume / auto-next toggles now persist immediately instead of relying on the removed Save button
+- Hardened the remaining unguarded DOM lookups in popup.js and options.js
+
+### Changed
+- Rebuilt the popup UI: ledger-style status readout, sliding tab indicator, redesigned mode tiles, toggles, speed and subtitle controls
+- Responsive across desktop popup, Firefox Android full-screen and tablet widths, with 44px touch targets on coarse pointers
+- Motion limited to transform and opacity, reduced on touch, disabled under prefers-reduced-motion
+
+### Added
+- CI DOM contract check: the build now fails if a script hard-dereferences an element id that does not exist in its HTML
+
 ## [1.9.6] - 2026-07-28
 
 ### Fixed

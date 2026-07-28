@@ -1,4 +1,4 @@
-/* SkipStream - popup v1.9.6 */
+/* SkipStream - popup v1.9.7 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
@@ -22,7 +22,8 @@ const KEYS = {
 const $ = id => document.getElementById(id);
 
 // Version
-$('versionBadge').textContent = 'v' + br.runtime.getManifest().version;
+const verBadgeEl = $('versionBadge');
+if (verBadgeEl) verBadgeEl.textContent = 'v' + br.runtime.getManifest().version;
 
 // -- Theme: simple light/dark toggle, no system intermediate state --
 let currentTheme = 'dark';
@@ -37,7 +38,7 @@ function applyTheme(t) {
   if (moon) moon.style.display = isDark ? 'none'  : 'block';
 }
 
-$('themeBtn').addEventListener('click', () => {
+$('themeBtn')?.addEventListener('click', () => {
   currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
   applyTheme(currentTheme);
   br.storage.local.set({ [KEYS.theme]: currentTheme });
@@ -122,7 +123,7 @@ function applyModeToUI(mode, enabled) {
 // Mode chip click -> update toggles
 document.querySelectorAll('.smode-chip').forEach(chip => {
   chip.addEventListener('click', () => {
-    applyModeToUI(chip.dataset.mode, $('masterToggle').checked);
+    applyModeToUI(chip.dataset.mode, !!$('masterToggle')?.checked);
     // Persist immediately
     const seg = MODE_TO_SEGS[chip.dataset.mode] || { i: true, r: true, o: true };
     br.storage.local.set({
@@ -150,7 +151,7 @@ document.querySelectorAll('.smode-chip').forEach(chip => {
     const badge = $('modeBadge');
     if (badge) {
       badge.textContent = MODE_LABELS[inferred] || inferred;
-      badge.className = ($('masterToggle').checked && inferred !== 'off') ? 'mode-badge' : 'mode-badge off';
+      badge.className = (!!$('masterToggle')?.checked && inferred !== 'off') ? 'mode-badge' : 'mode-badge off';
     }
     // Persist immediately
     br.storage.local.set({
@@ -171,6 +172,15 @@ document.querySelectorAll('.speed-chip').forEach(chip => {
       c.classList.toggle('selected', isSel);
       c.setAttribute('aria-checked', isSel ? 'true' : 'false');
     });
+    br.storage.local.set({ [KEYS.playRate]: popupRate });
+  });
+});
+['resumePlayback', 'autoNextEpisode'].forEach(id => {
+  $(id)?.addEventListener('change', () => {
+    br.storage.local.set({
+      [KEYS.resumePlay]: $('resumePlayback')?.checked ?? true,
+      [KEYS.autoNext]:   $('autoNextEpisode')?.checked ?? false,
+    });
   });
 });
 
@@ -190,29 +200,14 @@ function applyStats(data) {
 }
 
 // -- Master toggle --
-$('masterToggle').addEventListener('change', () => {
-  const enabled = $('masterToggle').checked;
+$('masterToggle')?.addEventListener('change', () => {
+  const enabled = !!$('masterToggle')?.checked;
   br.storage.local.set({ [KEYS.enabled]: enabled });
   $('masterSub').textContent = enabled ? 'Extension is active' : 'Extension is paused';
   applyModeToUI(popupMode, enabled);
 });
 
-// -- Save all settings --
-$('saveSettingsBtn').addEventListener('click', async () => {
-  const seg = MODE_TO_SEGS[popupMode] || { i: true, r: true, o: true };
-  await br.storage.local.set({
-    [KEYS.skipMode]:  popupMode,
-    [KEYS.playRate]:  popupRate,
-    [KEYS.skipIntro]: $('skipIntro')?.checked ?? seg.i,
-    [KEYS.skipRecap]: $('skipRecap')?.checked ?? seg.r,
-    [KEYS.skipOutro]: $('skipOutro')?.checked ?? seg.o,
-    [KEYS.resumePlay]:$('resumePlayback')?.checked ?? true,
-    [KEYS.autoNext]:  $('autoNextEpisode')?.checked ?? false,
-  });
-  const btn = $('saveSettingsBtn');
-  btn.textContent = 'Saved!';
-  setTimeout(() => { btn.textContent = 'Save Settings'; }, 1800);
-});
+
 
 // -- Load all state --
 async function loadState() {

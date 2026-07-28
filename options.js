@@ -58,7 +58,8 @@ function escapeHtml(str) {
 
 // -- Version badge --
 const manifest = br.runtime.getManifest();
-$('sidebarVer').textContent = 'v' + manifest.version;
+const sidebarVerEl = $('sidebarVer');
+if (sidebarVerEl) sidebarVerEl.textContent = 'v' + manifest.version;
 
 // -- Sidebar nav --
 const navItems = document.querySelectorAll('.nav-item[data-panel]');
