@@ -83,7 +83,7 @@ jobs:
               manifest.json background.js \
               content-scripts/ icons/ \
               popup.html popup.js popup.css \
-              options.html options.js options.css
+              options.html options.js options.css theme-engine.js
             echo "✅ Built: $(du -h $ZIP_NAME | cut -f1)"
           fi
           echo "ZIP contents:"
