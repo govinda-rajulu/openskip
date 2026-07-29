@@ -905,7 +905,6 @@
       background: 'rgba(10,10,18,0.88)',
       color: '#fff', border: '1.5px solid rgba(255,255,255,0.18)',
       borderRadius: '10px', boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
-      backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
       fontFamily: 'system-ui,-apple-system,sans-serif',
       fontSize: '13px', fontWeight: '600',
       pointerEvents: 'auto',
@@ -1197,7 +1196,6 @@
       fontSize: '14px', fontWeight: '700',
       fontFamily: 'system-ui,-apple-system,sans-serif',
       letterSpacing: '0.03em', boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
-      backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
       transition: 'background 0.15s,transform 0.1s',
       userSelect: 'none', pointerEvents: 'auto',
       WebkitFontSmoothing: 'antialiased',
@@ -1461,7 +1459,6 @@
       border:'1.5px solid rgba(255,255,255,0.18)', borderRadius:'10px',
       cursor:'pointer', fontSize:'12px', fontWeight:'700',
       fontFamily:'system-ui,-apple-system,sans-serif',
-      backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)',
       transition:'background 0.15s, opacity 0.15s', pointerEvents:'auto',
     });
     btn.addEventListener('click', e => {
