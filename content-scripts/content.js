@@ -1472,16 +1472,21 @@
     lbl.textContent = 'CC';
     btn.appendChild(svg);
     btn.appendChild(lbl);
+    const p = pal();
     Object.assign(btn.style, {
-      all:'unset', position:(document.fullscreenElement||document.webkitFullscreenElement)?'absolute':'fixed',
-      bottom:'10%', left:'3%', zIndex:'2147483646',
-      display:'flex', alignItems:'center', gap:'5px', padding:'7px 12px',
-      background:'rgba(10,10,18,0.88)', color:'#fff',
-      border:'1.5px solid rgba(255,255,255,0.18)', borderRadius:'10px',
-      cursor:'pointer', fontSize:'12px', fontWeight:'700',
-      fontFamily:'system-ui,-apple-system,sans-serif',
-      transition:'background 0.15s, opacity 0.15s', pointerEvents:'auto',
+      all:'unset', boxSizing:'border-box',
+      position:(document.fullscreenElement||document.webkitFullscreenElement)?'absolute':'fixed',
+      bottom:'68px', left:'3%', zIndex:'2147483646',
+      display:'flex', alignItems:'center', gap:'6px', padding:'8px 12px',
+      background: p.bg, color: p.muted,
+      border:'1px solid ' + p.edge, borderRadius:'10px',
+      cursor:'pointer', fontSize:'12px', fontWeight:'600',
+      fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
+      transition:'opacity 150ms cubic-bezier(.22,1,.36,1), transform 110ms cubic-bezier(.22,1,.36,1)',
+      pointerEvents:'auto',
     });
+    btn.onmousedown = () => { btn.style.transform = 'scale(.95)'; };
+    btn.onmouseup = () => { btn.style.transform = 'scale(1)'; };
     btn.addEventListener('click', e => {
       e.preventDefault(); e.stopPropagation();
       _subState.enabled = !_subState.enabled;
@@ -1496,6 +1501,11 @@
     subContainer(video).appendChild(btn);
     _subCCBtn = btn;
     const onFs = () => { if (!_subCCBtn?.isConnected) return; _subCCBtn.style.position=(document.fullscreenElement||document.webkitFullscreenElement)?'absolute':'fixed'; subContainer(video).appendChild(_subCCBtn); };
+    if (window._ssCCFsHandler) {
+      document.removeEventListener('fullscreenchange', window._ssCCFsHandler);
+      document.removeEventListener('webkitfullscreenchange', window._ssCCFsHandler);
+    }
+    window._ssCCFsHandler = onFs;
     document.addEventListener('fullscreenchange', onFs);
     document.addEventListener('webkitfullscreenchange', onFs);
     return btn;
