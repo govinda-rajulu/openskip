@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.9.8] - 2026-07-29
+
+### Changed
+- Every on-video overlay now follows your accent colour: resume toast, skip countdown, skip button and subtitle toggle all regenerate from the same OKLCH seed as the popup, live, without a reload
+- Rebuilt the resume toast and skip countdown with slide-up entrances, bottom-anchored above player controls so they clear phone notches in fullscreen
+- Skip button is now accent-filled instead of hardcoded blue; CC button fills with the accent when subtitles are active
+
+### Fixed
+- Skip button disappeared behind the video after the second time you entered fullscreen
+- Skip button leaked a mousemove listener every time it was clicked rather than timing out
+- Subtitle toggle stacked a new fullscreen listener on every video
+
+### Performance
+- Removed all backdrop-filter blur from on-video overlays; these re-rasterised every frame over playing video and caused hitches on Firefox Android
+- Overlays now animate transform and opacity only, no paint properties
+
 ## [1.9.7] - 2026-07-28
 
 ### Fixed
