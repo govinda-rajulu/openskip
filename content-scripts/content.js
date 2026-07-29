@@ -21,6 +21,87 @@
   const _promptedVideos = new WeakSet();
   let _lastNativeSkipTs = 0;
 
+  // ── Overlay palette: same OKLCH engine as theme-engine.js ──────────────────
+  // Overlays sit on top of arbitrary video, so they derive their own surface
+  // lightness from the seed rather than assuming the page is dark.
+  let _seedHex = '#57A860';
+  let _pal = null;
+
+  function _hexToOklch(hex) {
+    hex = String(hex || '').replace('#', '');
+    if (!/^[0-9a-fA-F]{6}$/.test(hex)) hex = '57A860';
+    const r = parseInt(hex.slice(0, 2), 16) / 255;
+    const g = parseInt(hex.slice(2, 4), 16) / 255;
+    const b = parseInt(hex.slice(4, 6), 16) / 255;
+    const lin = c => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    const lr = lin(r), lg = lin(g), lb = lin(b);
+    const l_ = 0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb;
+    const m_ = 0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb;
+    const s_ = 0.0883024619 * lr + 0.2220049874 * lg + 0.6896926158 * lb;
+    const l = Math.cbrt(l_), m = Math.cbrt(m_), s = Math.cbrt(s_);
+    const a = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+    const bv = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+    let H = Math.atan2(bv, a) * 180 / Math.PI;
+    if (H < 0) H += 360;
+    return { C: Math.sqrt(a * a + bv * bv), H };
+  }
+
+  function _ok(L, C, H, A) {
+    return 'oklch(' + L + ' ' + C + ' ' + H + (A === undefined ? '' : ' / ' + A) + ')';
+  }
+
+  function buildPalette(hex) {
+    const s = _hexToOklch(hex);
+    const h = s.H;
+    const c = Math.min(s.C, 0.15);
+    return {
+      bg:         _ok(0.16, 0.024, h, 0.94),
+      edge:       _ok(0.90, 0.02, h, 0.16),
+      edgeStrong: _ok(0.90, 0.02, h, 0.32),
+      text:       _ok(0.95, 0.012, h),
+      muted:      _ok(0.72, 0.03, h),
+      accent:     _ok(0.74, c, h),
+      onAccent:   _ok(0.18, c, h),
+    };
+  }
+
+  function pal() {
+    if (!_pal) _pal = buildPalette(_seedHex);
+    return _pal;
+  }
+
+  br.storage.local.get('skipstream_seed_color').then(d => {
+    if (d.skipstream_seed_color) _seedHex = d.skipstream_seed_color;
+    _pal = buildPalette(_seedHex);
+  }).catch(() => { _pal = buildPalette(_seedHex); });
+
+  br.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !changes.skipstream_seed_color) return;
+    _seedHex = changes.skipstream_seed_color.newValue || _seedHex;
+    _pal = buildPalette(_seedHex);
+  });
+
+  // Shared overlay mount: fullscreen-aware container, consistent stacking.
+  function mountOverlay(id) {
+    const old = document.getElementById(id);
+    if (old) old.remove();
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    const container = fsEl || document.body || document.documentElement;
+    const el = document.createElement('div');
+    el.id = id;
+    el.style.position = fsEl ? 'absolute' : 'fixed';
+    el.style.zIndex = '2147483647';
+    return { el, container };
+  }
+
+  function dismissOverlay(el, ms) {
+    if (!el || !el.isConnected) return;
+    el.style.transition = 'opacity 220ms cubic-bezier(.7,0,.84,0), transform 220ms cubic-bezier(.7,0,.84,0)';
+    el.style.opacity = '0';
+    el.style.transform = 'translate3d(-50%, 6px, 0) scale(.98)';
+    setTimeout(() => { if (el.isConnected) el.remove(); }, ms || 240);
+  }
+
   // ── Utilities ──────────────────────────────────────────────────────────────
 
   function debounce(fn, ms) {
