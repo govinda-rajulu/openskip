@@ -1197,24 +1197,31 @@
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     const container = fsEl || document.body || document.documentElement;
     const isFs = !!fsEl;
+    const p = pal();
     Object.assign(btn.style, {
       all: 'unset', position: isFs ? 'absolute' : 'fixed',
-      bottom: '10%', right: '3%', zIndex: '2147483647',
+      bottom: '68px', right: '3%', zIndex: '2147483647',
       display: 'inline-flex', alignItems: 'center',
-      padding: '11px 24px', background: 'rgba(10,10,18,0.88)',
-      color: '#fff', border: '1.5px solid rgba(255,255,255,0.18)',
-      borderRadius: '10px', cursor: 'pointer',
-      fontSize: '14px', fontWeight: '700',
-      fontFamily: 'system-ui,-apple-system,sans-serif',
-      letterSpacing: '0.03em', boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
-      transition: 'background 0.15s,transform 0.1s',
+      padding: '12px 22px', background: p.accent,
+      color: p.onAccent, border: '1px solid transparent',
+      borderRadius: '12px', cursor: 'pointer',
+      fontSize: '14px', fontWeight: '600',
+      fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
+      letterSpacing: '-.005em', boxShadow: '0 6px 22px rgba(0,0,0,0.5)',
+      opacity: '0', transform: 'translate3d(0, 10px, 0) scale(.97)',
+      transition: 'opacity 300ms cubic-bezier(.22,1,.36,1), transform 300ms cubic-bezier(.22,1,.36,1)',
       userSelect: 'none', pointerEvents: 'auto',
       WebkitFontSmoothing: 'antialiased',
     });
-    btn.onmouseover = () => { btn.style.background = 'rgba(37,99,235,0.95)'; btn.style.transform = 'scale(1.04)'; };
-    btn.onmouseout  = () => { btn.style.background = 'rgba(10,10,18,0.88)'; btn.style.transform = 'scale(1)'; };
+    btn.onmouseover = () => { btn.style.transform = 'translate3d(0, 0, 0) scale(1.04)'; };
+    btn.onmouseout  = () => { btn.style.transform = 'translate3d(0, 0, 0) scale(1)'; };
+    btn.onmousedown = () => { btn.style.transform = 'translate3d(0, 0, 0) scale(.97)'; };
     btn.onclick = e => { e.preventDefault(); e.stopPropagation(); onSkip(); removeSkipBtn(); };
     container.appendChild(btn);
+    requestAnimationFrame(() => {
+      btn.style.opacity = '1';
+      btn.style.transform = 'translate3d(0, 0, 0) scale(1)';
+    });
 
     const onFsChange = () => {
       if (document.getElementById(SKIP_BTN_ID)) {
@@ -1223,17 +1230,20 @@
         (newFs || document.body || document.documentElement).appendChild(btn);
       }
     };
-    document.addEventListener('fullscreenchange', onFsChange, { once: true });
-    document.addEventListener('webkitfullscreenchange', onFsChange, { once: true });
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    btn._ssCleanupFs = () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
 
-    let _moved = false;
     const _onMove = () => {
-      _moved = true;
       clearTimeout(btnAutoHideTimer);
       btnAutoHideTimer = setTimeout(removeSkipBtn, 8000);
     };
     document.addEventListener('mousemove', _onMove, { passive: true });
-    btnAutoHideTimer = setTimeout(() => { document.removeEventListener('mousemove', _onMove); removeSkipBtn(); }, 8000);
+    btn._ssCleanupMove = () => document.removeEventListener('mousemove', _onMove);
+    btnAutoHideTimer = setTimeout(removeSkipBtn, 8000);
   }
 
   function showSkipBtn(label, onSkip) {
