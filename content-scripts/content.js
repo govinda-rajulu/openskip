@@ -223,9 +223,9 @@
 
   function getSiteHostname() {
     if (window !== window.top && document.referrer) {
-      try { return new URL(document.referrer).hostname; } catch { /* fall through */ }
+      try { return new URL(document.referrer).hostname.replace(/^www\./, ''); } catch { /* fall through */ }
     }
-    return location.hostname;
+    return location.hostname.replace(/^www\./, '');
   }
 
   function getSiteName() {
