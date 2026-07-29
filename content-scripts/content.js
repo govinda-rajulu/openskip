@@ -897,27 +897,34 @@
 
     const toast = document.createElement('div');
     toast.id = COUNTDOWN_ID;
+    const p = pal();
     Object.assign(toast.style, {
       all: 'unset', position: fsEl ? 'absolute' : 'fixed',
-      bottom: '10%', right: '3%', zIndex: '2147483647',
-      display: 'flex', alignItems: 'center', gap: '10px',
-      padding: '10px 16px',
-      background: 'rgba(10,10,18,0.88)',
-      color: '#fff', border: '1.5px solid rgba(255,255,255,0.18)',
-      borderRadius: '10px', boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
-      fontFamily: 'system-ui,-apple-system,sans-serif',
-      fontSize: '13px', fontWeight: '600',
+      bottom: '68px', right: '3%', zIndex: '2147483647',
+      display: 'flex', alignItems: 'center', gap: '11px',
+      padding: '9px 11px 9px 14px',
+      background: p.bg,
+      color: p.text, border: '1px solid ' + p.edge,
+      borderRadius: '12px', boxShadow: '0 6px 22px rgba(0,0,0,0.5)',
+      fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
+      fontSize: '13.5px', fontWeight: '600', letterSpacing: '-.01em',
       pointerEvents: 'auto',
+      opacity: '0', transform: 'translate3d(0, 10px, 0) scale(.97)',
+      transition: 'opacity 340ms cubic-bezier(.22,1,.36,1), transform 340ms cubic-bezier(.22,1,.36,1)',
     });
 
     const msgEl = document.createElement('span');
     const undoBtn = document.createElement('button');
     Object.assign(undoBtn.style, {
-      all: 'unset', cursor: 'pointer', padding: '4px 10px',
-      background: 'rgba(255,255,255,0.12)', borderRadius: '6px',
-      fontSize: '11px', fontWeight: '700', color: '#fff',
-      border: '1px solid rgba(255,255,255,0.2)',
+      all: 'unset', boxSizing: 'border-box', cursor: 'pointer',
+      height: '30px', padding: '0 13px', display: 'grid', placeItems: 'center',
+      background: p.accent, borderRadius: '8px',
+      fontSize: '12px', fontWeight: '600', color: p.onAccent,
+      fontFamily: 'inherit',
+      transition: 'transform 110ms cubic-bezier(.22,1,.36,1)',
     });
+    undoBtn.onmousedown = () => { undoBtn.style.transform = 'scale(.95)'; };
+    undoBtn.onmouseup = () => { undoBtn.style.transform = 'scale(1)'; };
     undoBtn.textContent = 'Undo';
 
     const doSkip = () => {
@@ -944,6 +951,10 @@
     toast.appendChild(msgEl);
     toast.appendChild(undoBtn);
     container.appendChild(toast);
+    requestAnimationFrame(() => {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translate3d(0, 0, 0) scale(1)';
+    });
 
     _countdownTimer = setInterval(() => {
       secs--;
