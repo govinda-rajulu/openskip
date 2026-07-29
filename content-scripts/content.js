@@ -450,37 +450,87 @@
   }
 
   function showResumeToast(video, position) {
-    // Brief non-interactive toast for silent resume (2 sec auto-fade)
-    const existing = document.getElementById('skipstream-resume-toast');
-    if (existing) existing.remove();
+    const p = pal();
+    const { el: toast, container } = mountOverlay('skipstream-resume-toast');
 
-    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
-    const container = fsEl || document.body || document.documentElement;
-
-    const toast = document.createElement('div');
-    toast.id = 'skipstream-resume-toast';
     Object.assign(toast.style, {
-      all: 'unset', position: fsEl ? 'absolute' : 'fixed',
-      top: '12%', left: '50%', transform: 'translateX(-50%)',
-      zIndex: '2147483647', 
-      padding: '10px 16px',
-      background: 'rgba(10,10,18,0.88)', color: '#fff',
-      border: '1.5px solid rgba(255,255,255,0.18)', borderRadius: '10px',
-      boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
-      backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
-      fontFamily: 'system-ui,-apple-system,sans-serif', 
-      fontSize: '12px', fontWeight: '600',
-      pointerEvents: 'none',
-      transition: 'opacity 0.3s ease-out',
+      left: '50%',
+      bottom: '68px',
+      transform: 'translate3d(-50%, 10px, 0) scale(.97)',
+      opacity: '0',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '11px',
+      maxWidth: 'calc(100% - 28px)',
+      padding: '9px 11px 9px 12px',
+      borderRadius: '12px',
+      background: p.bg,
+      border: '1px solid ' + p.edge,
+      boxShadow: '0 6px 22px rgba(0,0,0,0.5)',
+      color: p.text,
+      fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
+      pointerEvents: 'auto',
+      transition: 'opacity 340ms cubic-bezier(.22,1,.36,1), transform 340ms cubic-bezier(.22,1,.36,1)',
     });
-    toast.textContent = `Resumed from ${fmtTime(position)}`;
+
+    const mark = document.createElement('span');
+    Object.assign(mark.style, {
+      width: '22px', height: '22px', borderRadius: '7px', flex: '0 0 auto',
+      display: 'grid', placeItems: 'center',
+      background: p.accent, color: p.onAccent,
+      fontSize: '11px', fontWeight: '700', lineHeight: '1',
+    });
+    mark.textContent = '\u25B6';
+
+    const txt = document.createElement('span');
+    Object.assign(txt.style, { display: 'flex', flexDirection: 'column', gap: '1px', minWidth: '0' });
+
+    const lbl = document.createElement('span');
+    Object.assign(lbl.style, {
+      fontSize: '9.5px', fontWeight: '600', letterSpacing: '.12em',
+      textTransform: 'uppercase', color: p.muted,
+    });
+    lbl.textContent = 'Picked up where you left off';
+
+    const val = document.createElement('span');
+    Object.assign(val.style, {
+      fontSize: '13.5px', fontWeight: '600', letterSpacing: '-.01em', whiteSpace: 'nowrap',
+    });
+    val.textContent = fmtTime(position);
+
+    txt.appendChild(lbl);
+    txt.appendChild(val);
+
+    const restart = document.createElement('button');
+    Object.assign(restart.style, {
+      all: 'unset', boxSizing: 'border-box', flex: '0 0 auto',
+      height: '30px', padding: '0 11px', borderRadius: '8px',
+      border: '1px solid ' + p.edge, color: p.muted,
+      font: '600 12px/1 inherit', cursor: 'pointer', textAlign: 'center',
+      transition: 'color 140ms cubic-bezier(.22,1,.36,1), border-color 140ms cubic-bezier(.22,1,.36,1)',
+    });
+    restart.textContent = 'Start over';
+    restart.onmouseover = () => { restart.style.color = p.text; restart.style.borderColor = p.edgeStrong; };
+    restart.onmouseout = () => { restart.style.color = p.muted; restart.style.borderColor = p.edge; };
+    restart.onclick = e => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearTimeout(hideTimer);
+      try { if (video.isConnected) video.currentTime = 0; } catch { /* ok */ }
+      dismissOverlay(toast);
+    };
+
+    toast.appendChild(mark);
+    toast.appendChild(txt);
+    toast.appendChild(restart);
     container.appendChild(toast);
 
-    // Fade out and remove after 2 seconds
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      setTimeout(() => { if (toast.isConnected) toast.remove(); }, 300);
-    }, 2000);
+    requestAnimationFrame(() => {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translate3d(-50%, 0, 0) scale(1)';
+    });
+
+    const hideTimer = setTimeout(() => dismissOverlay(toast), 4200);
   }
 
   function showResumePrompt(video, position) {
