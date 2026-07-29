@@ -2,68 +2,45 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>SkipStream</title>
 <link rel="stylesheet" href="popup.css">
-<style>
-.easter-egg-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0.6);
-  font-size: 14px;
-  color: #fff;
-  font-weight: 400;
-  text-align: center;
-  z-index: 9999;
-  animation: easterEggFade 3.8s ease-in-out forwards;
-}
-@keyframes easterEggFade {
-  0% { opacity: 0; }
-  15% { opacity: 1; }
-  85% { opacity: 1; }
-  100% { opacity: 0; }
-}
-</style>
 </head>
-<body>
+<body data-tab="status">
 <div class="card">
 
-  <div class="header">
-    <div class="logo">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/>
-      </svg>
-    </div>
+  <header class="header">
+    <span class="logo" aria-hidden="true">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3,2 13,8 3,14"/><line x1="13" y1="2" x2="13" y2="14"/></svg>
+    </span>
     <span class="header-title">SkipStream</span>
     <span class="ver-badge" id="versionBadge"></span>
-    <button class="icon-btn theme-btn" id="themeBtn" title="Toggle light/dark" aria-label="Toggle light/dark theme">
+    <button class="icon-btn theme-btn" id="themeBtn" title="Toggle light/dark" aria-label="Toggle light or dark theme">
       <svg class="icon-sun" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><line x1="8" y1="1" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="1" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15" y2="8"/><line x1="3.05" y1="3.05" x2="4.46" y2="4.46"/><line x1="11.54" y1="11.54" x2="12.95" y2="12.95"/><line x1="12.95" y1="3.05" x2="11.54" y2="4.46"/><line x1="4.46" y1="11.54" x2="3.05" y2="12.95"/></svg>
       <svg class="icon-moon" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M13.5 10A6 6 0 0 1 6 2.5a6 6 0 1 0 7.5 7.5z"/></svg>
     </button>
-  </div>
+  </header>
 
-  <div class="tab-bar" role="tablist">
-    <button class="tab active" data-tab="status" role="tab" aria-selected="true">Status</button>
-    <button class="tab" data-tab="settings" role="tab" aria-selected="false">Settings</button>
+  <div class="tab-bar" role="tablist" aria-label="Sections">
+    <button class="tab active" data-tab="status" role="tab" aria-selected="true" aria-controls="page-status">Status</button>
+    <button class="tab" data-tab="settings" role="tab" aria-selected="false" aria-controls="page-settings">Settings</button>
+    <span class="tab-ink" aria-hidden="true"></span>
   </div>
 
   <!-- STATUS page -->
-  <div class="page" id="page-status">
+  <section class="page" id="page-status" role="tabpanel" aria-label="Status">
 
-    <div class="domain-strip">
-      <div class="domain-pill">
-        <div id="domainDot"></div>
+    <div class="domain-strip" style="--i:0">
+      <span class="domain-pill">
+        <span id="domainDot"></span>
         <span id="domainLabel">Detecting tab...</span>
-      </div>
+      </span>
     </div>
 
-    <div class="master-block">
+    <div class="master-block" style="--i:1">
       <div class="master-info">
         <h1 class="master-label">SkipStream</h1>
-        <div class="master-sub" id="masterSub">Loading...</div>
+        <p class="master-sub" id="masterSub" aria-live="polite">Loading...</p>
       </div>
       <label class="toggle-lg">
         <input type="checkbox" id="masterToggle" aria-label="Enable SkipStream">
@@ -71,23 +48,22 @@
       </label>
     </div>
 
-    <div class="stats-row">
-      <div class="stat-cell">
-        <div class="stat-val" id="statSkips">0</div>
-        <div class="stat-lbl">Skips today</div>
+    <div class="ledger" style="--i:2">
+      <div class="led-row">
+        <span class="led-lbl">Skips today</span>
+        <span class="led-val" id="statSkips">0</span>
       </div>
-      <div class="stat-cell">
-        <div class="stat-val" id="statTime">0s</div>
-        <div class="stat-lbl">Time saved</div>
+      <div class="led-row">
+        <span class="led-lbl">Time saved</span>
+        <span class="led-val" id="statTime">0s</span>
+      </div>
+      <div class="led-row">
+        <span class="led-lbl">Active mode</span>
+        <span class="mode-badge off" id="modeBadge">Loading</span>
       </div>
     </div>
 
-    <div class="mode-row">
-      <span class="mode-label">Active mode</span>
-      <span class="mode-badge off" id="modeBadge">Loading</span>
-    </div>
-
-    <div class="action-bar">
+    <div class="action-bar" style="--i:3">
       <button class="action-btn" id="historyBtn">
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg>
         History
@@ -100,38 +76,44 @@
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.4"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06"/></svg>
       </button>
     </div>
-  </div>
+  </section>
 
   <!-- SETTINGS page -->
-  <div class="page page-hidden" id="page-settings">
+  <section class="page page-hidden" id="page-settings" role="tabpanel" aria-label="Settings">
     <div class="skip-inner">
 
-      <div class="skip-section">
-        <h2 class="skip-label">Skip Mode</h2>
-        <div class="skip-mode-grid" role="radiogroup" aria-label="Skip Mode">
+      <div class="skip-section" style="--i:0">
+        <h2 class="skip-label">Skip mode</h2>
+        <div class="skip-mode-grid" role="radiogroup" aria-label="Skip mode">
           <button class="smode-chip" data-mode="off" role="radio" aria-checked="false"><span class="smc-name">Off</span><span class="smc-desc">Disabled</span></button>
-          <button class="smode-chip" data-mode="prompt" role="radio" aria-checked="false"><span class="smc-name">Prompt</span><span class="smc-desc">Show button</span></button>
-          <button class="smode-chip" data-mode="auto-all" role="radio" aria-checked="false"><span class="smc-name">Auto All</span><span class="smc-desc">Everything</span></button>
+          <button class="smode-chip" data-mode="prompt" role="radio" aria-checked="false"><span class="smc-name">Prompt</span><span class="smc-desc">Ask first</span></button>
+          <button class="smode-chip" data-mode="auto-all" role="radio" aria-checked="false"><span class="smc-name">Auto all</span><span class="smc-desc">Everything</span></button>
           <button class="smode-chip" data-mode="auto-intro" role="radio" aria-checked="false"><span class="smc-name">Intros</span><span class="smc-desc">Only intros</span></button>
           <button class="smode-chip" data-mode="auto-recap" role="radio" aria-checked="false"><span class="smc-name">Recaps</span><span class="smc-desc">Only recaps</span></button>
           <button class="smode-chip" data-mode="auto-outro" role="radio" aria-checked="false"><span class="smc-name">Outros</span><span class="smc-desc">Only outros</span></button>
         </div>
       </div>
 
-      <div class="skip-section">
+      <div class="skip-section" style="--i:1">
         <h2 class="skip-label">Segments</h2>
         <div class="stog-list">
-          <label class="stog-row"><span>Skip Intros</span><span class="stog-right"><input type="checkbox" id="skipIntro"><span class="stog-slider"></span></span></label>
-          <label class="stog-row"><span>Skip Recaps</span><span class="stog-right"><input type="checkbox" id="skipRecap"><span class="stog-slider"></span></span></label>
-          <label class="stog-row"><span>Skip Outros</span><span class="stog-right"><input type="checkbox" id="skipOutro"><span class="stog-slider"></span></span></label>
-          <label class="stog-row"><span>Resume Playback</span><span class="stog-right"><input type="checkbox" id="resumePlayback"><span class="stog-slider"></span></span></label>
-          <label class="stog-row"><span>Auto Next Episode</span><span class="stog-right"><input type="checkbox" id="autoNextEpisode"><span class="stog-slider"></span></span></label>
+          <label class="stog-row"><span>Skip intros</span><span class="stog-right"><input type="checkbox" id="skipIntro"><span class="stog-slider"></span></span></label>
+          <label class="stog-row"><span>Skip recaps</span><span class="stog-right"><input type="checkbox" id="skipRecap"><span class="stog-slider"></span></span></label>
+          <label class="stog-row"><span>Skip outros</span><span class="stog-right"><input type="checkbox" id="skipOutro"><span class="stog-slider"></span></span></label>
         </div>
       </div>
 
-      <div class="skip-section">
-        <h2 class="skip-label">Playback Speed</h2>
-        <div class="speed-row" role="radiogroup" aria-label="Playback Speed">
+      <div class="skip-section" style="--i:2">
+        <h2 class="skip-label">Playback</h2>
+        <div class="stog-list">
+          <label class="stog-row"><span>Resume where I left off</span><span class="stog-right"><input type="checkbox" id="resumePlayback"><span class="stog-slider"></span></span></label>
+          <label class="stog-row"><span>Auto next episode</span><span class="stog-right"><input type="checkbox" id="autoNextEpisode"><span class="stog-slider"></span></span></label>
+        </div>
+      </div>
+
+      <div class="skip-section" style="--i:3">
+        <h2 class="skip-label">Speed</h2>
+        <div class="speed-row" role="radiogroup" aria-label="Playback speed">
           <button class="speed-chip" data-rate="0.75" role="radio" aria-checked="false">0.75x</button>
           <button class="speed-chip" data-rate="1" role="radio" aria-checked="false">1x</button>
           <button class="speed-chip" data-rate="1.25" role="radio" aria-checked="false">1.25x</button>
@@ -140,19 +122,19 @@
         </div>
       </div>
 
-      <div class="skip-section">
+      <div class="skip-section" style="--i:4">
         <h2 class="skip-label">Subtitles</h2>
         <div class="sub-row">
           <button class="sub-upload-btn" id="subUploadBtn">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 2v8M5 5l3-3 3 3"/><path d="M2 12v2h12v-2"/></svg>
             Load .srt / .vtt
           </button>
-          <button class="sub-clear-btn" id="subClearBtn" title="Clear loaded subtitle" aria-label="Clear loaded subtitle">x</button>
+          <button class="sub-clear-btn" id="subClearBtn" title="Clear loaded subtitle" aria-label="Clear loaded subtitle">&times;</button>
         </div>
         <span class="sub-status" id="subStatus">No subtitle loaded</span>
         <input type="file" id="subFileInput" accept=".srt,.vtt" style="display:none">
         <div class="sub-lang-row">
-          <label class="skip-label" style="margin:0;flex-shrink:0">Language</label>
+          <label class="skip-label" for="subLangSelect">Language</label>
           <select id="subLangSelect" class="sub-lang-select">
             <option value="en">English</option>
             <option value="ta">Tamil</option>
@@ -185,24 +167,24 @@
         </div>
       </div>
 
-      <div class="skip-section">
-        <span class="skip-label">Theme Color</span>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <input type="color" id="seedColorPicker" value="#57A860" style="width:36px;height:36px;border:none;border-radius:50%;cursor:pointer;padding:0;">
-          <button type="button" class="color-dot" data-color="#57A860" style="width:24px;height:24px;border-radius:50%;border:2px solid transparent;background:#57A860;cursor:pointer;padding:0;"></button>
-          <button type="button" class="color-dot" data-color="#4285F4" style="width:24px;height:24px;border-radius:50%;border:2px solid transparent;background:#4285F4;cursor:pointer;padding:0;"></button>
-          <button type="button" class="color-dot" data-color="#EA4335" style="width:24px;height:24px;border-radius:50%;border:2px solid transparent;background:#EA4335;cursor:pointer;padding:0;"></button>
-          <button type="button" class="color-dot" data-color="#FBBC04" style="width:24px;height:24px;border-radius:50%;border:2px solid transparent;background:#FBBC04;cursor:pointer;padding:0;"></button>
-          <button type="button" class="color-dot" data-color="#9C27B0" style="width:24px;height:24px;border-radius:50%;border:2px solid transparent;background:#9C27B0;cursor:pointer;padding:0;"></button>
-          <button type="button" class="color-dot" data-color="#FF6D00" style="width:24px;height:24px;border-radius:50%;border:2px solid transparent;background:#FF6D00;cursor:pointer;padding:0;"></button>
+      <div class="skip-section" style="--i:5">
+        <h2 class="skip-label">Accent</h2>
+        <div class="swatch-row">
+          <input type="color" id="seedColorPicker" value="#57A860" aria-label="Custom accent color">
+          <button type="button" class="color-dot" data-color="#57A860" style="background:#57A860" aria-label="Green accent"></button>
+          <button type="button" class="color-dot" data-color="#4285F4" style="background:#4285F4" aria-label="Blue accent"></button>
+          <button type="button" class="color-dot" data-color="#EA4335" style="background:#EA4335" aria-label="Red accent"></button>
+          <button type="button" class="color-dot" data-color="#FBBC04" style="background:#FBBC04" aria-label="Amber accent"></button>
+          <button type="button" class="color-dot" data-color="#9C27B0" style="background:#9C27B0" aria-label="Purple accent"></button>
+          <button type="button" class="color-dot" data-color="#FF6D00" style="background:#FF6D00" aria-label="Orange accent"></button>
         </div>
       </div>
 
     </div>
-  </div>
+  </section>
 
 </div>
-<footer><a href="https://github.com/govinda-rajulu/openskip" target="_blank">SkipStream</a></footer>
+<footer><a href="https://github.com/govinda-rajulu/openskip" target="_blank" rel="noopener">SkipStream on GitHub</a></footer>
 <script src="theme-engine.js"></script>
 <script src="popup.js"></script>
 </body>

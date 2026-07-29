@@ -218,7 +218,8 @@ async function loadState() {
 
   applyTheme(currentTheme);
   if (window.applyThemeFromSeed) applyThemeFromSeed(data[KEYS.seedColor] || '#57A860', currentTheme);
-  $('masterToggle').checked = enabled;
+  const mtEl = $('masterToggle');
+  if (mtEl) mtEl.checked = enabled;
   $('masterSub').textContent = enabled ? 'Extension is active' : 'Extension is paused';
 
   popupRate = parseFloat(data[KEYS.playRate]) || 1;
