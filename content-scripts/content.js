@@ -1185,7 +1185,11 @@
   function removeSkipBtn() {
     clearTimeout(btnAutoHideTimer);
     btnAutoHideTimer = null;
-    document.querySelectorAll(`#${SKIP_BTN_ID},[data-skipstream-btn]`).forEach(el => el.remove());
+    document.querySelectorAll(`#${SKIP_BTN_ID},[data-skipstream-btn]`).forEach(el => {
+      if (typeof el._ssCleanupFs === 'function') el._ssCleanupFs();
+      if (typeof el._ssCleanupMove === 'function') el._ssCleanupMove();
+      el.remove();
+    });
   }
 
   function createSkipBtn(label, onSkip) {
