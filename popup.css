@@ -48,7 +48,7 @@ body{
 body.theme-light{ font-weight: 400; letter-spacing: 0; }
 
 /* Firefox Android renders the popup as a full document */
-@media (max-width: 420px){
+@media (pointer: coarse) and (max-width: 420px){
   body{ width: 100vw; }
 }
 
