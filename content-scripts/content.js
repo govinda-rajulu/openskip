@@ -1443,7 +1443,12 @@
     const hasText = _subState.subs.length > 0;
     const loading = _subState.loading;
     _subCCBtn.querySelector('.cc-lbl').textContent = loading ? '…' : 'CC';
-    _subCCBtn.style.opacity = (hasText && _subState.enabled) ? '1' : '0.5';
+    const on = hasText && _subState.enabled;
+    const p = pal();
+    _subCCBtn.style.opacity = hasText ? '1' : '0.55';
+    _subCCBtn.style.background = on ? p.accent : p.bg;
+    _subCCBtn.style.color = on ? p.onAccent : p.muted;
+    _subCCBtn.style.borderColor = on ? 'transparent' : p.edge;
   }
 
   function ensureCCBtn(video) {
