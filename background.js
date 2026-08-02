@@ -850,7 +850,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         );
         if (tvRes.ok) {
           const tvData = await tvRes.json();
-          posterPath = tvData.results?.[0]?.poster_path || null;
+          posterPath = tvData.results?.[0]?.backdrop_path || tvData.results?.[0]?.poster_path || null;
         }
         // Fallback to movie if no TV result
         if (!posterPath) {
@@ -859,11 +859,11 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
           );
           if (mvRes.ok) {
             const mvData = await mvRes.json();
-            posterPath = mvData.results?.[0]?.poster_path || null;
+            posterPath = mvData.results?.[0]?.backdrop_path || mvData.results?.[0]?.poster_path || null;
           }
         }
         const posterUrl = posterPath
-          ? `https://image.tmdb.org/t/p/w92${posterPath}`
+          ? `https://image.tmdb.org/t/p/w300${posterPath}`
           : null;
         await setTmdbCache(posterCacheKey, posterUrl);
         sendResponse({ posterUrl });
