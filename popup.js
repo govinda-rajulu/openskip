@@ -91,7 +91,7 @@ const MODE_TO_SEGS = {
 };
 
 function inferMode(i, r, o) {
-  if (!i && !r && !o) return popupMode === 'prompt' ? 'prompt' : 'off';
+  if (!i && !r && !o) return 'prompt';
   if (i  && !r && !o) return 'auto-intro';
   if (!i && r  && !o) return 'auto-recap';
   if (!i && !r && o)  return 'auto-outro';
@@ -130,10 +130,15 @@ document.querySelectorAll('.smode-chip').forEach(chip => {
     const seg = MODE_TO_SEGS[chip.dataset.mode] || { i: true, r: true, o: true };
     br.storage.local.set({
       [KEYS.skipMode]:  chip.dataset.mode,
+      [KEYS.enabled]: chip.dataset.mode !== 'off',
       [KEYS.skipIntro]: seg.i,
       [KEYS.skipRecap]: seg.r,
       [KEYS.skipOutro]: seg.o,
     });
+    const mt = $('masterToggle');
+    if (mt) mt.checked = chip.dataset.mode !== 'off';
+    const ms = $('masterSub');
+    if (ms) ms.textContent = chip.dataset.mode !== 'off' ? 'Extension is active' : 'Extension is paused';
   });
 });
 
