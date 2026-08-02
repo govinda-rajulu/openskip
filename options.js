@@ -50,12 +50,6 @@ function setSpinnerLabel(el, text) {
   el.appendChild(document.createTextNode(text));
 }
 
-function escapeHtml(str) {
-  return String(str ?? '').replace(/[&<>"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[c]));
-}
-
 // -- Version badge --
 const manifest = br.runtime.getManifest();
 const sidebarVerEl = $('sidebarVer');
