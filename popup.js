@@ -27,6 +27,7 @@ if (verBadgeEl) verBadgeEl.textContent = 'v' + br.runtime.getManifest().version;
 
 // -- Theme: simple light/dark toggle, no system intermediate state --
 let currentTheme = 'dark';
+let currentSeedHex = '#57A860';
 
 function applyTheme(t) {
   document.body.classList.remove('theme-light', 'theme-dark');
@@ -42,7 +43,7 @@ $('themeBtn')?.addEventListener('click', () => {
   currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
   applyTheme(currentTheme);
   br.storage.local.set({ [KEYS.theme]: currentTheme });
-  if (window.applyThemeFromSeed) applyThemeFromSeed(null, currentTheme);
+  if (window.applyThemeFromSeed) applyThemeFromSeed(currentSeedHex, currentTheme);
 });
 
 // -- Tabs --
@@ -216,6 +217,7 @@ async function loadState() {
   const enabled  = data[KEYS.enabled] !== false;
   const mode     = data[KEYS.skipMode] || 'auto-all';
   currentTheme   = data[KEYS.theme] || 'dark';
+  currentSeedHex = data[KEYS.seedColor] || '#57A860';
 
   applyTheme(currentTheme);
   if (window.applyThemeFromSeed) applyThemeFromSeed(data[KEYS.seedColor] || '#57A860', currentTheme);
@@ -322,16 +324,18 @@ loadState();
   }).catch(() => {});
 
   picker.addEventListener('input', () => {
+    currentSeedHex = picker.value;
     br2.storage.local.set({ [KEYS.seedColor]: picker.value });
-    if (window.applyThemeFromSeed) applyThemeFromSeed(picker.value, null);
+    if (window.applyThemeFromSeed) applyThemeFromSeed(picker.value, currentTheme);
   });
 
   document.querySelectorAll('.color-dot').forEach(dot => {
     dot.addEventListener('click', () => {
       const color = dot.dataset.color;
       picker.value = color;
+      currentSeedHex = color;
       br2.storage.local.set({ [KEYS.seedColor]: color });
-      if (window.applyThemeFromSeed) applyThemeFromSeed(color, null);
+      if (window.applyThemeFromSeed) applyThemeFromSeed(color, currentTheme);
     });
   });
 })();
