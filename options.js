@@ -41,6 +41,14 @@ br.storage.local.get(['skipstream_seed_color', 'skipstream_theme']).then(data =>
   if (window.applyThemeFromSeed) applyThemeFromSeed(data.skipstream_seed_color || '#57A860', data.skipstream_theme || 'dark');
 }).catch(() => {});
 
+br.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (!changes.skipstream_seed_color && !changes.skipstream_theme) return;
+  br.storage.local.get(['skipstream_seed_color', 'skipstream_theme']).then(d => {
+    if (window.applyThemeFromSeed) applyThemeFromSeed(d.skipstream_seed_color || '#57A860', d.skipstream_theme || 'dark');
+  }).catch(() => {});
+});
+
 // -- DOM-safe helper: replaces innerHTML spinner+label pattern --
 function setSpinnerLabel(el, text) {
   el.replaceChildren();
