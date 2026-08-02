@@ -361,6 +361,10 @@
         site:      meta.site      || getSiteHostname(),
         site_name: meta.site_name || getSiteName(),
       };
+      const keys = Object.keys(cache);
+      if (keys.length > 100) {
+        keys.sort((a, b) => cache[a].t - cache[b].t).slice(0, keys.length - 100).forEach(k => delete cache[k]);
+      }
       await br.storage.local.set({ [CACHE_KEY]: cache });
     } catch { /* storage unavailable */ }
   }
