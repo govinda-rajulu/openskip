@@ -34,8 +34,8 @@ function applyTheme(t) {
   const isDark = t !== 'light';
   const sun  = document.querySelector('.icon-sun');
   const moon = document.querySelector('.icon-moon');
-  if (sun)  sun.style.display  = isDark ? 'block' : 'none';
-  if (moon) moon.style.display = isDark ? 'none'  : 'block';
+  if (sun)  sun.style.display  = isDark ? 'none' : 'block';
+  if (moon) moon.style.display = isDark ? 'block' : 'none';
 }
 
 $('themeBtn')?.addEventListener('click', () => {
