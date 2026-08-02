@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.9] - 2026-08-02
+### Fixed
+- Popup opened as a thin sliver on desktop Firefox
+- Tab underline stayed under Status when you switched to Settings
+- Closing a tab that never played video threw in the background script and skipped the final sync
+- Choosing Prompt mode then touching any segment toggle silently switched you to Off
+- Cloud-to-local history sync never capped the local cache
+- Stored site names kept a www. prefix that did not match your per-site rules
+### Changed
+- Resume toast, skip countdown and skip button shadows now follow your accent colour
+- Theme button shows the mode you are currently in
+
 ## [1.9.8] - 2026-07-29
 
 ### Changed

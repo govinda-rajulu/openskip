@@ -1,4 +1,4 @@
-/* SkipStream popup - v1.9.7
+/* SkipStream popup - v1.9.9
    Token contract: theme-engine.js sets the color vars on  at runtime.
    The :root values below are only a pre-paint fallback for the default seed
    (#57A860). NEVER redefine these vars under body.theme-light / .theme-dark:
