@@ -829,6 +829,11 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (msg.type === 'TMDB_SEARCH_POSTER') {
     // Search TMDB for a title and return poster_path as full URL
     // Tries TV search first, then movie search, returns first result
+    const ytMatch = /^yt\/([A-Za-z0-9_-]{11})$/.exec(msg.mediaId || '');
+    if (ytMatch) {
+      sendResponse({ posterUrl: `https://i.ytimg.com/vi/${ytMatch[1]}/mqdefault.jpg` });
+      return;
+    }
     const posterCacheKey = `poster:${(msg.title || '').toLowerCase().trim()}`;
     getTmdbCache().then(async (cache) => {
       if (posterCacheKey in cache) {
