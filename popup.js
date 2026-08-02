@@ -90,7 +90,7 @@ const MODE_TO_SEGS = {
 };
 
 function inferMode(i, r, o) {
-  if (!i && !r && !o) return 'off';
+  if (!i && !r && !o) return popupMode === 'prompt' ? 'prompt' : 'off';
   if (i  && !r && !o) return 'auto-intro';
   if (!i && r  && !o) return 'auto-recap';
   if (!i && !r && o)  return 'auto-outro';
