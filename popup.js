@@ -209,9 +209,17 @@ function applyStats(data) {
 // -- Master toggle --
 $('masterToggle')?.addEventListener('change', () => {
   const enabled = !!$('masterToggle')?.checked;
-  br.storage.local.set({ [KEYS.enabled]: enabled });
+  const nextMode = enabled ? (popupMode === 'off' ? 'auto-all' : popupMode) : 'off';
+  const nextSeg = MODE_TO_SEGS[nextMode] || { i: true, r: true, o: true };
+  br.storage.local.set({
+    [KEYS.enabled]: enabled,
+    [KEYS.skipMode]: nextMode,
+    [KEYS.skipIntro]: nextSeg.i,
+    [KEYS.skipRecap]: nextSeg.r,
+    [KEYS.skipOutro]: nextSeg.o,
+  });
   $('masterSub').textContent = enabled ? 'Extension is active' : 'Extension is paused';
-  applyModeToUI(popupMode, enabled);
+  applyModeToUI(nextMode, enabled);
 });
 
 
