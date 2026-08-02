@@ -885,6 +885,7 @@ async function loadHistory(data) {
       siteName: entry.site_name || entry.site || '',
       url:      entry.url      || mediaId,
       position: entry.p        || 0,
+      mediaId,
       duration: entry.d        || 0,
       ts:       entry.t        || 0,
       fromCloud: false,
@@ -917,6 +918,7 @@ async function loadHistory(data) {
             duration: row.duration    || 0,
             device:   row.device_name || '',
             updated:  row.updated_at  || '',
+            mediaId:  row.media_id    || '',
             fromCloud: true,
           })).filter(r => r.title);
           cloudItems = _histCloud;
