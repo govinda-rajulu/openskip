@@ -786,6 +786,13 @@ function renderHistory(items) {
     const el = document.createElement('a');
     el.className = 'h-item';
     el.href = (url && (url.startsWith('http://') || url.startsWith('https://'))) ? url : '#';
+    if (item.mediaId && pos >= 10) {
+      el.addEventListener('click', () => {
+        br.storage.local.set({
+          skipstream_pending_resume: { mediaId: item.mediaId, position: pos, ts: Date.now() }
+        }).catch(() => {});
+      });
+    }
     el.target = '_blank';
     el.rel = 'noopener';
 
