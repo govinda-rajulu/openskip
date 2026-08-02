@@ -301,8 +301,8 @@ if (br.tabs && br.tabs.onRemoved) {
     const state = await getTabState();
     const entry = state[String(tabId)];
     await setTabState(tabId, null);
-    if (entry._ts && Date.now() - entry._ts > 60000) return;
     if (!entry?.body) return;
+    if (entry._ts && Date.now() - entry._ts > 60000) return;
     try {
       await supabaseUpsert(entry.body, { keepalive: true });
     } catch { /* best-effort */ }
