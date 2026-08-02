@@ -3,13 +3,21 @@
 ## [1.9.9] - 2026-08-02
 ### Fixed
 - Popup opened as a thin sliver on desktop Firefox
+- Off mode did not actually stop SkipStream from offering to skip
 - Tab underline stayed under Status when you switched to Settings
+- Choosing an accent colour forced the popup into dark mode
+- Changing the theme could reset your accent colour back to green
+- Settings page did not follow theme changes until you reloaded it
+- Settings button was drawn as a second sun icon, same as the theme button
+- Clicking a history entry opened the video from the start instead of resuming
 - Closing a tab that never played video threw in the background script and skipped the final sync
-- Choosing Prompt mode then touching any segment toggle silently switched you to Off
 - Cloud-to-local history sync never capped the local cache
 - Stored site names kept a www. prefix that did not match your per-site rules
+### Added
+- YouTube history entries now show real video thumbnails
 ### Changed
-- Resume toast, skip countdown and skip button shadows now follow your accent colour
+- History thumbnails are wide 16:9 images instead of small portrait posters
+- Resume toast, skip countdown and skip button shadows follow your accent colour
 - Theme button shows the mode you are currently in
 
 ## [1.9.8] - 2026-07-29
