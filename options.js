@@ -655,23 +655,23 @@ let _posterInFlight = 0;
 const _posterQueue = [];
 const POSTER_MAX_CONCURRENT = 4;
 
-function scheduleFetchPoster(title, itemEl) {
-  _posterQueue.push([title, itemEl]);
+function scheduleFetchPoster(title, itemEl, mediaId) {
+  _posterQueue.push([title, itemEl, mediaId]);
   drainPosterQueue();
 }
 
 function drainPosterQueue() {
   while (_posterInFlight < POSTER_MAX_CONCURRENT && _posterQueue.length) {
-    const [title, itemEl] = _posterQueue.shift();
+    const [title, itemEl, mediaId] = _posterQueue.shift();
     _posterInFlight++;
-    fetchPoster(title, itemEl).finally(() => {
+    fetchPoster(title, itemEl, mediaId).finally(() => {
       _posterInFlight--;
       drainPosterQueue();
     });
   }
 }
 
-async function fetchPoster(title, itemEl) {
+async function fetchPoster(title, itemEl, mediaId) {
   if (!title) return;
   const key = title.toLowerCase().trim();
   if (key in _posterCache) {
@@ -680,7 +680,7 @@ async function fetchPoster(title, itemEl) {
   }
   try {
     const result = await new Promise(res =>
-      br.runtime.sendMessage({ type: 'TMDB_SEARCH_POSTER', title }, r => res(r))
+      br.runtime.sendMessage({ type: 'TMDB_SEARCH_POSTER', title, mediaId }, r => res(r))
     );
     _posterCache[key] = result?.posterUrl || null;
     if (_posterCache[key]) applyPoster(itemEl, _posterCache[key]);
@@ -866,7 +866,7 @@ function renderHistory(items) {
       const pageUrl = url && url.startsWith('http') ? url : (url ? 'https://' + url : '');
       fetchOembedThumb(pageUrl, oembedPlatform, el);
     } else if (!isYoutubeish && title && title !== 'Unknown') {
-      scheduleFetchPoster(title, el);
+      scheduleFetchPoster(title, el, item.mediaId);
     }
   });
 }
