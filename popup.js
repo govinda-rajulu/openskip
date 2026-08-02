@@ -52,6 +52,7 @@ document.querySelectorAll('.tab').forEach(tab => {
       t.classList.toggle('active', t === tab);
       t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
     });
+    document.body.dataset.tab = tab.dataset.tab;
     const targetId = 'page-' + tab.dataset.tab;
     document.querySelectorAll('.page').forEach(p => p.classList.toggle('page-hidden', p.id !== targetId));
   });
