@@ -35,7 +35,6 @@ html{ background: var(--bg-base); }
 
 body{
   width: 380px;
-  max-width: 100vw;
   margin: 0;
   overflow-x: hidden;
   background: var(--bg-base);
@@ -50,6 +49,11 @@ body.theme-light{ font-weight: 400; letter-spacing: 0; }
 /* Firefox Android renders the popup as a full document */
 @media (pointer: coarse) and (max-width: 420px){
   body{ width: 100vw; }
+}
+
+/* Desktop popup: hard floor, viewport units are unreliable at first paint */
+@media (pointer: fine){
+  body{ min-width: 380px; }
 }
 
 .card{ display: flex; flex-direction: column; min-height: 0; }
