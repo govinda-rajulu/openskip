@@ -14,7 +14,7 @@ background.js              - Service worker: all external API calls, retry logic
 content-scripts/
   content.js               - Injected into all frames: video detection, skip polling, resume prompt, playback sync
 popup.html / popup.js      - Extension toolbar popup: history, skip toggles, segment reporting
-popup.css / options.css    - Stylesheets for both pages
+popup.css / options.css    - Separate stylesheets with DIFFERENT token namespaces. Not interchangeable.
 theme-engine.js            - OKLCH palette generator, injects color vars into both pages
 options.html / options.js  - Settings page: credential input, connection verification
 scripts/
@@ -41,7 +41,13 @@ There is no `src/`, no `wxt`, no `openskip/` subdirectory, no TypeScript, no bui
 - README version badge must be updated
 - CI (`release.yml`) enforces tag == manifest version and will fail the build if mismatched
 
-Files to update on every version bump: `manifest.json`, `manifest-chrome.json`, `popup.js`, `README.md`, `CHANGELOG.md`, `updates.json`
+Files to update on every version bump: `manifest.json`, `manifest-chrome.json`, `popup.js`, `popup.css`, `README.md`, `CHANGELOG.md`, `updates.json`
+
+`.github/workflows/version-bump.yml` automates this. Run it rather than
+hand-editing seven files.
+
+Chrome Web Store is not published (developer fee unpaid). The Chrome ZIP
+is still built on every release so it stays current for manual install.
 
 ## Tech constraints
 - Vanilla JS only at root level
@@ -87,6 +93,8 @@ Prefer: resolution=merge-duplicates
 | `DELETE_ALL_HISTORY` | popup→bg | delete all Supabase rows for this user |
 | `SUPABASE_SETTINGS_UPSERT` | options→bg | save stats/prefs/site_rules/theme to `user_settings` |
 | `SUPABASE_SETTINGS_GET` | options→bg | fetch `user_settings` row for restore prompt |
+| `TMDB_SEARCH_POSTER` | options→bg | resolve a history thumbnail. Short-circuits to i.ytimg.com when `mediaId` matches `^yt/[A-Za-z0-9_-]{11}$`, otherwise TMDB backdrop then poster |
+| `OSUB_SEARCH_AND_FETCH` | content→bg | auto-fetch subtitles by IMDb ID |
 
 ## Packaging - CRITICAL
 Any file that ships inside the extension must be listed in the zip/cp file list of ALL FOUR workflows:

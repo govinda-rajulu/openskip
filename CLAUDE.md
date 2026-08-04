@@ -54,7 +54,11 @@ To manually apply: `psql "$SUPABASE_DB_URL" -f supabase_setup.sql`
 
 ```bash
 # 1. Bump versions (both manifests must match)
-#    manifest.json, manifest-chrome.json, popup.js header comment
+#    manifest.json, manifest-chrome.json, popup.js header comment,
+#    popup.css header comment, README.md badge + release link,
+#    CHANGELOG.md entry, updates.json (APPEND, never prepend)
+#    NOTE: .github/workflows/version-bump.yml automates most of this.
+#    Prefer running it over hand-editing.
 
 # 2. Add CHANGELOG.md entry: ## [X.Y.Z] - YYYY-MM-DD
 
@@ -81,6 +85,8 @@ Five AI agents run on every event. All prefer Claude (`claude-sonnet-4-6`) when 
 | `ai-pr-review` | PR opened/updated | Posts code review, checks arch rules |
 | `ai-weekly-audit` | Monday 08:00 UTC | Scans codebase, opens issues for findings |
 | `sweep` | Issue title starts `sweep:` or comment starts `sweep:` | Implements task, opens PR |
+| `store-version-check` | Manual dispatch only | Submits to AMO/CWS if manifest is ahead of the store. Ran on a Monday schedule until Aug 2026; that made a version bump publish the extension with no tag. |
+| `version-bump` | See workflow | Automates the multi-file version bump. Use this instead of hand-editing. |
 
 ### Slash Commands (comment on issue or PR)
 
@@ -114,6 +120,7 @@ will prefer Claude (`claude-sonnet-4-6`) over Gemini when the key is present.
 | `AMO_API_KEY` | amo-submit.yml | addons.mozilla.org/developers/addon/api/key/ |
 | `AMO_API_SECRET` | amo-submit.yml | same page |
 | `GEMINI_API_KEY` | ai-*.yml | aistudio.google.com |
+| `OPENROUTER_API_KEY` | ai-*.yml | openrouter.ai - free-tier models |
 | `ANTHROPIC_API_KEY` | ai-*.yml (preferred) | console.anthropic.com |
 | `CWS_EXTENSION_ID` | cws-submit.yml | Chrome Developer Dashboard |
 | `CWS_CLIENT_ID` | cws-submit.yml | Google Cloud Console OAuth |
@@ -199,6 +206,21 @@ Rules:
 - options page must follow stored theme
 - no divergence between popup and options
 
+HARD RULE - colour tokens:
+theme-engine.js writes every colour token as an inline custom property
+on document.documentElement, for both surfaces, at runtime.
+
+NEVER redefine a colour token under `body.theme-light`, `body.theme-dark`
+or any other body-level selector. A custom property set on body beats an
+inline one set on html, which silently kills the live accent picker.
+This exact bug shipped in popup.css and survived two releases, then
+shipped again in options.css and survived until Aug 2026.
+
+Stylesheet `:root` blocks are fine: they are pre-paint fallbacks and
+lose to the inline vars. Semantic colours (--ok, --warn, --danger) are
+NOT managed by theme-engine and may use @media (prefers-color-scheme)
+on :root.
+
 NO:
 - OS wallpaper color extraction
 - external theme systems
@@ -232,10 +254,13 @@ If a value is missing:
 
 ## TYPOGRAPHY RULES
 
-- rem + clamp() preferred
-- consistent type hierarchy:
-  title → section → body → label → meta
-- no arbitrary font-size values
+- five sizes only: 12 / 14 / 16 / 20 / 28px. Body is 16px.
+- hierarchy comes from weight and colour, not half-pixel size steps
+- clamp() only for display-scale headings, never body or labels
+- no arbitrary font-size values; extend the token block instead
+
+Rationale: options.css once carried thirteen sizes between 9px and
+23px, which reads as inconsistency rather than hierarchy.
 
 ---
 
