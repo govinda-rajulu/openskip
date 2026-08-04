@@ -43,3 +43,6 @@ audit-report.txt
 
 __pycache__/
 *.pyc
+
+# actionlint binary, downloaded on demand
+actionlint
