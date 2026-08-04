@@ -309,7 +309,7 @@ body {
   box-shadow: var(--shadow);
   margin-bottom: clamp(14px,1.2vw,18px);
   overflow: hidden;
-  transition: transform 200ms cubic-bezier(0.2,0,0,1);
+  transition: box-shadow 200ms cubic-bezier(0.22,1,0.36,1);
 }
 
 .card:hover {
@@ -468,7 +468,7 @@ select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--
   background: #fff;
   border-radius: 50%;
   box-shadow: 0 1px 4px rgba(0,0,0,0.22);
-  transition: transform 200ms cubic-bezier(0.34,1.56,0.64,1);
+  transition: transform 200ms cubic-bezier(0.22,1,0.36,1);
 }
 
 .toggle input:checked + .slider {
