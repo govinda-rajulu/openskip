@@ -21,6 +21,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      models: read
 
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +40,10 @@ jobs:
 
       - name: Sweep task
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_MODEL_GITHUB: ${{ vars.AI_MODEL_GITHUB }}
+          AI_MODEL_OPENROUTER: ${{ vars.AI_MODEL_OPENROUTER }}
+          AI_MODEL_GEMINI: ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ISSUE_NUMBER:      ${{ github.event.issue.number }}
@@ -48,9 +52,10 @@ jobs:
           EVENT_NAME:        ${{ github.event_name }}
         run: |
           python3 << 'PYEOF'
+          import sys
+          sys.path.insert(0, "scripts")
+          from ai_call import ask, strip_fences
           import os, json, urllib.request, urllib.error, time
-
-          anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
           openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
           issue_num     = os.environ.get("ISSUE_NUMBER","")
@@ -58,10 +63,6 @@ jobs:
           comment_body  = os.environ.get("COMMENT_BODY","")
           event_name    = os.environ.get("EVENT_NAME","")
           ctx           = open("/tmp/ctx.txt").read()
-
-          if not openrouter_key and not gemini_key and not anthropic_key:
-              open("/tmp/sweep.json","w").write(json.dumps({"error":"NO_KEY"}))
-              exit(0)
 
           # Extract task from issue title or comment
           if event_name == "issue_comment":
@@ -114,7 +115,7 @@ jobs:
                           if e.code==429: time.sleep(30*(att+1))
                           else: raise
 
-              if text.startswith("```"): text = text.split("\n",1)[1].rsplit("```",1)[0].strip()
+              text = strip_fences(text)
               json.loads(text)
               open("/tmp/sweep.json","w").write(text)
           except Exception as e:
