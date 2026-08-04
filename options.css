@@ -52,9 +52,9 @@
   --icon-xs:      clamp(11px, 0.5vw + 9px, 13px);
   --icon-sm:      clamp(13px, 0.6vw + 10px, 16px);
   --icon-md:      clamp(28px, 1.6vw + 20px, 36px);
-  --fs-body:      clamp(12.5px, 0.28vw + 11.6px, 14px);
-  --fs-title:     clamp(18px, 1.1vw + 15px, 23px);
-  --fs-card-title:clamp(13.5px, 0.3vw + 12.5px, 15px);
+  --fs-body:      16px;
+  --fs-title:     clamp(24px, 1.2vw + 20px, 28px);
+  --fs-card-title: 20px;
   --sp-card:      clamp(14px, 1.4vw + 8px, 22px);
 
   /* ---- M3 shape scale ---- */
@@ -106,24 +106,24 @@
   --md-sys-typescale-headline-small-weight: 700;
   --md-sys-typescale-title-large-size:      18px;
   --md-sys-typescale-title-large-weight:    700;
-  --md-sys-typescale-title-medium-size:     15px;
+  --md-sys-typescale-title-medium-size:     20px;
   --md-sys-typescale-title-medium-weight:   700;
-  --md-sys-typescale-body-large-size:       14px;
+  --md-sys-typescale-body-large-size:       16px;
   --md-sys-typescale-body-large-weight:     400;
-  --md-sys-typescale-body-medium-size:      13px;
+  --md-sys-typescale-body-medium-size:      16px;
   --md-sys-typescale-body-medium-weight:    400;
-  --md-sys-typescale-body-small-size:       11.5px;
+  --md-sys-typescale-body-small-size:       14px;
   --md-sys-typescale-body-small-weight:     400;
-  --md-sys-typescale-label-large-size:      13px;
+  --md-sys-typescale-label-large-size:      14px;
   --md-sys-typescale-label-large-weight:    600;
-  --md-sys-typescale-label-medium-size:     11px;
+  --md-sys-typescale-label-medium-size:     14px;
   --md-sys-typescale-label-medium-weight:   600;
 
   /* extended: literal sizes in use that don't match a named M3 rung */
-  --fs-px-9:  9px;
-  --fs-px-10: 10px;
+  --fs-px-9:  12px;
+  --fs-px-10: 12px;
   --fs-px-12: 12px;
-  --fs-px-26: 26px;
+  --fs-px-26: 28px;
 
   /* line-height scale, literal values already in use */
   --lh-100: 1;
