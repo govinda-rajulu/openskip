@@ -20,6 +20,7 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
+      models: read
 
     steps:
       - uses: actions/checkout@v4
@@ -41,16 +42,20 @@ jobs:
 
       - name: AI review
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_MODEL_GITHUB: ${{ vars.AI_MODEL_GITHUB }}
+          AI_MODEL_OPENROUTER: ${{ vars.AI_MODEL_OPENROUTER }}
+          AI_MODEL_GEMINI: ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           PR_TITLE:          ${{ github.event.pull_request.title }}
           PR_BODY:           ${{ github.event.pull_request.body }}
         run: |
           python3 << 'PYEOF'
+          import sys
+          sys.path.insert(0, "scripts")
+          from ai_call import ask, strip_fences
           import os, json, urllib.request, urllib.error, time
-
-          anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
           openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
           pr_title      = os.environ.get("PR_TITLE","")
@@ -124,14 +129,13 @@ jobs:
       - name: Post review comment
         uses: actions/github-script@v7
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         with:
           script: |
             const fs = require('fs');
             const text = fs.readFileSync('/tmp/ai_review.txt','utf8').trim();
             if (text === 'NO_KEY' || !text) return;
 
-            const model = process.env.ANTHROPIC_API_KEY ? 'Claude Sonnet' : 'Gemini 2.0 Flash';
+            const model = 'SkipStream Agent';
             const body = `## 🤖 AI Code Review\n\n${text}\n\n---\n*Powered by ${model} — always verify before merging. Use \`/ai-fix\` on the linked issue to iterate.*`;
 
             // Delete previous AI review comments to avoid stacking
@@ -164,13 +168,17 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
+      models: read
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Handle inline comment command
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_MODEL_GITHUB: ${{ vars.AI_MODEL_GITHUB }}
+          AI_MODEL_OPENROUTER: ${{ vars.AI_MODEL_OPENROUTER }}
+          AI_MODEL_GEMINI: ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           COMMENT_BODY:      ${{ github.event.comment.body }}
@@ -179,9 +187,10 @@ jobs:
           FILE_PATH:         ${{ github.event.comment.path }}
         run: |
           python3 << 'PYEOF'
+          import sys
+          sys.path.insert(0, "scripts")
+          from ai_call import ask, strip_fences
           import os, json, urllib.request
-
-          anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
           openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
           comment       = os.environ.get("COMMENT_BODY","")
