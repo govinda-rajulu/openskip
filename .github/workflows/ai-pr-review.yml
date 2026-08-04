@@ -128,7 +128,6 @@ jobs:
 
       - name: Post review comment
         uses: actions/github-script@v7
-        env:
         with:
           script: |
             const fs = require('fs');
