@@ -20,28 +20,29 @@ jobs:
     permissions:
       issues: write
       contents: read
+      models: read
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Run AI audit
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_MODEL_GITHUB: ${{ vars.AI_MODEL_GITHUB }}
+          AI_MODEL_OPENROUTER: ${{ vars.AI_MODEL_OPENROUTER }}
+          AI_MODEL_GEMINI: ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           SCOPE:             ${{ inputs.scope || 'full' }}
         run: |
           python3 << 'PYEOF'
+          import sys
+          sys.path.insert(0, "scripts")
+          from ai_call import ask, strip_fences
           import os, json, urllib.request, urllib.error, time
-
-          anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
           openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
           scope         = os.environ.get("SCOPE","full")
-
-          if not openrouter_key and not gemini_key and not anthropic_key:
-              open("/tmp/audit.json","w").write(json.dumps({"status":"NO_KEY"}))
-              exit(0)
 
           # Gather codebase
           codebase = {}
@@ -134,7 +135,7 @@ jobs:
                           if e.code == 429: time.sleep(30*(attempt+1))
                           else: raise
 
-              if text.startswith("```"): text = text.split("\n",1)[1].rsplit("```",1)[0].strip()
+              text = strip_fences(text)
               result = json.loads(text)
               result["status"] = "OK"
               open("/tmp/audit.json","w").write(json.dumps(result))
