@@ -20,7 +20,6 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
-      models: read
 
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +42,6 @@ jobs:
       - name: AI review
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AI_MODEL_GITHUB: ${{ vars.AI_MODEL_GITHUB }}
           AI_MODEL_OPENROUTER: ${{ vars.AI_MODEL_OPENROUTER }}
           AI_MODEL_GEMINI: ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
@@ -61,7 +59,7 @@ jobs:
           pr_title      = os.environ.get("PR_TITLE","")
           pr_body       = os.environ.get("PR_BODY","")
 
-          if not openrouter_key and not anthropic_key and not gemini_key:
+          if not openrouter_key and not gemini_key:
               open("/tmp/ai_review.txt","w").write("NO_KEY")
               exit(0)
 
@@ -93,34 +91,7 @@ jobs:
           Be direct and specific. Skip praise for obvious things. Max 400 words."""
 
           try:
-              if openrouter_key:
-                  p = json.dumps({"model":"google/gemini-2.0-flash-exp:free","max_tokens":1000,"messages":[{"role":"user","content":prompt}]}).encode()
-                  req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=p,
-                      headers={"Content-Type":"application/json","Authorization":f"Bearer {openrouter_key}",
-                               "HTTP-Referer":"https://github.com/govinda-rajulu/openskip","X-Title":"openskip-review"}, method="POST")
-                  with urllib.request.urlopen(req, timeout=60) as r:
-                      text = json.load(r)["choices"][0]["message"]["content"].strip()
-                  print("Review via OpenRouter free")
-              elif gemini_key:
-                  p = json.dumps({"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0.2,"maxOutputTokens":1000}}).encode()
-                  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
-                  for attempt in range(3):
-                      try:
-                          req = urllib.request.Request(url, data=p, headers={"Content-Type":"application/json"}, method="POST")
-                          with urllib.request.urlopen(req, timeout=60) as r:
-                              text = json.load(r)["candidates"][0]["content"]["parts"][0]["text"].strip()
-                          break
-                      except urllib.error.HTTPError as e:
-                          if e.code == 429: time.sleep(20*(attempt+1))
-                          else: raise
-                  print("Review via Gemini")
-              else:
-                  p = json.dumps({"model":"claude-sonnet-4-6","max_tokens":1000,"messages":[{"role":"user","content":prompt}]}).encode()
-                  req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=p,
-                      headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"}, method="POST")
-                  with urllib.request.urlopen(req, timeout=60) as r:
-                      text = json.load(r)["content"][0]["text"].strip()
-                  print("Review via Claude")
+              text = ask(prompt, max_tokens=1000)
               open("/tmp/ai_review.txt","w").write(text)
           except Exception as e:
               open("/tmp/ai_review.txt","w").write(f"ERROR:{e}")
@@ -167,7 +138,6 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
-      models: read
 
     steps:
       - uses: actions/checkout@v4
@@ -175,7 +145,6 @@ jobs:
       - name: Handle inline comment command
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AI_MODEL_GITHUB: ${{ vars.AI_MODEL_GITHUB }}
           AI_MODEL_OPENROUTER: ${{ vars.AI_MODEL_OPENROUTER }}
           AI_MODEL_GEMINI: ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
@@ -197,7 +166,8 @@ jobs:
           pr_title      = os.environ.get("PR_TITLE","")
           file_path     = os.environ.get("FILE_PATH","")
 
-          if not anthropic_key and not gemini_key:
+          openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
+          if not openrouter_key and not gemini_key:
               open("/tmp/inline_reply.txt","w").write("No AI key configured.")
               exit(0)
 
@@ -218,18 +188,7 @@ jobs:
           Be concise and specific (max 200 words)."""
 
           try:
-              if anthropic_key:
-                  p = json.dumps({"model":"claude-sonnet-4-6","max_tokens":600,"messages":[{"role":"user","content":prompt}]}).encode()
-                  req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=p,
-                      headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"}, method="POST")
-                  with urllib.request.urlopen(req, timeout=60) as r:
-                      text = json.load(r)["content"][0]["text"].strip()
-              else:
-                  p = json.dumps({"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0.2,"maxOutputTokens":600}}).encode()
-                  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
-                  req = urllib.request.Request(url, data=p, headers={"Content-Type":"application/json"}, method="POST")
-                  with urllib.request.urlopen(req, timeout=60) as r:
-                      text = json.load(r)["candidates"][0]["content"]["parts"][0]["text"].strip()
+              text = ask(prompt, max_tokens=600)
               open("/tmp/inline_reply.txt","w").write(text)
           except Exception as e:
               open("/tmp/inline_reply.txt","w").write(f"Error: {e}")

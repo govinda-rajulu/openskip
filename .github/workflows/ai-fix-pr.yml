@@ -20,7 +20,6 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
-      models: read
 
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +44,6 @@ jobs:
       - name: AI generate fix
         env:
           GITHUB_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
-          AI_MODEL_GITHUB:   ${{ vars.AI_MODEL_GITHUB }}
           AI_MODEL_OPENROUTER: ${{ vars.AI_MODEL_OPENROUTER }}
           AI_MODEL_GEMINI:   ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
@@ -191,7 +189,6 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
-      models: read
 
     steps:
       - uses: actions/checkout@v4
@@ -226,7 +223,6 @@ jobs:
       - name: Run AI command
         env:
           GITHUB_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
-          AI_MODEL_GITHUB:   ${{ vars.AI_MODEL_GITHUB }}
           AI_MODEL_OPENROUTER: ${{ vars.AI_MODEL_OPENROUTER }}
           AI_MODEL_GEMINI:   ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:     ${{ secrets.GEMINI_API_KEY }}
