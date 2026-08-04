@@ -1105,4 +1105,5 @@ button:focus-visible {
   }
 
   .alert code { background: rgba(255,255,255,0.10); }
+  .btn-danger:hover:not(:disabled) { background: rgba(245,112,127,0.18); }
 }
