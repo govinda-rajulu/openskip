@@ -45,3 +45,5 @@ Enter keys in the extension's Settings page (gear icon in popup).
 - `storage` - save credentials and playback positions locally
 - `tabs` - get current tab URL for show detection
 - `<all_urls>` - inject content script into any video page
+
+Smoke test line, delete me.
