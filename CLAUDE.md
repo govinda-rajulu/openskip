@@ -80,7 +80,6 @@ Five AI agents run on every event. All prefer Claude (`claude-sonnet-4-6`) when 
 
 | Agent | Trigger | Does |
 |-------|---------|------|
-| `ai-issue-triage` | Issue opened | Labels, priority, complexity, posts analysis comment |
 | `ai-fix-pr` | `ai-fix` label added, or slash command on issue | Opens fix PR |
 | `ai-pr-review` | PR opened/updated | Posts code review, checks arch rules |
 | `ai-weekly-audit` | Monday 08:00 UTC | Scans codebase, opens issues for findings |
@@ -108,7 +107,7 @@ Five AI agents run on every event. All prefer Claude (`claude-sonnet-4-6`) when 
 
 
 
-`GEMINI_API_KEY` (set) — used by `ai-issue-triage` and `ai-fix-pr` workflows.
+`GEMINI_API_KEY` (optional) — used by agent workflows as fallback.
 
 To switch to Claude: add `ANTHROPIC_API_KEY` secret in repo settings. Workflows
 will prefer Claude (`claude-sonnet-4-6`) over Gemini when the key is present.
