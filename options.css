@@ -39,7 +39,7 @@
   --shadow-lg:    0 4px 16px rgba(0,0,0,0.22);
 
   /* MD3 shape scale (semantic aliases, kept for existing selectors) */
-  --r-card:       var(--md-sys-shape-corner-extra-large);
+  --r-card:       var(--md-sys-shape-corner-large);
   --r-md:         var(--md-sys-shape-corner-medium);
   --r-sm:         var(--md-sys-shape-corner-small);
   --r-full:       var(--md-sys-shape-corner-full);
