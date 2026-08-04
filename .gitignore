@@ -40,3 +40,6 @@ npm-debug.log*
 .aider.tags.cache.v4/
 audit-report.txt
 .env
+
+__pycache__/
+*.pyc
