@@ -49,8 +49,8 @@
 
   /* Dynamic (fluid) sizing tokens */
   --sidebar-w:    clamp(196px, 16vw + 120px, 252px);
-  --icon-xs:      clamp(11px, 0.5vw + 9px, 13px);
-  --icon-sm:      clamp(13px, 0.6vw + 10px, 16px);
+  --icon-xs:      16px;
+  --icon-sm:      20px;
   --icon-md:      clamp(28px, 1.6vw + 20px, 36px);
   --fs-body:      16px;
   --fs-title:     clamp(24px, 1.2vw + 20px, 28px);
@@ -247,7 +247,7 @@ body {
   text-decoration: none;
 }
 
-.nav-item svg { flex-shrink: 0; opacity: 0.7; }
+.nav-item svg { flex-shrink: 0; opacity: 1; width: 20px; height: 20px; }
 
 .nav-item:hover {
   background: var(--surface2);
@@ -260,7 +260,6 @@ body {
   font-weight: 600;
 }
 
-.nav-item.active svg { opacity: 1; }
 
 /* Nav status dot */
 .nav-dot {
