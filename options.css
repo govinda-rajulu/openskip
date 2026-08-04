@@ -1084,48 +1084,24 @@ button:focus-visible {
 }
 
 /* ---------- Dark mode (consolidated - was 3 separate blocks) ---------- */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg:           #10140F;  /* surface (dark) */
-    --sidebar-bg:   rgba(28,33,27,0.72);
-    --card:         rgba(28,33,27,0.82);
-    --card-border:  rgba(193,201,187,0.08);
-    --surface:      rgba(193,201,187,0.05);
-    --surface2:     rgba(193,201,187,0.08);
-    --divider:      rgba(193,201,187,0.07);
-    --input-bg:     rgba(193,201,187,0.06);
-    --input-border: rgba(193,201,187,0.13);
-    --text:         #DFE4DA;
-    --text2:        #C1C9BB;
-    --text3:        #8B9388;
-    --accent:       #57A860;  /* matches popup.css dark accent */
-    --on-accent:    #FFFFFF;
-    --accent-dim:   rgba(87,168,96,0.14);
-    --accent-h:     #6FBD68;
-    --ok:           #3ddf94;
-    --ok-dim:       rgba(61,223,148,0.12);
-    --ok-border:    rgba(61,223,148,0.24);
-    --warn:         #f5b04a;
-    --warn-dim:     rgba(245,176,74,0.11);
-    --warn-border:  rgba(245,176,74,0.24);
-    --danger:       #FFB4AB;
-    --danger-dim:   rgba(255,180,171,0.11);
-    --danger-border:rgba(255,180,171,0.24);
-    --toggle-off:   rgba(193,201,187,0.15);
-    --shadow:       0 2px 8px rgba(0,0,0,0.18);
-    --shadow-sm:    0 1px 4px rgba(0,0,0,0.14);
-    --shadow-lg:    0 4px 16px rgba(0,0,0,0.22);
-  }
-
-  .alert code { background: rgba(255,255,255,0.10); }
-
-  .btn-danger:hover:not(:disabled) {
-    background: rgba(245,112,127,0.18);
-  }
-}
-
 @media (pointer: coarse) {
   :root {
     --md-sys-motion-duration-standard: 200ms;
+  }
+}
+/* Semantic colours are not managed by theme-engine.js, so they need a
+   dark variant. These are set on :root, never on body, so they cannot
+   shadow the runtime accent tokens. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ok: #6BD6A0;
+    --ok-dim: rgba(107,214,160,0.14);
+    --ok-border: rgba(107,214,160,0.28);
+    --warn: #E8B563;
+    --warn-dim: rgba(232,181,99,0.13);
+    --warn-border: rgba(232,181,99,0.28);
+    --danger: #FF8A80;
+    --danger-dim: rgba(255,138,128,0.13);
+    --danger-border: rgba(255,138,128,0.28);
   }
 }
