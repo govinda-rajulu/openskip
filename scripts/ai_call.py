@@ -107,7 +107,10 @@ def _gemini(prompt, max_tokens):
     raise RuntimeError("gemini rate limited: " + str(last))
 
 
-PROVIDERS = [("github", _github), ("openrouter", _openrouter), ("gemini", _gemini)]
+# GitHub Models was retired on 2026-07-30 and now returns HTTP 410.
+# _github is kept only so the import surface does not change; it is
+# not in the fallback chain.
+PROVIDERS = [("openrouter", _openrouter), ("gemini", _gemini)]
 
 
 def ask(prompt, max_tokens=8192):
