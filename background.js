@@ -15,7 +15,10 @@ const OSUB_CACHE_MAX = 20;
 const FETCH_RETRY_COUNT = 3;
 const FETCH_RETRY_BASE_MS = 1000;
 const QUEUE_FLUSH_INTERVAL_MIN = 5;
-const HEARTBEAT_INTERVAL_MIN = 25 / 60;
+// Chrome clamps alarms below its minimum period. Chrome 120+ allows
+// 0.5 min; older builds clamp to 1 min. Requesting 0.5 is the shortest
+// interval that is honoured rather than silently rewritten.
+const HEARTBEAT_INTERVAL_MIN = 0.5;
 const CONFIG_CACHE_TTL_MS = 30000;
 
 // ── SW keepalive alarm ────────────────────────────────────────────────────────
@@ -562,8 +565,8 @@ br.runtime.onInstalled.addListener(async ({ reason }) => {
   // Re-register alarms in case they were cleared by browser update or SW restart
   if (IS_SW) {
     br.alarms.get(ALARM_HEARTBEAT).then(a => {
-      if (!a) br.alarms.create(ALARM_HEARTBEAT, { periodInMinutes: 25 / 60 });
-    }).catch(() => { br.alarms.create(ALARM_HEARTBEAT, { periodInMinutes: 25 / 60 }); });
+      if (!a) br.alarms.create(ALARM_HEARTBEAT, { periodInMinutes: HEARTBEAT_INTERVAL_MIN });
+    }).catch(() => { br.alarms.create(ALARM_HEARTBEAT, { periodInMinutes: HEARTBEAT_INTERVAL_MIN }); });
     br.alarms.get(ALARM_QUEUE_FLUSH).then(a => {
       if (!a) br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: 5 });
     }).catch(() => { br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: 5 }); });
