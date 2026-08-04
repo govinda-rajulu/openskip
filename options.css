@@ -135,56 +135,6 @@
   --lh-170: 1.7;
 }
 
-/* Manual overrides mirroring popup.css's stored theme choice.
-   No toggle control lives on this page; this just keeps options.html
-   consistent with whatever the user picked in the popup, instead of
-   silently ignoring it and always following the OS setting. */
-body.theme-light {
-  --bg:           #F7FBF1;
-  --sidebar-bg:   rgba(255,255,255,0.62);
-  --card:         rgba(255,255,255,0.74);
-  --card-border:  rgba(255,255,255,0.92);
-  --surface:      rgba(24,29,23,0.04);
-  --surface2:     rgba(24,29,23,0.065);
-  --divider:      rgba(65,73,66,0.10);
-  --input-bg:     rgba(255,255,255,0.92);
-  --input-border: rgba(65,73,66,0.16);
-  --text:         #181D17;
-  --text2:        #414942;
-  --text3:        #5E655A;  /* darkened from #717970, WCAG AA fix */
-  --accent:       #35693A;
-  --on-accent:    #FFFFFF;
-  --accent-dim:   rgba(53,105,58,0.11);
-  --accent-h:     #1F4A22;
-  --toggle-off:   rgba(24,29,23,0.16);
-  --shadow:       0 2px 8px rgba(0,0,0,0.18);
-  --shadow-sm:    0 1px 4px rgba(0,0,0,0.14);
-  --shadow-lg:    0 4px 16px rgba(0,0,0,0.22);
-}
-
-body.theme-dark {
-  --bg:           #10140F;
-  --sidebar-bg:   rgba(28,33,27,0.72);
-  --card:         rgba(28,33,27,0.82);
-  --card-border:  rgba(193,201,187,0.08);
-  --surface:      rgba(193,201,187,0.05);
-  --surface2:     rgba(193,201,187,0.08);
-  --divider:      rgba(193,201,187,0.07);
-  --input-bg:     rgba(193,201,187,0.06);
-  --input-border: rgba(193,201,187,0.13);
-  --text:         #DFE4DA;
-  --text2:        #C1C9BB;
-  --text3:        #8B9388;
-  --accent:       #57A860;
-  --on-accent:    #FFFFFF;
-  --accent-dim:   rgba(87,168,96,0.14);
-  --accent-h:     #6FBD68;
-  --toggle-off:   rgba(193,201,187,0.15);
-  --shadow:       0 2px 8px rgba(0,0,0,0.18);
-  --shadow-sm:    0 1px 4px rgba(0,0,0,0.14);
-  --shadow-lg:    0 4px 16px rgba(0,0,0,0.22);
-}
-
 /* ---------- Reset ---------- */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
