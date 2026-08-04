@@ -1,8 +1,6 @@
 name: Store Version Check
 
 on:
-  schedule:
-    - cron: '0 10 * * 1'   # Monday 10:00 UTC (after diagnostics at 09:00)
   workflow_dispatch:
     inputs:
       force_submit:
