@@ -872,6 +872,8 @@ function renderHistory(items) {
     } else if (oembedPlatform) {
       const pageUrl = url && url.startsWith('http') ? url : (url ? 'https://' + url : '');
       fetchOembedThumb(pageUrl, oembedPlatform, el);
+    } else if (item.mediaId && /^yt\/[A-Za-z0-9_-]{11}$/.test(item.mediaId)) {
+      scheduleFetchPoster(title || 'video', el, item.mediaId);
     } else if (!isYoutubeish && title && title !== 'Unknown') {
       scheduleFetchPoster(title, el, item.mediaId);
     }
