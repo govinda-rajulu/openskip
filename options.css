@@ -44,7 +44,7 @@
   --r-sm:         var(--md-sys-shape-corner-small);
   --r-full:       var(--md-sys-shape-corner-full);
 
-  --font:         'Roboto Flex', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font:         -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial, sans-serif;
   --ease:         var(--md-sys-motion-duration-standard) var(--md-sys-motion-easing-standard);
 
   /* Dynamic (fluid) sizing tokens */
