@@ -1,0 +1,99 @@
+name: Monthly Cleanup
+
+on:
+  schedule:
+    - cron: '0 3 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Delete merged ai-fix branches
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: branches } = await github.rest.repos.listBranches({
+              owner: context.repo.owner, repo: context.repo.repo, per_page: 100
+            });
+            let removed = 0;
+            for (const b of branches) {
+              if (!b.name.startsWith('ai-fix/') && !b.name.startsWith('sweep/')) continue;
+              const { data: prs } = await github.rest.pulls.list({
+                owner: context.repo.owner, repo: context.repo.repo,
+                head: `${context.repo.owner}:${b.name}`, state: 'all'
+              });
+              const open = prs.some(p => p.state === 'open');
+              if (open) continue;
+              const everMerged = prs.some(p => p.merged_at);
+              const noPr = prs.length === 0;
+              if (!everMerged && !noPr) continue;
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner, repo: context.repo.repo,
+                ref: `heads/${b.name}`
+              });
+              removed++;
+              core.info(`deleted ${b.name}`);
+            }
+            core.info(`branches deleted: ${removed}`);
+
+      - name: Delete workflow runs older than 30 days
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+            let deleted = 0;
+            for (let page = 1; page <= 10; page++) {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner, repo: context.repo.repo,
+                per_page: 100, page
+              });
+              if (data.workflow_runs.length === 0) break;
+              for (const run of data.workflow_runs) {
+                if (new Date(run.created_at).getTime() >= cutoff) continue;
+                if (run.status === 'in_progress' || run.status === 'queued') continue;
+                try {
+                  await github.rest.actions.deleteWorkflowRun({
+                    owner: context.repo.owner, repo: context.repo.repo,
+                    run_id: run.id
+                  });
+                  deleted++;
+                } catch (e) { core.info(`skip ${run.id}: ${e.message}`); }
+              }
+            }
+            core.info(`runs deleted: ${deleted}`);
+
+      - name: Delete artifacts older than 14 days
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+            let deleted = 0;
+            for (let page = 1; page <= 5; page++) {
+              const { data } = await github.rest.actions.listArtifactsForRepo({
+                owner: context.repo.owner, repo: context.repo.repo,
+                per_page: 100, page
+              });
+              if (data.artifacts.length === 0) break;
+              for (const a of data.artifacts) {
+                if (new Date(a.created_at).getTime() >= cutoff) continue;
+                try {
+                  await github.rest.actions.deleteArtifact({
+                    owner: context.repo.owner, repo: context.repo.repo,
+                    artifact_id: a.id
+                  });
+                  deleted++;
+                } catch (e) { core.info(`skip ${a.id}: ${e.message}`); }
+              }
+            }
+            core.info(`artifacts deleted: ${deleted}`);
