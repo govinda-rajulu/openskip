@@ -1037,6 +1037,7 @@ button:focus-visible {
     transform: translateX(-100%);
     transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
     z-index: 15;
+    background: var(--bg);
   }
 
   body.nav-open .sidebar { transform: translateX(0); }
