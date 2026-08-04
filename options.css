@@ -1103,4 +1103,6 @@ button:focus-visible {
     --danger-dim: rgba(255,138,128,0.13);
     --danger-border: rgba(255,138,128,0.28);
   }
+
+  .alert code { background: rgba(255,255,255,0.10); }
 }
