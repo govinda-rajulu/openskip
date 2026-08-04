@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.10.0] - 2026-08-04
+### Fixed
+- Settings page ignored your accent colour and stayed locked to green
+- Settings page did not repaint when you changed the theme from the popup
+- Slide-out menu on narrow windows and phones was see-through
+- Error, warning and success text was hard to read on the settings page in dark mode
+- Code snippets and the delete-button hover state lost their dark styling
+- YouTube entries in the settings History list showed no thumbnail
+- Background cleanup ran on a schedule Chrome silently ignored
+
+### Changed
+- Settings page rebuilt on the same five text sizes, corner radii and font stack as the popup
+- Navigation icons are a single size at full strength instead of small and faded
+- Cards use a tighter corner radius so the page reads as one system
+- Removed the overshoot animation curve, so both surfaces now move identically
+- Setup instructions say "settings icon" instead of "gear icon", which it has not been for two versions
+
+### Removed
+- The unused scripting permission is gone from the Firefox build
+
 ## [1.9.9] - 2026-08-02
 ### Fixed
 - Popup opened as a thin sliver on desktop Firefox

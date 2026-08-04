@@ -5,7 +5,7 @@
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-Active-blue?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 [![Chrome](https://img.shields.io/badge/Chrome-Manual%20Install-yellow?logo=googlechrome)](../../releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.9.9-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.9.9)
+[![Version](https://img.shields.io/badge/version-1.10.0-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.10.0)
 
 ---
 
@@ -40,7 +40,7 @@
 
 ## Setup
 
-Click the **gear icon** in the popup to open Settings. All five service credentials (IntroDB, Supabase, TMDB, AnimeSkip, OpenSubtitles) live on the single **Services** page, alongside live status for each.
+Click the **settings icon** in the popup to open Settings. All five service credentials (IntroDB, Supabase, TMDB, AnimeSkip, OpenSubtitles) live on the single **Services** page, alongside live status for each.
 
 ### Skip segments (IntroDB) - required for skipping
 Get a free key at [introdb.app](https://introdb.app). Without it, the extension works as a resume-only tool.

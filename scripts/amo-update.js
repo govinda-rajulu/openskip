@@ -351,7 +351,7 @@ What it does
 
 Setup
 
-Click the gear icon in the popup.
+Click the settings icon in the popup.
 
 • IntroDB key (free at introdb.app) - required for skip segments
 • Supabase URL + anon key (free at supabase.com) - optional, enables cross-device sync and cloud backup
