@@ -20,6 +20,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      models: read
 
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +44,10 @@ jobs:
 
       - name: AI generate fix
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
+          AI_MODEL_GITHUB:   ${{ vars.AI_MODEL_GITHUB }}
+          AI_MODEL_OPENROUTER: ${{ vars.AI_MODEL_OPENROUTER }}
+          AI_MODEL_GEMINI:   ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ISSUE_NUMBER:      ${{ github.event.issue.number }}
@@ -51,18 +55,14 @@ jobs:
           ISSUE_BODY:        ${{ github.event.issue.body }}
         run: |
           python3 << 'PYEOF'
-          import os, json, urllib.request, urllib.error, time
+          import sys
+          sys.path.insert(0, "scripts")
+          from ai_call import ask, strip_fences
+          import os, json
 
           issue_num   = os.environ.get("ISSUE_NUMBER", "")
           issue_title = os.environ.get("ISSUE_TITLE", "")
           issue_body  = os.environ.get("ISSUE_BODY", "")
-          anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
-          gemini_key    = os.environ.get("GEMINI_API_KEY", "")
-          openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
-
-          if not openrouter_key and not gemini_key and not anthropic_key:
-              json.dump({"error": "NO_AI_KEY"}, open("/tmp/ai_fix.json", "w"))
-              exit(0)
 
           repo_context = open("/tmp/repo_context.txt").read()
 
@@ -97,40 +97,9 @@ jobs:
           - Write the COMPLETE file content for each changed file
           - If this cannot be safely automated: [{{"filename":"","content":"","description":"CANNOT_FIX: reason"}}]"""
 
-          def call_claude(p):
-              data = json.dumps({"model":"claude-sonnet-4-6","max_tokens":8192,"messages":[{"role":"user","content":p}]}).encode()
-              req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=data,
-                  headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"}, method="POST")
-              with urllib.request.urlopen(req, timeout=120) as r:
-                  return json.load(r)["content"][0]["text"].strip()
-
-          def call_gemini(p):
-              data = json.dumps({"contents":[{"parts":[{"text":p}]}],"generationConfig":{"temperature":0.1,"maxOutputTokens":8192}}).encode()
-              url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
-              for attempt in range(4):
-                  try:
-                      req = urllib.request.Request(url, data=data, headers={"Content-Type":"application/json"}, method="POST")
-                      with urllib.request.urlopen(req, timeout=90) as r:
-                          return json.load(r)["candidates"][0]["content"]["parts"][0]["text"].strip()
-                  except urllib.error.HTTPError as e:
-                      if e.code == 429: time.sleep(30 * (attempt+1))
-                      else: raise
-              raise RuntimeError("Gemini rate limit exceeded")
-
-          def call_openrouter(p, max_tokens=8192):
-              data = json.dumps({"model":"google/gemini-2.0-flash-exp:free","max_tokens":max_tokens,"messages":[{"role":"user","content":p}]}).encode()
-              req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=data,
-                  headers={"Content-Type":"application/json","Authorization":f"Bearer {openrouter_key}",
-                           "HTTP-Referer":"https://github.com/govinda-rajulu/openskip","X-Title":"openskip-agent"}, method="POST")
-              with urllib.request.urlopen(req, timeout=120) as r:
-                  return json.load(r)["choices"][0]["message"]["content"].strip()
-
-
           try:
-              text = call_openrouter(prompt) if openrouter_key else (call_gemini(prompt) if gemini_key else call_claude(prompt))
-              print(f"AI response: {len(text)} chars")
-              if text.startswith("```"):
-                  text = text.split("\n",1)[1].rsplit("```",1)[0].strip()
+              text = ask(prompt, max_tokens=8192)
+              text = strip_fences(text)
               json.loads(text)  # validate
               open("/tmp/ai_fix.json","w").write(text)
           except Exception as e:
@@ -222,6 +191,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      models: read
 
     steps:
       - uses: actions/checkout@v4
@@ -255,7 +225,10 @@ jobs:
 
       - name: Run AI command
         env:
-          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
+          AI_MODEL_GITHUB:   ${{ vars.AI_MODEL_GITHUB }}
+          AI_MODEL_OPENROUTER: ${{ vars.AI_MODEL_OPENROUTER }}
+          AI_MODEL_GEMINI:   ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:     ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY:  ${{ secrets.OPENROUTER_API_KEY }}
           CMD:                ${{ steps.cmd.outputs.command }}
@@ -266,7 +239,10 @@ jobs:
           COMMENT_BODY:       ${{ github.event.comment.body }}
         run: |
           python3 << 'PYEOF'
-          import os, json, urllib.request, urllib.error, time
+          import sys
+          sys.path.insert(0, "scripts")
+          from ai_call import ask, strip_fences
+          import os, json
 
           cmd           = os.environ.get("CMD","")
           args          = os.environ.get("ARGS","").strip()
@@ -274,14 +250,7 @@ jobs:
           issue_title   = os.environ.get("ISSUE_TITLE","")
           issue_body    = os.environ.get("ISSUE_BODY","")
           comment_body  = os.environ.get("COMMENT_BODY","")
-          anthropic_key = os.environ.get("ANTHROPIC_API_KEY","")
-          gemini_key    = os.environ.get("GEMINI_API_KEY","")
-          openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
           repo_context  = open("/tmp/repo_context.txt").read()
-
-          if not openrouter_key and not gemini_key and not anthropic_key:
-              open("/tmp/ai_cmd_result.json","w").write(json.dumps({"type":"error","text":"No AI key configured."}))
-              exit(0)
 
           # Build command-specific prompt
           if cmd == "/ai-fix":
@@ -346,40 +315,10 @@ jobs:
               open("/tmp/ai_cmd_result.json","w").write(json.dumps({"type":"error","text":f"Unknown command: {cmd}"}))
               exit(0)
 
-          def call_claude(p, max_tokens=8192):
-              data = json.dumps({"model":"claude-sonnet-4-6","max_tokens":max_tokens,"messages":[{"role":"user","content":p}]}).encode()
-              req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=data,
-                  headers={"Content-Type":"application/json","x-api-key":anthropic_key,"anthropic-version":"2023-06-01"}, method="POST")
-              with urllib.request.urlopen(req, timeout=120) as r:
-                  return json.load(r)["content"][0]["text"].strip()
-
-          def call_gemini(p):
-              data = json.dumps({"contents":[{"parts":[{"text":p}]}],"generationConfig":{"temperature":0.2,"maxOutputTokens":8192}}).encode()
-              url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}"
-              for attempt in range(4):
-                  try:
-                      req = urllib.request.Request(url, data=data, headers={"Content-Type":"application/json"}, method="POST")
-                      with urllib.request.urlopen(req, timeout=90) as r:
-                          return json.load(r)["candidates"][0]["content"]["parts"][0]["text"].strip()
-                  except urllib.error.HTTPError as e:
-                      if e.code == 429: time.sleep(30*(attempt+1))
-                      else: raise
-              raise RuntimeError("Gemini rate limit exceeded")
-
-          def call_openrouter(p, max_tokens=8192):
-              data = json.dumps({"model":"google/gemini-2.0-flash-exp:free","max_tokens":max_tokens,"messages":[{"role":"user","content":p}]}).encode()
-              req = urllib.request.Request("https://openrouter.ai/api/v1/chat/completions", data=data,
-                  headers={"Content-Type":"application/json","Authorization":f"Bearer {openrouter_key}",
-                           "HTTP-Referer":"https://github.com/govinda-rajulu/openskip","X-Title":"openskip-agent"}, method="POST")
-              with urllib.request.urlopen(req, timeout=120) as r:
-                  return json.load(r)["choices"][0]["message"]["content"].strip()
-
-
           try:
-              text = call_openrouter(prompt) if openrouter_key else (call_gemini(prompt) if gemini_key else call_claude(prompt))
+              text = ask(prompt, max_tokens=8192)
               # Determine if response is JSON (code change) or markdown (explanation)
-              stripped = text.strip()
-              if stripped.startswith("```"): stripped = stripped.split("\n",1)[1].rsplit("```",1)[0].strip()
+              stripped = strip_fences(text)
               is_json = stripped.startswith("[") or stripped.startswith("{")
               if is_json:
                   parsed = json.loads(stripped)
@@ -417,7 +356,7 @@ jobs:
             // Text response (review, explain, or non-code task)
             if (result.type === 'text') {
               const icon = {'/ai-review':'🔍','/ai-explain':'📖','/ai-task':'🤖'}[cmd] || '🤖';
-              await comment(`## ${icon} AI Response\n\n${result.text}\n\n---\n*Powered by ${process.env.ANTHROPIC_API_KEY ? 'Claude Sonnet' : 'Gemini 2.0 Flash'}*`);
+              await comment(`## ${icon} AI Response\n\n${result.text}\n\n---\n*Generated by the SkipStream agent*`);
               return;
             }
 
@@ -465,4 +404,3 @@ jobs:
               ({ data: pr } = await github.rest.pulls.create({ owner:context.repo.owner, repo:context.repo.repo, title:`🤖 AI fix: ${issueTitle}`, head:branch, base:'main', body:prBody }));
             }
             await comment(`## 🤖 AI Fix PR Ready\n\nPR #${pr.number}: ${pr.html_url}\n\nCI running. Review and test in Firefox before merging.`);
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
