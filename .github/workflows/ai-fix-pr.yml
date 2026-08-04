@@ -152,6 +152,12 @@ jobs:
               fileList.push(`- \`${fix.filename}\`: ${fix.description}`);
             }
 
+            if (fileList.length === 0) {
+              await comment(`## AI Fix produced nothing to apply\n\nThe model returned no file content. Usually this means the target file is too large to rewrite in full within the token limit. No PR opened.`);
+              try { await github.rest.git.deleteRef({ owner:context.repo.owner, repo:context.repo.repo, ref:`heads/${branch}` }); } catch(e) {}
+              return;
+            }
+
             const prBody = [
               `Closes #${issueNum}`,``,`## Changes`,fileList.join('\n'),``,`---`,
               `⚠️ **Review carefully before merging.** CI runs automatically.`,``,
@@ -382,6 +388,12 @@ jobs:
                 content:Buffer.from(fix.content).toString('base64'), branch, ...(sha?{sha}:{})
               });
               fileList.push(`- \`${fix.filename}\`: ${fix.description}`);
+            }
+
+            if (fileList.length === 0) {
+              await comment(`## AI Fix produced nothing to apply\n\nThe model returned no file content. Usually this means the target file is too large to rewrite in full within the token limit. No PR opened.`);
+              try { await github.rest.git.deleteRef({ owner:context.repo.owner, repo:context.repo.repo, ref:`heads/${branch}` }); } catch(e) {}
+              return;
             }
 
             const prBody = [`Closes #${issueNum}`,``,`## Changes`,fileList.join('\n'),``,`---`,
