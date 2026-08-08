@@ -1117,6 +1117,29 @@ function clickSkipByLabel() {
   return false;
 }
 
+// Unlisted OTT fallback for next-episode controls. Bare "Next" is deliberately
+// excluded: it matches pagination and carousel arrows.
+const NEXT_EP_TEXT_RE = /^(next episode|next ep|play next|watch next)$/i;
+let _lastNextScanTs = 0;
+
+function clickNextByLabel() {
+  const now = Date.now();
+  if (now - _lastNextScanTs < 700) return false;
+  _lastNextScanTs = now;
+  const nodes = document.querySelectorAll('button,[role="button"],a[href="#"]');
+  for (const el of nodes) {
+    if (el.disabled || el.offsetParent === null) continue;
+    const label = (el.getAttribute('aria-label') || el.textContent || '').trim();
+    if (!label || label.length > 24) continue;
+    if (!NEXT_EP_TEXT_RE.test(label)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 24 || r.height < 16) continue;
+    el.click();
+    return true;
+  }
+  return false;
+}
+
 function clickNativeSkipButton() {
     const host = location.hostname.replace(/^www\./, '');
     let selectors = null;
@@ -1172,7 +1195,7 @@ function clickNativeSkipButton() {
           video.currentTime > 0 &&
           video.duration - video.currentTime < 10 &&
           !_nextEpTriggered) {
-        if (clickFirst(NEXT_EP_SELECTORS)) {
+        if (clickFirst(NEXT_EP_SELECTORS) || clickNextByLabel()) {
           _nextEpTriggered = true;
           setTimeout(() => { _nextEpTriggered = false; }, 30000);
         }
