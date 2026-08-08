@@ -126,6 +126,7 @@
 
   const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipEnabled: true, autoNextEpisode: false, deviceName: '' };
   let prefs = { ...PREF_DEFAULTS };
+let _ssEffPrefs = null;
 
   async function loadPrefs() {
     try {
@@ -880,7 +881,7 @@
     if (existing) existing.remove();
 
     const prefKey = PREF_FOR_SEGMENT[segKey];
-    const isAutoMode = prefs[prefKey] === true; // true = auto (instant), false/other = prompt
+    const isAutoMode = (_ssEffPrefs || prefs)[prefKey] === true; // true = auto (instant), false/other = prompt
 
     // FIX 1: Auto mode = instant skip, no countdown
     if (isAutoMode) {
@@ -1764,7 +1765,7 @@ function clickNativeSkipButton() {
       if (video.paused || !segments) return;
       if (video._ssCooldownUntil && Date.now() < video._ssCooldownUntil) return;
 
-      const effectivePrefs = getSitePrefs(prefs);
+      const effectivePrefs = getSitePrefs(prefs); _ssEffPrefs = effectivePrefs;
       if (!effectivePrefs.skipEnabled) {
         if (activeSegmentKey) { activeSegmentKey = ''; hideSkipBtn(); }
         return;
