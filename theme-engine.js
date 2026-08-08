@@ -3,6 +3,10 @@
 (function() {
   const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
   let currentSeed = '#57A860';
+  function systemMode() {
+    try { return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; }
+    catch (e) { return 'dark'; }
+  }
   function hexToOklch(hex) {
     hex = hex.replace('#', '');
     const r = parseInt(hex.slice(0,2),16)/255;
@@ -32,7 +36,7 @@
       currentSeed = hex;
     }
     hex = currentSeed;
-    mode = mode || 'dark';
+    mode = mode || systemMode();
     const seed = hexToOklch(hex);
     const h = seed.H;
     const c = Math.min(seed.C, 0.15);
@@ -106,9 +110,9 @@
     }
   }
   br.storage.local.get(['skipstream_seed_color', 'skipstream_theme']).then(data => {
-    applyThemeFromSeed(data.skipstream_seed_color || '#57A860', data.skipstream_theme || 'dark');
+    applyThemeFromSeed(data.skipstream_seed_color || '#57A860', data.skipstream_theme || systemMode());
   }).catch(() => {
-    applyThemeFromSeed('#57A860', 'dark');
+    applyThemeFromSeed('#57A860', systemMode());
   });
   window.applyThemeFromSeed = applyThemeFromSeed;
 })();
