@@ -21,12 +21,18 @@ const KEYS = {
 
 const $ = id => document.getElementById(id);
 
+function ssSystemMode() {
+  try { return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; }
+  catch (e) { return 'dark'; }
+}
+
+
 // Version
 const verBadgeEl = $('versionBadge');
 if (verBadgeEl) verBadgeEl.textContent = 'v' + br.runtime.getManifest().version;
 
 // -- Theme: simple light/dark toggle, no system intermediate state --
-let currentTheme = 'dark';
+let currentTheme = ssSystemMode();
 let currentSeedHex = '#57A860';
 
 function applyTheme(t) {
@@ -229,7 +235,7 @@ async function loadState() {
   const data = await br.storage.local.get(Object.values(KEYS));
   const enabled  = data[KEYS.enabled] !== false;
   const mode     = data[KEYS.skipMode] || 'auto-all';
-  currentTheme   = data[KEYS.theme] || 'dark';
+  currentTheme   = data[KEYS.theme] || ssSystemMode();
   currentSeedHex = data[KEYS.seedColor] || '#57A860';
 
   applyTheme(currentTheme);
