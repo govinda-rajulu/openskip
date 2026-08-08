@@ -1095,9 +1095,14 @@
 
   // Unlisted OTT fallback: match a visible control whose own label reads like a skip
 // action. Text is matched whole so "Skip" never hits "Skipped" or "Skip settings".
+let _lastLabelScanTs = 0;
 const SKIP_TEXT_RE = /^(skip|skip intro|skip recap|skip opening|skip credits|skip outro|skip ending|skip titles)$/i;
 
 function clickSkipByLabel() {
+  // Layout-forcing scan: floor it so a mutation storm cannot run it per mutation.
+  const _now = Date.now();
+  if (_now - _lastLabelScanTs < 700) return false;
+  _lastLabelScanTs = _now;
   const nodes = document.querySelectorAll('button,[role="button"],a[href="#"]');
   for (const el of nodes) {
     if (el.disabled || el.offsetParent === null) continue;
