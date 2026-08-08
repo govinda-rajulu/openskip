@@ -1093,13 +1093,32 @@
     'tubi.tv': ['.skip-button'],
   };
 
-  function clickNativeSkipButton() {
+  // Unlisted OTT fallback: match a visible control whose own label reads like a skip
+// action. Text is matched whole so "Skip" never hits "Skipped" or "Skip settings".
+const SKIP_TEXT_RE = /^(skip|skip intro|skip recap|skip opening|skip credits|skip outro|skip ending|skip titles)$/i;
+
+function clickSkipByLabel() {
+  const nodes = document.querySelectorAll('button,[role="button"],a[href="#"]');
+  for (const el of nodes) {
+    if (el.disabled || el.offsetParent === null) continue;
+    const label = (el.getAttribute('aria-label') || el.textContent || '').trim();
+    if (!label || label.length > 24) continue;
+    if (!SKIP_TEXT_RE.test(label)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 24 || r.height < 16) continue;
+    el.click();
+    return true;
+  }
+  return false;
+}
+
+function clickNativeSkipButton() {
     const host = location.hostname.replace(/^www\./, '');
     let selectors = null;
     for (const [domain, sels] of Object.entries(NATIVE_SKIP_SITES)) {
       if (host === domain || host.endsWith('.' + domain)) { selectors = sels; break; }
     }
-    if (!selectors) return false;
+    if (!selectors) return clickSkipByLabel();
     for (const sel of selectors) {
       try {
         const btn = document.querySelector(sel);
