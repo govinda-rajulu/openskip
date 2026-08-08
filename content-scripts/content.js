@@ -1795,8 +1795,8 @@ function clickNativeSkipButton() {
             }
             const active = isInSegment(video.currentTime, seg);
             if (active) {
-              video.currentTime = active.end_sec;
-              recordSkipStat(active.end_sec - video.currentTime);
+              const _ssPrevT = video.currentTime; video.currentTime = active.end_sec;
+              recordSkipStat(active.end_sec - _ssPrevT);
               break;
             }
           }
