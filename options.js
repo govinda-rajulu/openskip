@@ -1173,7 +1173,7 @@ if (importBtn && importFile) {
       const existing = await br.storage.local.get(null);
 
       // Note: Filtered data no longer has supabaseUrl/Key, but keep existing creds
-      const merged = { ...safeData, ...existing };
+      const merged = { ...existing, ...safeData };
 
       // Combine stats additively (skipstream_stats blob)
       const pStats = safeData[S.stats]   || {};
