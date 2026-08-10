@@ -617,6 +617,8 @@ function loadStats(data) {
   const skipsToday = stats.statsDate === today ? (stats.skipsToday || 0) : 0;
   const totalSkips = stats.skipsTotal    || 0;
   const totalTime  = stats.timeSavedSec  || 0;
+  const _ssToday = new Date().toDateString();
+  const todayTime = (stats.statsDate === _ssToday) ? (stats.timeSavedToday || 0) : 0;
   const sessions   = stats.sessionsTotal || 0;
 
   const sessionGrid = $('statsGrid');
@@ -625,7 +627,7 @@ function loadStats(data) {
   if (sessionGrid) {
     sessionGrid.replaceChildren();
     sessionGrid.appendChild(makeStatCard(skipsToday, 'Skips today'));
-    sessionGrid.appendChild(makeStatCard(fmtTime(totalTime), 'Time saved today'));
+    sessionGrid.appendChild(makeStatCard(fmtTime(todayTime), 'Time saved today'));
   }
   if (allGrid) {
     allGrid.replaceChildren();
