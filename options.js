@@ -1138,7 +1138,7 @@ if (importBtn && importFile) {
         'skipMode', 'skipIntro', 'skipRecap', 'skipOutro',
         'resumePlayback', 'autoNextEpisode', 'playbackSpeed',
         'skipstream_theme', 'subtitle_language', 'subtitle_font_size',
-        'subtitle_enabled', 'deviceName', 'skipEnabled', 'skipstream_seed_color', 'subtitle_position',
+        'subtitle_enabled', 'deviceName', 'skipEnabled', 'skipstream_seed_color', 'subtitle_position', 'subtitle_sync', 'subtitle_drag_pos',
       ];
 
       const IMPORT_BLOCKED = [
