@@ -65,8 +65,6 @@ jobs:
           - No fetch() in content-scripts/content.js
           - No innerHTML anywhere
           - No console.log anywhere
-          - userId = SHA-256("skipstream:uid:" + supabaseAnonKey)
-          - SPA nav = pushState/replaceState intercept
           
           CODEBASE:
           {context_str[:70000]}
