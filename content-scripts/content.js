@@ -1346,7 +1346,10 @@ function clickNativeSkipButton() {
       if (s.subtitle_enabled !== undefined) _subState.enabled  = !!s.subtitle_enabled;
       if (s.subtitle_language)              _subState.language  = s.subtitle_language;
       if (s.subtitle_font_size)             _subState.fontSize  = parseInt(s.subtitle_font_size) || 18;
-      if (s.subtitle_position !== undefined) _subState.position = parseFloat(s.subtitle_position) ?? 12;
+      if (s.subtitle_position !== undefined) {
+        const savedPos = parseFloat(s.subtitle_position);
+        if (Number.isFinite(savedPos)) _subState.position = Math.min(60, Math.max(2, savedPos));
+      }
       if (s.subtitle_sync     !== undefined) _subState.sync     = parseFloat(s.subtitle_sync) || 0;
       if (s.subtitle_drag_pos) _subState.dragPos = s.subtitle_drag_pos;
     } catch { /* defaults ok */ }
@@ -1379,24 +1382,22 @@ function clickNativeSkipButton() {
     const r    = video.getBoundingClientRect();
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     el.style.position  = fsEl ? 'absolute' : 'fixed';
-    
-    // Use dragPos for x% and bottom% positioning (or fallback to video center)
-    const xPos = _subState.dragPos?.x ?? 50;
-    const bottomPos = _subState.dragPos?.bottom ?? 10;
-    
+
+    const savedDragPos = _subState.dragPos && typeof _subState.dragPos === 'object' ? _subState.dragPos : null;
+    const xPos = savedDragPos?.x ?? 50;
+    const bottomPos = savedDragPos?.bottom ?? _subState.position;
+    const safeBottom = Number.isFinite(bottomPos) ? Math.min(60, Math.max(2, bottomPos)) : 12;
+
     if (fsEl) {
-      // Fullscreen: absolute positioning within fullscreen element
       el.style.left   = (xPos) + '%';
-      el.style.bottom = (bottomPos) + '%';
+      el.style.bottom = (safeBottom) + '%';
       el.style.transform = 'translateX(-50%)';
     } else {
-      // Normal: fixed positioning relative to viewport, accounting for video rect
       el.style.left   = (r.left + r.width * xPos / 100) + 'px';
-      el.style.bottom = (window.innerHeight - r.bottom + r.height * bottomPos / 100) + 'px';
+      el.style.bottom = (window.innerHeight - r.bottom + r.height * safeBottom / 100) + 'px';
       el.style.transform = 'translateX(-50%)';
     }
-    
-    // Responsive font: scale based on video width, clamp 10-60px
+
     const scale = Math.max(0.6, Math.min(2.0, r.width / 640));
     el.style.fontSize  = Math.max(10, Math.min(60, _subState.fontSize * scale)) + 'px';
   }
@@ -1417,11 +1418,11 @@ function clickNativeSkipButton() {
     _subOverlay = el;
 
     // Drag: full x/y control with pointer capture
-    let drag = false, sx = 0, sy = 0, sp = { x: _subState.dragPos.x, bottom: _subState.dragPos.bottom };
+    let drag = false, sx = 0, sy = 0, sp = { x: _subState.dragPos?.x ?? 50, bottom: _subState.dragPos?.bottom ?? _subState.position };
     el.addEventListener('pointerdown', e => { 
       if (e.pointerType === 'touch' || e.pointerType === 'pen') e.preventDefault();
       drag = true; sx = e.clientX; sy = e.clientY; 
-      sp = { x: _subState.dragPos.x, bottom: _subState.dragPos.bottom };
+      sp = { x: _subState.dragPos?.x ?? 50, bottom: _subState.dragPos?.bottom ?? _subState.position };
       el.style.cursor = 'grabbing'; 
       el.setPointerCapture(e.pointerId); 
     });
@@ -1437,12 +1438,14 @@ function clickNativeSkipButton() {
         // In fullscreen: move by viewport %
         const dxPx = e.clientX - sx;
         const dyPx = e.clientY - sy;
+        _subState.dragPos = _subState.dragPos || { x: sp.x, bottom: sp.bottom };
         _subState.dragPos.x = Math.max(5, Math.min(95, sp.x + (dxPx / window.innerWidth * 100)));
         _subState.dragPos.bottom = Math.max(2, Math.min(60, sp.bottom - (dyPx / window.innerHeight * 100)));
       } else {
         // Normal: move by video %
         const dxPx = e.clientX - sx;
         const dyPx = e.clientY - sy;
+        _subState.dragPos = _subState.dragPos || { x: sp.x, bottom: sp.bottom };
         _subState.dragPos.x = Math.max(5, Math.min(95, sp.x + (dxPx / vw * 100)));
         _subState.dragPos.bottom = Math.max(2, Math.min(60, sp.bottom - (dyPx / vh * 100)));
       }
@@ -1620,6 +1623,14 @@ function clickNativeSkipButton() {
     }
     if ('subtitle_font_size' in changes) {
       _subState.fontSize = parseInt(changes.subtitle_font_size.newValue) || 18;
+      if (_subOverlay && _subVideo) positionSub(_subOverlay, _subVideo);
+    }
+    if ('subtitle_position' in changes) {
+      const nextPos = parseFloat(changes.subtitle_position.newValue);
+      if (Number.isFinite(nextPos)) {
+        _subState.position = Math.min(60, Math.max(2, nextPos));
+      }
+      _subState.dragPos = null;
       if (_subOverlay && _subVideo) positionSub(_subOverlay, _subVideo);
     }
     if ('subtitle_sync' in changes) {

@@ -30,6 +30,7 @@ const S = {
   osobPassword:       'osub_password',
   subLanguage:        'subtitle_language',
   subFontSize:        'subtitle_font_size',
+  subPosition:        'subtitle_position',
   subEnabled:         'subtitle_enabled',
   theme:              'skipstream_theme',
 };
@@ -60,6 +61,35 @@ if (subFontSizeInput) {
     br.storage.local.set({ [S.subFontSize]: clamped }).catch(() => {});
   };
   subFontSizeInput.addEventListener('input', persistSubFontSize);
+}
+
+const subPositionInput = $('subPosition');
+const subPositionValue = $('subPositionValue');
+if (subPositionInput) {
+  const persistSubPosition = () => {
+    let min = 2;
+    let max = 60;
+    if (subPositionInput.hasAttribute('min')) {
+      const minValue = Number.parseFloat(subPositionInput.getAttribute('min'));
+      if (Number.isFinite(minValue)) min = minValue;
+    }
+    if (subPositionInput.hasAttribute('max')) {
+      const maxValue = Number.parseFloat(subPositionInput.getAttribute('max'));
+      if (Number.isFinite(maxValue)) max = maxValue;
+    }
+    const parsed = Number.parseFloat(subPositionInput.value);
+    if (!Number.isFinite(parsed)) {
+      subPositionInput.value = '12';
+      if (subPositionValue) subPositionValue.textContent = '12%';
+      br.storage.local.set({ [S.subPosition]: 12 }).then(() => br.storage.local.remove(['subtitle_drag_pos'])).catch(() => {});
+      return;
+    }
+    const clamped = Math.min(max, Math.max(min, parsed));
+    subPositionInput.value = String(clamped);
+    if (subPositionValue) subPositionValue.textContent = String(clamped) + '%';
+    br.storage.local.set({ [S.subPosition]: clamped }).then(() => br.storage.local.remove(['subtitle_drag_pos'])).catch(() => {});
+  };
+  subPositionInput.addEventListener('input', persistSubPosition);
 }
 
 function ssSystemMode() {
@@ -427,6 +457,12 @@ async function loadCredentials() {
   if ($('osobPassword'))       $('osobPassword').value       = data[S.osobPassword]       || '';
   if ($('subLanguage'))        $('subLanguage').value        = data[S.subLanguage]        || 'en';
   if ($('subFontSize'))        $('subFontSize').value        = data[S.subFontSize]        || 18;
+  if ($('subPosition')) {
+    const savedPosition = Number.parseFloat(data[S.subPosition]);
+    const value = Number.isFinite(savedPosition) ? savedPosition : 12;
+    $('subPosition').value = String(Math.min(60, Math.max(2, value)));
+    if ($('subPositionValue')) $('subPositionValue').textContent = String(Math.min(60, Math.max(2, value))) + '%';
+  }
 
   const osubStatus = await osubEnsureLogin();
   const dotOsub = $('dot-osub');
