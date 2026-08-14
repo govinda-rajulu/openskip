@@ -112,16 +112,10 @@ do $$ begin
 end $$;
 
 -- Drop legacy settings policies from older installs to enforce the zero-policy model.
-do $$ begin
-  for r in
-    select policyname from pg_policies
-    where schemaname = 'public'
-      and tablename = 'user_settings'
-      and policyname in ('ss_settings_select','ss_settings_insert','ss_settings_update','ss_settings_delete')
-  loop
-    execute format('drop policy %I on public.user_settings', r.policyname);
-  end loop;
-end $$;
+drop policy if exists ss_settings_select on public.user_settings;
+drop policy if exists ss_settings_insert on public.user_settings;
+drop policy if exists ss_settings_update on public.user_settings;
+drop policy if exists ss_settings_delete on public.user_settings;
 
 revoke all on table public.user_settings from anon, authenticated;
 
