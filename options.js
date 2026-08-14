@@ -36,6 +36,32 @@ const S = {
 
 const $ = id => document.getElementById(id);
 
+const subFontSizeInput = $('subFontSize');
+if (subFontSizeInput) {
+  const persistSubFontSize = () => {
+    let min = 10;
+    let max = 30;
+    if (subFontSizeInput.hasAttribute('min')) {
+      const minValue = Number.parseFloat(subFontSizeInput.getAttribute('min'));
+      if (Number.isFinite(minValue)) min = minValue;
+    }
+    if (subFontSizeInput.hasAttribute('max')) {
+      const maxValue = Number.parseFloat(subFontSizeInput.getAttribute('max'));
+      if (Number.isFinite(maxValue)) max = maxValue;
+    }
+    const parsed = Number.parseInt(subFontSizeInput.value, 10);
+    if (!Number.isFinite(parsed)) {
+      subFontSizeInput.value = '18';
+      br.storage.local.set({ [S.subFontSize]: 18 }).catch(() => {});
+      return;
+    }
+    const clamped = Math.min(max, Math.max(min, parsed));
+    subFontSizeInput.value = String(clamped);
+    br.storage.local.set({ [S.subFontSize]: clamped }).catch(() => {});
+  };
+  subFontSizeInput.addEventListener('input', persistSubFontSize);
+}
+
 function ssSystemMode() {
   try { return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; }
   catch (e) { return 'dark'; }
@@ -55,7 +81,7 @@ br.storage.onChanged.addListener((changes, area) => {
   }).catch(() => {});
 });
 
-// -- DOM-safe helper: replaces innerHTML spinner+label pattern --
+// -- DOM-safe helper: replaces spinner+label pattern --
 function setSpinnerLabel(el, text) {
   el.replaceChildren();
   const spinner = document.createElement('span');
@@ -326,6 +352,28 @@ async function verifyAnimeskip(enabled, clientId) {
 }
 
 // -- Run all verifications --
+async function osubEnsureLogin() {
+  const data = await br.storage.local.get([S.osobUsername, S.osobPassword]);
+  const user = (data[S.osobUsername] || '').trim();
+  const pass = (data[S.osobPassword] || '').trim();
+
+  const status = await new Promise(resolve => {
+    br.runtime.sendMessage({ type: 'OSUB_STATUS' }, resolve);
+  });
+  if (status?.loggedIn) return status;
+  if (!user || !pass) return { loggedIn: false, anonymous: true };
+
+  const login = await new Promise(resolve => {
+    br.runtime.sendMessage({ type: 'OSUB_LOGIN', username: user, password: pass }, resolve);
+  });
+  if (!login || !login.ok) {
+    return { loggedIn: false, anonymous: false };
+  }
+  return new Promise(resolve => {
+    br.runtime.sendMessage({ type: 'OSUB_STATUS' }, resolve);
+  });
+}
+
 async function verifyAll() {
   const data = await br.storage.local.get([
     S.introdbApiKey, S.supabaseUrl, S.supabaseAnonKey,
@@ -338,21 +386,19 @@ async function verifyAll() {
     verifyTmdb(data[S.tmdbApiKey]),
     verifyAnimeskip(data[S.animeSkipEnabled], data[S.animeSkipClientId]),
   ]);
-  // OpenSubtitles status check
-  br.runtime.sendMessage({ type: 'OSUB_STATUS' }, res => {
-    const dotOsub = $('dot-osub');
-    const msgOsub = $('msg-osub');
-    if (res?.loggedIn) {
-      const msg = res.downloads_remaining != null
-        ? `Logged in - ${res.downloads_remaining} downloads remaining today`
-        : 'Logged in';
-      if (dotOsub) dotOsub.className = 'status-dot ok';
-      if (msgOsub) { msgOsub.className = 'status-msg ok'; msgOsub.textContent = msg; }
-    } else {
-      if (dotOsub) dotOsub.className = 'status-dot warn';
-      if (msgOsub) { msgOsub.className = 'status-msg warn'; msgOsub.textContent = 'Anonymous - 5 downloads/day (login to increase)'; }
-    }
-  });
+  const res = await osubEnsureLogin();
+  const dotOsub = $('dot-osub');
+  const msgOsub = $('msg-osub');
+  if (res?.loggedIn) {
+    const msg = res.downloads_remaining != null
+      ? `Logged in - ${res.downloads_remaining} downloads remaining today`
+      : 'Logged in';
+    if (dotOsub) dotOsub.className = 'status-dot ok';
+    if (msgOsub) { msgOsub.className = 'status-msg ok'; msgOsub.textContent = msg; }
+  } else {
+    if (dotOsub) dotOsub.className = 'status-dot warn';
+    if (msgOsub) { msgOsub.className = 'status-msg warn'; msgOsub.textContent = 'Anonymous - 5 downloads/day (login to increase)'; }
+  }
   const d = $('dot-introdb');
   const overall = d?.classList.contains('ok') ? 'ok' :
     d?.classList.contains('warn') ? 'warn' : 'err';
@@ -382,18 +428,17 @@ async function loadCredentials() {
   if ($('subLanguage'))        $('subLanguage').value        = data[S.subLanguage]        || 'en';
   if ($('subFontSize'))        $('subFontSize').value        = data[S.subFontSize]        || 18;
 
-  // Show OpenSubtitles login status
-  br.runtime.sendMessage({ type: 'OSUB_STATUS' }, res => {
-    const dotOsub = $('dot-osub');
-    if (!dotOsub) return;
-    if (res?.loggedIn) {
+  const osubStatus = await osubEnsureLogin();
+  const dotOsub = $('dot-osub');
+  if (dotOsub) {
+    if (osubStatus?.loggedIn) {
       setDot(dotOsub, 'ok');
-      const msg = res.downloads_remaining != null ? `Logged in — ${res.downloads_remaining} downloads remaining today` : 'Logged in';
+      const msg = osubStatus.downloads_remaining != null ? `Logged in — ${osubStatus.downloads_remaining} downloads remaining today` : 'Logged in';
       showAlert($('alert-osub'), 'ok', msg);
     } else {
       setDot(dotOsub, '');
     }
-  });
+  }
 
   loadStats(data);
   loadSiteRules(data[S.siteRules] || data['skipstream_site_rules'] || {});
@@ -617,8 +662,7 @@ function loadStats(data) {
   const skipsToday = stats.statsDate === today ? (stats.skipsToday || 0) : 0;
   const totalSkips = stats.skipsTotal    || 0;
   const totalTime  = stats.timeSavedSec  || 0;
-  const _ssToday = new Date().toDateString();
-  const todayTime = (stats.statsDate === _ssToday) ? (stats.timeSavedToday || 0) : 0;
+  const todayTime = (stats.statsDate === today) ? (stats.timeSavedToday || 0) : 0;
   const sessions   = stats.sessionsTotal || 0;
 
   const sessionGrid = $('statsGrid');
@@ -648,7 +692,7 @@ function getHistoryItems() {
   if (historySource === 'local') return _histLocal;
   if (historySource === 'cloud') return _histCloud;
   const seen = new Set();
-  return [..._histCloud, ..._histLocal].filter(i => {
+  return [..._histLocal, ..._histCloud].filter(i => {
     const k = i.url || i.title;
     if (seen.has(k)) return false;
     seen.add(k); return true;
@@ -992,6 +1036,7 @@ async function loadHistory(data) {
     syncBtn.addEventListener('click', async () => {
       syncBtn.textContent = 'Syncing...';
       let pushed = 0, failed = 0, pushErr = null;
+      const syncText = $('syncText');
       try {
         const userId = await new Promise(res =>
           br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
@@ -1018,16 +1063,26 @@ async function loadHistory(data) {
             }, res));
             if (r && r.ok) pushed++; else { failed++; pushErr = r?.err || pushErr; }
           }
-          br.storage.local.set({ skipstream_last_sync: Date.now() });
+          await br.storage.local.set({ skipstream_last_sync: Date.now() });
         } else {
+          failed++;
           pushErr = 'no_user_id';
         }
-      } catch (e) { pushErr = String(e); }
-      await loadHistory(data);
-      syncBtn.textContent = 'Sync';
-      if (failed > 0) {
-        const syncText = $('syncText');
-        if (syncText) syncText.textContent = `Sync: ${pushed} pushed, ${failed} failed (${pushErr || 'unknown error'})`;
+        await loadHistory(data);
+      } catch (e) {
+        failed++;
+        pushErr = String(e);
+      } finally {
+        syncBtn.textContent = 'Sync';
+        if (syncText) {
+          if (failed === 0) {
+            syncText.textContent = `Synced: ${pushed} entries pushed`;
+          } else if (pushed > 0) {
+            syncText.textContent = `Sync: ${pushed} pushed, ${failed} failed`;
+          } else {
+            syncText.textContent = 'Sync failed: ' + (pushErr || 'unknown error');
+          }
+        }
       }
     });
   }
