@@ -46,3 +46,4 @@ __pycache__/
 
 # actionlint binary, downloaded on demand
 actionlint
+supabase/
