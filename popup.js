@@ -117,9 +117,6 @@ function applyModeToUI(mode, enabled) {
   });
   // Segment toggles
   const seg = MODE_TO_SEGS[mode] || { i: true, r: true, o: true };
-  if ($('skipIntro')) $('skipIntro').checked = seg.i;
-  if ($('skipRecap')) $('skipRecap').checked = seg.r;
-  if ($('skipOutro')) $('skipOutro').checked = seg.o;
   // Status badge
   const badge = $('modeBadge');
   if (badge) {
