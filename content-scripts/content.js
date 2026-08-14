@@ -1186,7 +1186,7 @@ function clickNativeSkipButton() {
         const now = Date.now();
         if (now - _lastNativeSkipTs > 10000 && clickNativeSkipButton()) {
           _lastNativeSkipTs = now;
-          recordSkipStat(60);
+          recordSkipStat(0); // Native platform button: click logged, duration unknown
         }
       }
 
@@ -1214,7 +1214,7 @@ function clickNativeSkipButton() {
         const now = Date.now();
         if (now - _lastNativeSkipTs > 10000 && clickNativeSkipButton()) {
           _lastNativeSkipTs = now;
-          recordSkipStat(60);
+          recordSkipStat(0); // Native platform button: click logged, duration unknown
         }
       }
     });
@@ -1755,6 +1755,7 @@ function clickNativeSkipButton() {
         hideSkipBtn();
         if (_skipBtnObserver) { _skipBtnObserver.disconnect(); _skipBtnObserver = null; }
         startNativeSkipObserver(video);
+        startNativeBtnPoller(video);
         br.storage.local.get('playbackSpeed').then(s => {
           const rate = parseFloat(s.playbackSpeed) || 1;
           if (rate !== 1 && video && video.isConnected) video.playbackRate = rate;
@@ -1815,13 +1816,6 @@ function clickNativeSkipButton() {
         e.preventDefault();
         if (segments) {
           for (const [key, seg] of Object.entries(segments)) {
-            function isInSegment(time, segmentOrArray) {
-              if (!segmentOrArray) return null;
-              if (Array.isArray(segmentOrArray)) {
-                return segmentOrArray.find(s => time >= s.start_sec && time < s.end_sec) || null;
-              }
-              return (time >= segmentOrArray.start_sec && time < segmentOrArray.end_sec) ? segmentOrArray : null;
-            }
             const active = isInSegment(video.currentTime, seg);
             if (active) {
               const _ssPrevT = video.currentTime; video.currentTime = active.end_sec;
