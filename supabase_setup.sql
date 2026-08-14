@@ -137,6 +137,20 @@ grant select, insert, update, delete on public.playback_states to anon, authenti
 grant select, insert, update, delete on public.user_settings to anon, authenticated;
 grant usage on all sequences in schema public to anon, authenticated;
 
+-- ── 8b. Settings write function (security definer) ──────────────────────────
+create or replace function public.ss_put_settings(
+  p_user_id text, p_stats jsonb, p_prefs jsonb, p_site_rules jsonb, p_theme text)
+returns void language sql security definer set search_path = public as $$
+  insert into public.user_settings (user_id, stats, prefs, site_rules, theme)
+  values (p_user_id, coalesce(p_stats,'{}'::jsonb), coalesce(p_prefs,'{}'::jsonb),
+          coalesce(p_site_rules,'{}'::jsonb), p_theme)
+  on conflict (user_id) do update set
+    stats = excluded.stats, prefs = excluded.prefs,
+    site_rules = excluded.site_rules, theme = excluded.theme;
+$$;
+revoke all on function public.ss_put_settings(text,jsonb,jsonb,jsonb,text) from public;
+grant execute on function public.ss_put_settings(text,jsonb,jsonb,jsonb,text) to anon;
+
 -- ── 9. Setup verification function ───────────────────────────────────────────
 -- Call select public.ss_verify_setup() after running this script to confirm.
 create or replace function public.ss_verify_setup()
