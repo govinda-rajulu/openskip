@@ -90,7 +90,7 @@ end $$;
 drop rule if exists playback_states_upsert on public.playback_states;
 
 -- ── 7. user_settings table ────────────────────────────────────────────────────
--- Stores stats, preferences, site rules, and theme per user.
+-- Stores stats, preferences, site rules, theme, and credentials per user.
 -- Synced automatically; restores settings on new installs.
 create table if not exists public.user_settings (
   user_id     text         primary key,
@@ -98,29 +98,32 @@ create table if not exists public.user_settings (
   prefs       jsonb        not null default '{}',
   site_rules  jsonb        not null default '{}',
   theme       text,
+  creds       jsonb        not null default '{}',
   updated_at  timestamptz  not null default now()
 );
 
 alter table public.user_settings enable row level security;
 
 do $$ begin
-  if not exists (select 1 from pg_policies
-    where schemaname='public' and tablename='user_settings' and policyname='ss_settings_select') then
-    execute 'create policy ss_settings_select on public.user_settings for select using (true)';
-  end if;
-  if not exists (select 1 from pg_policies
-    where schemaname='public' and tablename='user_settings' and policyname='ss_settings_insert') then
-    execute 'create policy ss_settings_insert on public.user_settings for insert with check (true)';
-  end if;
-  if not exists (select 1 from pg_policies
-    where schemaname='public' and tablename='user_settings' and policyname='ss_settings_update') then
-    execute 'create policy ss_settings_update on public.user_settings for update using (true) with check (true)';
-  end if;
-  if not exists (select 1 from pg_policies
-    where schemaname='public' and tablename='user_settings' and policyname='ss_settings_delete') then
-    execute 'create policy ss_settings_delete on public.user_settings for delete using (true)';
+  if not exists (select 1 from information_schema.columns
+    where table_schema='public' and table_name='user_settings' and column_name='creds') then
+    alter table public.user_settings add column creds jsonb not null default '{}';
   end if;
 end $$;
+
+-- Drop legacy settings policies from older installs to enforce the zero-policy model.
+do $$ begin
+  for r in
+    select policyname from pg_policies
+    where schemaname = 'public'
+      and tablename = 'user_settings'
+      and policyname in ('ss_settings_select','ss_settings_insert','ss_settings_update','ss_settings_delete')
+  loop
+    execute format('drop policy %I on public.user_settings', r.policyname);
+  end loop;
+end $$;
+
+revoke all on table public.user_settings from anon, authenticated;
 
 do $$ begin
   if not exists (select 1 from pg_trigger
@@ -134,22 +137,82 @@ end $$;
 
 -- ── 8. Table grants (must run after both tables exist) ───────────────────────
 grant select, insert, update, delete on public.playback_states to anon, authenticated;
-grant select, insert, update, delete on public.user_settings to anon, authenticated;
 grant usage on all sequences in schema public to anon, authenticated;
 
--- ── 8b. Settings write function (security definer) ──────────────────────────
+-- ── 8b. Settings RPCs (security definer) ─────────────────────────────────────
+create or replace function public.ss_get_settings(p_user_id text)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (
+      select jsonb_build_object(
+        'user_id', u.user_id,
+        'stats', u.stats,
+        'prefs', u.prefs,
+        'site_rules', u.site_rules,
+        'theme', u.theme,
+        'updated_at', u.updated_at
+      )
+      from public.user_settings u
+      where u.user_id = p_user_id
+    ),
+    '{}'::jsonb
+  );
+$$;
+
 create or replace function public.ss_put_settings(
   p_user_id text, p_stats jsonb, p_prefs jsonb, p_site_rules jsonb, p_theme text)
-returns void language sql security definer set search_path = public as $$
-  insert into public.user_settings (user_id, stats, prefs, site_rules, theme)
-  values (p_user_id, coalesce(p_stats,'{}'::jsonb), coalesce(p_prefs,'{}'::jsonb),
-          coalesce(p_site_rules,'{}'::jsonb), p_theme)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into public.user_settings (user_id, stats, prefs, site_rules, theme, creds)
+  values (
+    p_user_id,
+    coalesce(p_stats, '{}'::jsonb),
+    coalesce(p_prefs, '{}'::jsonb),
+    coalesce(p_site_rules, '{}'::jsonb),
+    p_theme,
+    '{}'::jsonb
+  )
   on conflict (user_id) do update set
-    stats = excluded.stats, prefs = excluded.prefs,
-    site_rules = excluded.site_rules, theme = excluded.theme;
+    stats = excluded.stats,
+    prefs = excluded.prefs,
+    site_rules = excluded.site_rules,
+    theme = excluded.theme,
+    updated_at = now();
 $$;
+
+create or replace function public.ss_put_creds(p_user_id text, p_creds jsonb)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into public.user_settings (user_id, stats, prefs, site_rules, theme, creds)
+  values (
+    p_user_id,
+    '{}'::jsonb,
+    '{}'::jsonb,
+    '{}'::jsonb,
+    null,
+    coalesce(p_creds, '{}'::jsonb)
+  )
+  on conflict (user_id) do update set
+    creds = excluded.creds,
+    updated_at = now();
+$$;
+
+revoke all on function public.ss_get_settings(text) from public;
 revoke all on function public.ss_put_settings(text,jsonb,jsonb,jsonb,text) from public;
-grant execute on function public.ss_put_settings(text,jsonb,jsonb,jsonb,text) to anon;
+revoke all on function public.ss_put_creds(text,jsonb) from public;
+grant execute on function public.ss_get_settings(text) to anon, authenticated;
+grant execute on function public.ss_put_settings(text,jsonb,jsonb,jsonb,text) to anon, authenticated;
+grant execute on function public.ss_put_creds(text,jsonb) to anon, authenticated;
 
 -- ── 9. Setup verification function ───────────────────────────────────────────
 -- Call select public.ss_verify_setup() after running this script to confirm.
@@ -165,7 +228,10 @@ begin
       where table_schema='public' and table_name='playback_states'),
     'user_settings_exists',
     exists(select 1 from information_schema.tables
-      where table_schema='public' and table_name='user_settings')
+      where table_schema='public' and table_name='user_settings'),
+    'user_settings_creds_column',
+    exists(select 1 from information_schema.columns
+      where table_schema='public' and table_name='user_settings' and column_name='creds')
   );
   -- Check RLS enabled
   result := result || jsonb_build_object(
@@ -174,16 +240,36 @@ begin
       where relname='playback_states' and relnamespace='public'::regnamespace),
     'user_settings_rls',
     (select relrowsecurity from pg_class
-      where relname='user_settings' and relnamespace='public'::regnamespace)
+      where relname='user_settings' and relnamespace='public'::regnamespace),
+    'user_settings_direct_access_revoked',
+    not exists (
+      select 1 from information_schema.role_table_grants
+      where table_schema='public'
+        and table_name='user_settings'
+        and grantee in ('anon','authenticated')
+        and privilege_type in ('SELECT','INSERT','UPDATE','DELETE')
+    )
   );
-  -- Check policy counts
+  -- Check policy counts and RPCs
   result := result || jsonb_build_object(
     'playback_states_policies',
     (select count(*) from pg_policies
       where schemaname='public' and tablename='playback_states'),
     'user_settings_policies',
     (select count(*) from pg_policies
-      where schemaname='public' and tablename='user_settings')
+      where schemaname='public' and tablename='user_settings'),
+    'rpc_ss_get_settings',
+    exists(select 1 from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname='public' and p.proname='ss_get_settings'),
+    'rpc_ss_put_settings',
+    exists(select 1 from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname='public' and p.proname='ss_put_settings'),
+    'rpc_ss_put_creds',
+    exists(select 1 from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname='public' and p.proname='ss_put_creds')
   );
   -- Check triggers
   result := result || jsonb_build_object(
@@ -191,7 +277,30 @@ begin
     (select count(*) from pg_trigger
       where tgname in ('ss_playback_states_updated_at','ss_user_settings_updated_at')) = 2
   );
-  return result || jsonb_build_object('setup_complete', true);
+  return result || jsonb_build_object(
+    'setup_complete',
+    (
+      exists(select 1 from information_schema.tables where table_schema='public' and table_name='playback_states')
+      and exists(select 1 from information_schema.tables where table_schema='public' and table_name='user_settings')
+      and (select count(*) from pg_policies where schemaname='public' and tablename='user_settings') = 0
+      and exists(select 1 from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname='public' and p.proname='ss_get_settings')
+      and exists(select 1 from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname='public' and p.proname='ss_put_settings')
+      and exists(select 1 from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname='public' and p.proname='ss_put_creds')
+      and not exists (
+        select 1 from information_schema.role_table_grants
+        where table_schema='public'
+          and table_name='user_settings'
+          and grantee in ('anon','authenticated')
+          and privilege_type in ('SELECT','INSERT','UPDATE','DELETE')
+      )
+    )
+  );
 end;
 $$;
 
