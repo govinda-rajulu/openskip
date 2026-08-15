@@ -903,7 +903,7 @@ function renderHistory(items) {
   const filter = ($('historyFilter') || {}).value || '';
   const filtered = items.filter(item => {
     const title = (item.title || item.videoTitle || '').toLowerCase();
-    const site  = (item.site  || item.siteName  || '').toLowerCase();
+    const site = (item.site || item.siteName || '').toLowerCase().replace(/^www\./, '');
     return (!search || title.includes(search.toLowerCase()))
       && (!filter || site === filter.toLowerCase());
   });
@@ -1094,7 +1094,7 @@ async function loadHistory(data) {
 
   const filterEl = $('historyFilter');
   if (filterEl) {
-    const sites = [...new Set([..._histLocal, ..._histCloud].map(i => i.site || i.siteName).filter(Boolean))];
+    const sites = [...new Set((getHistoryItems() || []).map(i => (i.site || i.siteName || '').toLowerCase().replace(/^www\./, '')).filter(Boolean))].sort();
     filterEl.replaceChildren();
     const allOpt = document.createElement('option');
     allOpt.value = '';
