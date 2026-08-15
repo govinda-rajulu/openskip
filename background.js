@@ -685,56 +685,6 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (msg.type === 'REPORT_SEGMENT') {
-    getConfig().then(async ({ introdbApiKey, animeSkipEnabled, animeSkipClientId, animeSkipAuthToken }) => {
-      if (!introdbApiKey && !animeSkipClientId) { sendResponse({ ok: false, err: 'not_configured' }); return; }
-      const results = [];
-
-      if (introdbApiKey) {
-        try {
-          const body = {
-            imdb_id: msg.imdbId, season: msg.season, episode: msg.episode,
-            site: msg.site, reported_at: new Date().toISOString(),
-          };
-          if (msg.startSec != null) body.start_sec = msg.startSec;
-          if (msg.endSec   != null) body.end_sec   = msg.endSec;
-          if (msg.segType)          body.type       = msg.segType;
-          const r = await fetchWithRetry('https://api.introdb.app/segments/report', {
-            method: 'POST',
-            headers: { 'x-api-key': introdbApiKey, 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          });
-          results.push({ provider: 'introdb', ok: r.ok, status: r.status });
-        } catch (e) { results.push({ provider: 'introdb', ok: false, err: String(e) }); }
-      }
-
-      if (animeSkipEnabled && animeSkipClientId && msg.startSec != null && msg.endSec != null && msg.segType) {
-        try {
-          const headers = { 'Content-Type': 'application/json', 'X-Client-ID': animeSkipClientId };
-          if (animeSkipAuthToken) headers['Authorization'] = `Bearer ${animeSkipAuthToken}`;
-          const mutation = `mutation($showId:ID!,$epNum:Int!,$season:Int!,$at:Float!,$dur:Float!,$typeId:ID!){
-            createTimestamp(showId:$showId,episodeNumber:$epNum,season:$season,at:$at,duration:$dur,typeId:$typeId){id}
-          }`;
-          const typeMap = { intro: '1', recap: '3', outro: '2' };
-          const r = await fetchWithRetry('https://api.anime-skip.com/graphql', {
-            method: 'POST', headers,
-            body: JSON.stringify({
-              query: mutation,
-              variables: {
-                showId: msg.animeSkipShowId || '', epNum: msg.episode, season: msg.season,
-                at: msg.startSec, dur: msg.endSec - msg.startSec, typeId: typeMap[msg.segType] || '1',
-              },
-            }),
-          });
-          results.push({ provider: 'animeskip', ok: r.ok, status: r.status });
-        } catch (e) { results.push({ provider: 'animeskip', ok: false, err: String(e) }); }
-      }
-
-      sendResponse({ ok: results.some(r => r.ok), results });
-    });
-    return true;
-  }
-
   if (msg.type === 'SUPABASE_UPSERT') {
     // Store last-known tab state in storage (SW-restart safe)
     if (sender?.tab?.id && msg.body) {
@@ -854,7 +804,9 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ posterUrl: `https://i.ytimg.com/vi/${ytMatch[1]}/mqdefault.jpg` });
       return;
     }
-    const posterCacheKey = `poster:${(msg.title || '').toLowerCase().trim()}`;
+    const posterCacheKey = msg.mediaId
+      ? `poster:${String(msg.mediaId).toLowerCase().trim()}:${(msg.title || '').toLowerCase().trim()}`
+      : `poster:${(msg.title || '').toLowerCase().trim()}`;
     getTmdbCache().then(async (cache) => {
       if (posterCacheKey in cache) {
         sendResponse({ posterUrl: cache[posterCacheKey] });
