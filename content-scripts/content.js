@@ -199,9 +199,9 @@ let _ssEffPrefs = null;
     if (ytMatch) return `yt/${ytMatch[1]}`;
     const vmMatch = url.match(/vimeo\.com\/(\d+)/);
     if (vmMatch) return `vm/${vmMatch[1]}`;
-    const movieMatch = location.pathname.match(/\/movie\/(\d+)/);
+    const movieMatch = location.pathname.match(/\/movies?\/(\d+)/);
     if (movieMatch) return `movie/${movieMatch[1]}`;
-    const tvMatch = location.pathname.match(/\/(?:tv|episode)\/(\d+)/);
+    const tvMatch = location.pathname.match(/\/(?:tv|tvs|shows?|series|episode)\/(\d+)/);
     if (tvMatch) return `tv/${tvMatch[1]}`;
     const paramKeys = ['season', 's', 'episode', 'ep', 'e', 'id', 'tmdb', 'imdb', 'series', 'show'];
     const sp = new URLSearchParams(location.search);
@@ -228,6 +228,11 @@ let _ssEffPrefs = null;
     }
     return location.hostname.replace(/^www\./, '');
   }
+
+function _pageUrl() {
+  if (window !== window.top && document.referrer) return document.referrer;
+  return location.href;
+}
 
   function getSiteName() {
     const h = _siteHost();
@@ -335,7 +340,7 @@ let _ssEffPrefs = null;
         p:    Math.round(position * 10) / 10,
         d:    duration,
         t:    Date.now(),
-        url:  location.href,
+        url:  _pageUrl(),
         title:     getVideoTitle(),
         site:      getSiteHostname(),
         site_name: getSiteName(),
@@ -357,7 +362,7 @@ let _ssEffPrefs = null;
         p:         Math.round(position * 10) / 10,
         d:         duration,
         t:         Date.now(),
-        url:       location.href,
+        url:       _pageUrl(),
         title:     meta.title     || getVideoTitle() || '',
         site:      meta.site      || getSiteHostname(),
         site_name: meta.site_name || getSiteName(),
@@ -403,7 +408,7 @@ let _ssEffPrefs = null;
             site:        getSiteHostname(),
             site_name:   getSiteName(),
             video_title: getVideoTitle(),
-            page_url:    location.href,
+            page_url:    _pageUrl(),
             device_name: prefs.deviceName || (navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Edg/') ? 'Edge' : 'Chrome'),
             updated_at:  new Date().toISOString(),
           },
@@ -439,7 +444,7 @@ let _ssEffPrefs = null;
           site:        getSiteHostname(),
           site_name:   getSiteName(),
           video_title: getVideoTitle(),
-          page_url:    location.href,
+          page_url:    _pageUrl(),
           device_name: prefs.deviceName || (navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Edg/') ? 'Edge' : 'Chrome'),
           updated_at:  new Date().toISOString(),
         },
@@ -851,7 +856,7 @@ let _ssEffPrefs = null;
     br.storage.local.get('skipstream_stats').then(s => {
       const st = s.skipstream_stats || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0, skipsToday: 0, statsDate: '', timeSavedToday: 0, skipsBySite: {} };
       const today = new Date().toDateString();
-      const site = location.hostname.replace(/^www\./, '');
+      const site = _siteHost();
       
       // Reset daily counters if new day
       if (st.statsDate !== today) {
@@ -881,7 +886,7 @@ let _ssEffPrefs = null;
     if (existing) existing.remove();
 
     const prefKey = PREF_FOR_SEGMENT[segKey];
-    const isAutoMode = (_ssEffPrefs || prefs)[prefKey] === true; // true = auto (instant), false/other = prompt
+    const isAutoMode = !!(_ssEffPrefs || prefs)[prefKey]; // true = auto (instant), false/other = prompt
 
     // FIX 1: Auto mode = instant skip, no countdown
     if (isAutoMode) {
@@ -1775,6 +1780,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       }
 
       const active = findActiveSegment(segments, video.currentTime);
+      if (active && video._ssCooldownUntil && Date.now() < video._ssCooldownUntil) return;
 
       if (active) {
         const prefKey = PREF_FOR_SEGMENT[active.key];
