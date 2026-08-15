@@ -103,7 +103,7 @@ jobs:
         run: |
           if [ -z "$SUPABASE_DB_URL" ]; then
             echo "❌ SUPABASE_DB_URL secret not set."
-            echo "   Format: postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres"
+            echo "  Format: postgresql://postgres:YOUR_DB_PASSWORD@db.YOUR_PROJECT_REF.supabase.co:5432/postgres"
             exit 1
           fi
           
