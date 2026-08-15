@@ -200,7 +200,8 @@ function isValidSupabaseUrl(url) {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== 'https:') return false;
-    if (!parsed.hostname.endsWith('.supabase.co')) return false;
+    const hostname = parsed.hostname.toLowerCase();
+    if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.supabase\.co$/.test(hostname)) return false;
     return true;
   } catch { return false; }
 }
