@@ -32,8 +32,31 @@ const S = {
   subFontSize:        'subtitle_font_size',
   subPosition:        'subtitle_position',
   subEnabled:         'subtitle_enabled',
+  subSync:            'subtitle_sync',
+  subDragPos:         'subtitle_drag_pos',
+  skipEnabled:        'skipEnabled',
+  cache:              'skipstream_cache',
   theme:              'skipstream_theme',
+  themeSeed:          'skipstream_seed_color',
 };
+
+const DENY = new Set([
+  'skipstream_install_id',
+  'ss_userid_cache',
+  'supabaseUrl',
+  'supabaseAnonKey',
+  'introdbApiKey',
+  'tmdbApiKey',
+  'animeSkipClientId',
+  'animeSkipAuthToken',
+  'osub_username',
+  'osub_password',
+  'osub_session',
+  'subtitle_position',
+  'skipstream_offline_queue',
+  'ss_tab_state',
+  'skipstream_error_log',
+]);
 
 const $ = id => document.getElementById(id);
 
@@ -724,15 +747,37 @@ let historyListenersAttached = false;
 let _histLocal = [];
 let _histCloud = [];
 
+function _ssTs(item) {
+  const v = item.ts ?? item.updated ?? 0;
+  if (typeof v === 'number') return v;
+  const n = Date.parse(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function getHistoryItems() {
   if (historySource === 'local') return _histLocal;
   if (historySource === 'cloud') return _histCloud;
-  const seen = new Set();
-  return [..._histLocal, ..._histCloud].filter(i => {
-    const k = i.url || i.title;
-    if (seen.has(k)) return false;
-    seen.add(k); return true;
-  });
+
+  const merged = new Map();
+  for (const item of [..._histLocal, ..._histCloud]) {
+    const key = item.mediaId || item.url || item.title || '';
+    if (!key) {
+      merged.set(`${Math.random()}:${Math.random()}`, item);
+      continue;
+    }
+
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, item);
+      continue;
+    }
+
+    const existingTs = _ssTs(existing);
+    const nextTs = _ssTs(item);
+    if (nextTs > existingTs) merged.set(key, item);
+  }
+
+  return [...merged.values()];
 }
 
 // In-memory poster cache: title -> poster_url (null = not found)
@@ -1129,12 +1174,16 @@ async function loadHistory(data) {
 const exportBtn = $('exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', async () => {
-    if (!confirm('This file will contain your API keys and Supabase credentials in plain text. Keep it private. Continue?')) return;
+    if (!confirm('This file contains your saved settings only. Keep it private. Continue?')) return;
     try {
-      const data = await br.storage.local.get(null);
-      const EXPORT_EXCLUDE = ['osub_password', 'osub_session'];
-      for (const key of EXPORT_EXCLUDE) { delete data[key]; }
-      data._exportVersion = br.runtime.getManifest().version;
+      const all = await br.storage.local.get(null);
+      const data = {};
+      for (const [key, value] of Object.entries(all)) {
+        if (DENY.has(key) || key === 'schemaVersion' || key === 'exportedAt') continue;
+        data[key] = value;
+      }
+      data.schemaVersion = 1;
+      data.exportedAt = new Date().toISOString();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const objUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1225,28 +1274,15 @@ if (importBtn && importFile) {
       // Run migration shim before merging
       parsed = migrateImportData(parsed);
 
-      // Filter imported data by whitelist
-      const IMPORT_ALLOWED = [
-        'skipstream_cache', 'skipstream_stats', 'skipstream_site_rules',
-        'skipMode', 'skipIntro', 'skipRecap', 'skipOutro',
-        'resumePlayback', 'autoNextEpisode', 'playbackSpeed',
-        'skipstream_theme', 'subtitle_language', 'subtitle_font_size',
-        'subtitle_enabled', 'deviceName', 'skipEnabled', 'skipstream_seed_color', 'subtitle_position', 'subtitle_sync', 'subtitle_drag_pos',
-      ];
-
-      const IMPORT_BLOCKED = [
-        'skipstream_install_id', 'ss_userid_cache',
-        'supabaseUrl', 'supabaseAnonKey',
-        'introdbApiKey', 'tmdbApiKey',
-        'animeSkipClientId', 'animeSkipAuthToken',
-        'osub_username', 'osub_password', 'osub_session',
-        'skipstream_offline_queue', 'ss_tab_state',
-        'skipstream_error_log',
-      ];
-
+      const IMPORT_ALLOWED = Object.values(S).filter(key => !DENY.has(key));
       const safeData = {};
+      const rejected = [];
       for (const [key, value] of Object.entries(parsed)) {
-        if (IMPORT_BLOCKED.includes(key)) continue;
+        if (key === 'schemaVersion' || key === 'exportedAt') continue;
+        if (DENY.has(key)) {
+          rejected.push(key);
+          continue;
+        }
         if (!IMPORT_ALLOWED.includes(key)) continue;
         safeData[key] = value;
       }
@@ -1270,8 +1306,6 @@ if (importBtn && importFile) {
       }
 
       const existing = await br.storage.local.get(null);
-
-      // Note: Filtered data no longer has supabaseUrl/Key, but keep existing creds
       const merged = { ...existing, ...safeData };
 
       // Combine stats additively (skipstream_stats blob)
@@ -1285,8 +1319,10 @@ if (importBtn && importFile) {
         statsDate:     eStats.statsDate || '',
       };
 
+      const restoredCount = Object.keys(safeData).length;
+      const rejectedText = rejected.length ? ` Rejected by DENY: ${rejected.join(', ')}` : '';
       await br.storage.local.set(merged);
-      showAlert($('alert-export'), 'ok', 'Imported and merged successfully. Reload to see changes.');
+      showAlert($('alert-export'), 'ok', `Restored ${restoredCount} setting${restoredCount === 1 ? '' : 's'}.${rejectedText}`);
       importFile.value = '';
     } catch (e) {
       showAlert($('alert-export'), 'err', 'Import failed: ' + e.message);
