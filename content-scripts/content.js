@@ -1321,6 +1321,8 @@ function clickNativeSkipButton() {
     topFrameListening = true;
     window.addEventListener('message', e => {
       if (!e.data || typeof e.data !== 'object') return;
+if (e.data.type !== MSG_SHOW && e.data.type !== MSG_HIDE) return;
+if (e.data.type === MSG_SHOW && (typeof e.data.label !== 'string' || !/^[\w .+-]{1,40}$/.test(e.data.label))) return;
       if (e.data.type === MSG_SHOW) {
         createSkipBtn(e.data.label, () => { try { e.source?.postMessage({ type: MSG_DO }, '*'); } catch { /* ok */ } });
       }
@@ -1330,7 +1332,8 @@ function clickNativeSkipButton() {
 
   if (window !== window.top) {
     window.addEventListener('message', e => {
-      if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn = null; }
+      if (e.source !== window.top) return;
+if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn = null; }
     });
   }
 
@@ -1814,7 +1817,7 @@ function clickNativeSkipButton() {
       if (e.altKey && e.key === 'ArrowRight') {
         e.preventDefault();
         if (segments) {
-          for (const [key, seg] of Object.entries(segments)) {
+          for (const [, seg] of Object.entries(segments)) {
             const active = isInSegment(video.currentTime, seg);
             if (active) {
               const _ssPrevT = video.currentTime; video.currentTime = active.end_sec;
