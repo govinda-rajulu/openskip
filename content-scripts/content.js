@@ -1342,14 +1342,10 @@ function clickNativeSkipButton() {
 
   async function loadSubPrefs() {
     try {
-      const s = await br.storage.local.get(['subtitle_enabled','subtitle_language','subtitle_font_size','subtitle_position','subtitle_sync','subtitle_drag_pos']);
+      const s = await br.storage.local.get(['subtitle_enabled','subtitle_language','subtitle_font_size','subtitle_sync','subtitle_drag_pos']);
       if (s.subtitle_enabled !== undefined) _subState.enabled  = !!s.subtitle_enabled;
       if (s.subtitle_language)              _subState.language  = s.subtitle_language;
       if (s.subtitle_font_size)             _subState.fontSize  = parseInt(s.subtitle_font_size) || 18;
-      if (s.subtitle_position !== undefined) {
-        const savedPos = parseFloat(s.subtitle_position);
-        if (Number.isFinite(savedPos)) _subState.position = Math.min(60, Math.max(2, savedPos));
-      }
       if (s.subtitle_sync     !== undefined) _subState.sync     = parseFloat(s.subtitle_sync) || 0;
       if (s.subtitle_drag_pos) _subState.dragPos = s.subtitle_drag_pos;
     } catch { /* defaults ok */ }
@@ -1623,14 +1619,6 @@ function clickNativeSkipButton() {
     }
     if ('subtitle_font_size' in changes) {
       _subState.fontSize = parseInt(changes.subtitle_font_size.newValue) || 18;
-      if (_subOverlay && _subVideo) positionSub(_subOverlay, _subVideo);
-    }
-    if ('subtitle_position' in changes) {
-      const nextPos = parseFloat(changes.subtitle_position.newValue);
-      if (Number.isFinite(nextPos)) {
-        _subState.position = Math.min(60, Math.max(2, nextPos));
-      }
-      _subState.dragPos = null;
       if (_subOverlay && _subVideo) positionSub(_subOverlay, _subVideo);
     }
     if ('subtitle_sync' in changes) {
