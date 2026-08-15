@@ -1,0 +1,51 @@
+name: Parse Supabase SQL
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase_setup.sql']
+  pull_request:
+    branches: [main]
+    paths: ['supabase_setup.sql']
+  workflow_dispatch:
+
+jobs:
+  parse-sql:
+    name: Run setup SQL on ephemeral Postgres
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install psql
+        run: sudo apt-get install -y postgresql-client -qq
+
+      - name: Create Supabase roles
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -c \
+            "create role anon nologin; create role authenticated nologin; create role service_role nologin;"
+
+      - name: Apply setup SQL
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase_setup.sql
+
+      - name: Apply twice to prove idempotency
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase_setup.sql
+          echo "Second run clean, script is idempotent"
