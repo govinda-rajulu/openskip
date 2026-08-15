@@ -138,14 +138,14 @@
         </div>
         <div class="card-title-wrap">
           <h2 class="card-title">IntroDB</h2>
-          <div class="card-subtitle">Required for intro, recap, and outro skip detection</div>
+          <div class="card-subtitle">Optional - adds timestamp-based skipping</div>
         </div>
       </div>
       <div class="card-body">
         <div class="field">
           <label class="field-label" for="introdbApiKey">API Key</label>
           <input type="password" id="introdbApiKey" placeholder="Your IntroDB API key" autocomplete="off" spellcheck="false">
-          <p class="help">Get your free key at <a href="https://introdb.app" target="_blank" rel="noopener">introdb.app</a>. Without this, only resume playback works.</p>
+          <p class="help">Get your free key at <a href="https://introdb.app" target="_blank" rel="noopener">introdb.app</a>. Optional: SkipStream already clicks the platform's own Skip button on Netflix, Prime, Disney+, Hulu, Max, Crunchyroll and more. A free key adds timestamp skips on sites with no button.</p>
         </div>
         <div class="btn-row">
           <button class="btn-primary" id="saveIntrodb">Save &amp; Verify</button>
@@ -174,7 +174,7 @@
         <div class="field">
           <label class="field-label" for="supabaseAnonKey">Anon / Public Key</label>
           <input type="password" id="supabaseAnonKey" placeholder="eyJhbGci…" autocomplete="off" spellcheck="false">
-          <p class="help">Project Settings → API → anon public. This key also derives your cross-device identity - same credentials = same sync account.</p>
+          <p class="help">Project Settings → API → anon public.</p>
         </div>
         <div class="btn-row">
           <button class="btn-primary" id="saveSupabase">Save &amp; Verify</button>
@@ -403,7 +403,7 @@
         </div>
         <div class="card-title-wrap">
           <h2 class="card-title">Backup &amp; Restore</h2>
-          <div class="card-subtitle">Export settings, history, credentials as JSON</div>
+          <div class="card-subtitle">Export settings and history as JSON. API keys are never included.</div>
         </div>
       </div>
       <div class="card-body">
