@@ -208,6 +208,82 @@ grant execute on function public.ss_get_settings(text) to anon, authenticated;
 grant execute on function public.ss_put_settings(text,jsonb,jsonb,jsonb,text) to anon, authenticated;
 grant execute on function public.ss_put_creds(text,jsonb) to anon, authenticated;
 
+-- ── 8c. Playback RPCs (security definer) ─────────────────────────────────────
+create or replace function public.ss_put_playback(p_row jsonb)
+returns void language sql security definer set search_path = public as $$
+  insert into public.playback_states (
+    user_id, media_id, playback_time, duration, site, site_name,
+    video_title, device_name, page_url
+  )
+  values (
+    p_row->>'user_id', p_row->>'media_id',
+    coalesce((p_row->>'playback_time')::int, 0),
+    nullif(p_row->>'duration','')::int,
+    p_row->>'site', p_row->>'site_name',
+    p_row->>'video_title', p_row->>'device_name', p_row->>'page_url'
+  )
+  on conflict (user_id, media_id) do update set
+    playback_time = excluded.playback_time,
+    duration      = excluded.duration,
+    site          = excluded.site,
+    site_name     = excluded.site_name,
+    video_title   = excluded.video_title,
+    device_name   = excluded.device_name,
+    page_url      = excluded.page_url,
+    updated_at    = now();
+$$;
+
+create or replace function public.ss_get_playback(p_user_id text, p_media_id text)
+returns jsonb language sql security definer set search_path = public as $$
+  select coalesce(
+    (select to_jsonb(t) from public.playback_states t
+      where t.user_id = p_user_id and t.media_id = p_media_id),
+    '{}'::jsonb
+  );
+$$;
+
+create or replace function public.ss_get_playback_all(p_user_id text)
+returns jsonb language sql security definer set search_path = public as $$
+  select coalesce(
+    (select jsonb_agg(to_jsonb(t) order by t.updated_at desc)
+       from public.playback_states t where t.user_id = p_user_id),
+    '[]'::jsonb
+  );
+$$;
+
+create or replace function public.ss_prune_playback(p_user_id text, p_days int)
+returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  delete from public.playback_states
+   where user_id = p_user_id
+     and updated_at < now() - (greatest(coalesce(p_days, 90), 1) || ' days')::interval;
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+
+create or replace function public.ss_clear_playback(p_user_id text)
+returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  delete from public.playback_states where user_id = p_user_id;
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+
+revoke all on function public.ss_put_playback(jsonb) from public;
+revoke all on function public.ss_get_playback(text,text) from public;
+revoke all on function public.ss_get_playback_all(text) from public;
+revoke all on function public.ss_prune_playback(text,int) from public;
+revoke all on function public.ss_clear_playback(text) from public;
+grant execute on function public.ss_put_playback(jsonb) to anon, authenticated;
+grant execute on function public.ss_get_playback(text,text) to anon, authenticated;
+grant execute on function public.ss_get_playback_all(text) to anon, authenticated;
+grant execute on function public.ss_prune_playback(text,int) to anon, authenticated;
+grant execute on function public.ss_clear_playback(text) to anon, authenticated;
+
 -- ── 9. Setup verification function ───────────────────────────────────────────
 -- Call select public.ss_verify_setup() after running this script to confirm.
 create or replace function public.ss_verify_setup()
