@@ -723,6 +723,7 @@ function loadStats(data) {
   const totalTime  = stats.timeSavedSec  || 0;
   const todayTime = (stats.statsDate === today) ? (stats.timeSavedToday || 0) : 0;
   const sessions   = stats.sessionsTotal || 0;
+  const siteCounts = stats.skipsBySite && typeof stats.skipsBySite === 'object' ? stats.skipsBySite : null;
 
   const sessionGrid = $('statsGrid');
   const allGrid     = $('statsAllGrid');
@@ -737,6 +738,18 @@ function loadStats(data) {
     allGrid.appendChild(makeStatCard(totalSkips, 'Total skips'));
     allGrid.appendChild(makeStatCard(sessions,   'Sessions'));
     allGrid.appendChild(makeStatCard(fmtTime(totalTime), 'Total time saved'));
+
+    if (siteCounts) {
+      const rankedSites = Object.entries(siteCounts)
+        .filter(([site, count]) => !!site && Number.isFinite(Number(count)) && Number(count) > 0)
+        .map(([site, count]) => [site.replace(/^www\./i, ''), Number(count)])
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8);
+
+      for (const [siteName, siteCount] of rankedSites) {
+        allGrid.appendChild(makeStatCard(siteCount, siteName));
+      }
+    }
   }
 }
 
