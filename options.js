@@ -102,13 +102,13 @@ if (subPositionInput) {
     if (!Number.isFinite(parsed)) {
       subPositionInput.value = '12';
       if (subPositionValue) subPositionValue.textContent = '12%';
-      br.storage.local.set({ [S.subPosition]: 12 }).then(() => br.storage.local.remove(['subtitle_drag_pos'])).catch(() => {});
+      br.storage.local.get([S.subDragPos]).then(d => br.storage.local.set({ [S.subDragPos]: { x: (d[S.subDragPos] || {}).x ?? 50, bottom: 12 } })).catch(() => {});
       return;
     }
     const clamped = Math.min(max, Math.max(min, parsed));
     subPositionInput.value = String(clamped);
     if (subPositionValue) subPositionValue.textContent = String(clamped) + '%';
-    br.storage.local.set({ [S.subPosition]: clamped }).then(() => br.storage.local.remove(['subtitle_drag_pos'])).catch(() => {});
+    br.storage.local.get([S.subDragPos]).then(d => br.storage.local.set({ [S.subDragPos]: { x: (d[S.subDragPos] || {}).x ?? 50, bottom: clamped } })).catch(() => {});
   };
   subPositionInput.addEventListener('input', persistSubPosition);
 }
@@ -481,7 +481,7 @@ async function loadCredentials() {
   if ($('subLanguage'))        $('subLanguage').value        = data[S.subLanguage]        || 'en';
   if ($('subFontSize'))        $('subFontSize').value        = data[S.subFontSize]        || 18;
   if ($('subPosition')) {
-    const savedPosition = Number.parseFloat(data[S.subPosition]);
+    const savedPosition = Number.parseFloat((data[S.subDragPos] || {}).bottom);
     const value = Number.isFinite(savedPosition) ? savedPosition : 12;
     $('subPosition').value = String(Math.min(60, Math.max(2, value)));
     if ($('subPositionValue')) $('subPositionValue').textContent = String(Math.min(60, Math.max(2, value))) + '%';
