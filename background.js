@@ -691,7 +691,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Store last-known tab state in storage (SW-restart safe)
     if (sender?.tab?.id && msg.body) {
       getConfig().then(async ({ supabaseAnonKey }) => {
-        const userId = supabaseAnonKey ? await getDerivedUserId(supabaseAnonKey) : null;
+        const userId = supabaseAnonKey ? await getDerivedUserId() : null;
         if (userId) {
           await setTabState(sender.tab.id, { userId, body: msg.body });
         }
