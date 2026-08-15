@@ -214,7 +214,7 @@ async function supabaseUpsert(body, { keepalive = false } = {}) {
   if (!isValidSupabaseUrl(supabaseUrl)) return { ok: false, err: 'invalid_url' };
   try {
     const res = await fetchWithRetry(
-      `${supabaseUrl}/rest/v1/playback_states?on_conflict=user_id,media_id`,
+      `${supabaseUrl}/rest/v1/rpc/ss_put_playback`,
       {
         method: 'POST',
         keepalive,
@@ -223,7 +223,7 @@ async function supabaseUpsert(body, { keepalive = false } = {}) {
           'Content-Type': 'application/json',
           Prefer: 'resolution=merge-duplicates,return=minimal',
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ p_row: body }),
       }
     );
     if (res.ok) return { ok: true };
@@ -279,16 +279,17 @@ async function cleanupOldData() {
     const stored = await br.storage.local.get('skipstream_last_cleanup');
     const last = stored.skipstream_last_cleanup || 0;
     if (Date.now() - last < 24 * 60 * 60 * 1000) return;
-    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
     await fetch(
-      `${supabaseUrl}/rest/v1/playback_states?user_id=eq.${userId}&updated_at=lt.${cutoff}&limit=100`,
+      `${supabaseUrl}/rest/v1/rpc/ss_prune_playback`,
       {
-        method: 'DELETE',
+        method: 'POST',
         headers: {
           apikey: supabaseAnonKey,
           Authorization: `Bearer ${supabaseAnonKey}`,
+          'Content-Type': 'application/json',
           Prefer: 'return=minimal',
         },
+        body: JSON.stringify({ p_user_id: userId, p_days: 90 }),
       }
     );
     await br.storage.local.set({ skipstream_last_cleanup: Date.now() });
@@ -430,11 +431,12 @@ async function checkSupabase(supabaseUrl, supabaseAnonKey) {
   if (!supabaseUrl || !supabaseAnonKey) return { ok: false, message: 'Not configured' };
   if (!isValidSupabaseUrl(supabaseUrl)) return { ok: false, message: 'Invalid URL - must be https://*.supabase.co' };
   try {
-    const res = await fetch(`${supabaseUrl}/rest/v1/playback_states?limit=0`, {
-      method: 'HEAD',
-      headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` },
+    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/ss_verify_setup`, {
+      method: 'POST',
+      headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
+      body: '{}',
     });
-    if (res.ok || res.status === 406) return { ok: true, message: 'Connected' };
+    if (res.ok) return { ok: true, message: 'Connected' };
     if (res.status === 404 || res.status === 400) return {
       ok: false, needsManualSetup: true,
       message: 'Table missing - run supabase_setup.sql once.',
@@ -705,13 +707,16 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
     getConfig().then(({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
       if (!isValidSupabaseUrl(supabaseUrl)) { sendResponse({ data: null, err: 'invalid_url' }); return; }
-      const url = `${supabaseUrl}/rest/v1/playback_states` +
-        `?user_id=eq.${encodeURIComponent(msg.userId)}` +
-        `&media_id=eq.${encodeURIComponent(msg.mediaId)}` +
-        `&select=playback_time,duration,site,site_name,video_title&limit=1`;
-      fetchWithRetry(url, { headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` } })
+      fetchWithRetry(`${supabaseUrl}/rest/v1/rpc/ss_get_playback`, {
+        method: 'POST',
+        headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_user_id: msg.userId, p_media_id: msg.mediaId }),
+      })
         .then(r => r.json())
-        .then(data => sendResponse({ data: data[0] || null }))
+        .then(data => {
+          const row = data && typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length ? data : null;
+          sendResponse({ data: row });
+        })
         .catch(err => sendResponse({ data: null, err: String(err) }));
     });
     return true;
@@ -784,11 +789,11 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
     getConfig().then(({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ data: null, err: 'not_configured' }); return; }
       if (!isValidSupabaseUrl(supabaseUrl)) { sendResponse({ data: null, err: 'invalid_url' }); return; }
-      const url = `${supabaseUrl}/rest/v1/playback_states` +
-        `?user_id=eq.${encodeURIComponent(msg.userId)}` +
-        `&select=media_id,playback_time,duration,site,site_name,video_title,device_name,page_url,updated_at` +
-        `&order=updated_at.desc&limit=200`;
-      fetchWithRetry(url, { headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` } })
+      fetchWithRetry(`${supabaseUrl}/rest/v1/rpc/ss_get_playback_all`, {
+        method: 'POST',
+        headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_user_id: msg.userId }),
+      })
         .then(r => r.json())
         .then(data => sendResponse({ data: Array.isArray(data) ? data : [] }))
         .catch(err => sendResponse({ data: null, err: String(err) }));

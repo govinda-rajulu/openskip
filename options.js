@@ -270,12 +270,14 @@ async function verifySupabase(url, key) {
 
   try {
     const base = url.replace(/\/$/, '');
-    const r = await fetch(base + '/rest/v1/playback_states?limit=1', {
+    const r = await fetch(base + '/rest/v1/rpc/ss_verify_setup', {
+      method: 'POST',
       headers: {
         'apikey': key,
         'Authorization': 'Bearer ' + key,
         'Content-Type': 'application/json'
-      }
+      },
+      body: '{}'
     });
 
     if (r.ok) {
@@ -1426,9 +1428,10 @@ if (clearCloudHistoryBtn) {
       const sbUrl = (creds[S.supabaseUrl] || '').replace(/\/$/, '');
       const sbKey = creds[S.supabaseAnonKey];
       if (!sbUrl || !sbKey) { showAlert($('alert-cloud'), 'warn', 'Supabase not configured.'); return; }
-      const r = await fetch(`${sbUrl}/rest/v1/playback_states?user_id=eq.${encodeURIComponent(userId)}`, {
-        method: 'DELETE',
-        headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey, 'Content-Type': 'application/json' }
+      const r = await fetch(`${sbUrl}/rest/v1/rpc/ss_clear_playback`, {
+        method: 'POST',
+        headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_user_id: userId })
       });
       if (r.ok) {
         _histCloud = [];
