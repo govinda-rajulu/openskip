@@ -1723,7 +1723,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       const info = await resolveShowInfo();
 
       // Init subtitles for any identified content (movies + TV), not just skippable episodes
-      if (info.imdbId && !_subState.subs.length && !_subState.loading) {
+      if (!_subState.subs.length && !_subState.loading) {
         _subVideo = video;
         initSubtitles(video, info).catch(() => {});
       }
