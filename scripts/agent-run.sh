@@ -19,7 +19,10 @@ cd "$(git rev-parse --show-toplevel 2>/dev/null)" || die "not inside a git repo"
 
 # ------------------------------------------------------------------ preflight
 step "Preflight"
-[ -z "$(git status --porcelain)" ] || die "working tree is dirty. commit it, or run: git checkout ."
+if [ -n "$(git status --porcelain)" ]; then
+  printf '\n  uncommitted:\n'; git status --short | sed 's/^/    /'
+  die "working tree is dirty. commit those, or discard with: git checkout . && git clean -fd"
+fi
 ok "clean tree"
 
 [ -f scripts/dom-contract.py ] || die "scripts/dom-contract.py missing: the main gate would be fake"
@@ -52,37 +55,46 @@ step "Branch"
 git checkout -q -b "$BRANCH" || die "could not create $BRANCH"
 ok "on $BRANCH (base: $BASE)"
 
-SPEC="/tmp/issue-$ISSUE.md"
+# Gemini's sandbox refuses paths outside the repo, so the spec lives here and is
+# hidden from git via .git/info/exclude (local only, never committed).
+SPEC=".agent-spec.md"
+grep -qx '.agent-spec.md' .git/info/exclude 2>/dev/null || echo '.agent-spec.md' >> .git/info/exclude
 gh issue view "$ISSUE" > "$SPEC" 2>/dev/null || die "could not save the issue body"
 [ -s "$SPEC" ] || die "issue body came back empty"
-ok "spec saved: $SPEC ($(wc -l < "$SPEC") lines)"
+ok "spec saved: $SPEC ($(wc -l < "$SPEC") lines), git-ignored locally"
 
 # ---------------------------------------------------------------------- agent
 step "Gemini"
 LOG="/tmp/agent-$ISSUE.log"
-PROMPT="Read GEMINI.md in the repo root and $SPEC.
+PROMPT="Read ./GEMINI.md and ./$SPEC (both are in this repo root).
 
-Implement issue $ISSUE exactly as the acceptance criteria in $SPEC specify.
+Implement the issue exactly as the acceptance criteria in $SPEC specify.
 
 You may edit ONLY these files: ${ALLOWED[*]}
 Do not create files. Do not touch any other file. Do not add a package.json.
 Do not refactor anything you were not asked to change.
 
-When done, run and paste the real output of:
-  node --check ${ALLOWED[0]}
-  python3 scripts/dom-contract.py
-If a gate fails, revert your edits and say so."
+Do not try to run shell commands: they are unavailable to you here, and the
+gates are run for you afterwards. Edit the files and stop. When you are done,
+list which files you changed and nothing else."
 
+# --experimental-acp / MCP servers on this box inject a restricted subagent that
+# cannot run shell. Nothing here depends on its tools, so failures there are noise.
 gemini -y -p "$PROMPT" 2>&1 | tee "$LOG"
+if grep -qi "exhausted your capacity" "$LOG" && ! git diff --quiet; then
+  printf '  note: hit per-minute capacity limits mid-run (not your daily quota)\n'
+fi
 ok "agent finished. transcript: $LOG"
 
 # ---------------------------------------------------------------------- gates
 step "Gates (mine, not its)"
 FAIL=""
 
-CHANGED=$( { git diff --name-only; git ls-files --others --exclude-standard; } | sed '/^$/d' | sort -u )
+CHANGED=$( { git diff --name-only; git ls-files --others --exclude-standard; } \
+           | sed '/^$/d' | grep -vx "$SPEC" | sort -u )
 [ -n "$CHANGED" ] && { printf '  touched:\n'; printf '    %s\n' $CHANGED; } \
-                  || die "the agent changed nothing at all"
+                  || { rm -f "$SPEC"; git checkout -q "$BASE" 2>/dev/null; git branch -qD "$BRANCH" 2>/dev/null; \
+                       die "the agent changed nothing, so nothing was kept. read $LOG: usually rate-limited or cancelled"; }
 
 STRAY=""
 for f in $CHANGED; do
@@ -128,11 +140,13 @@ if [ -n "$FAIL" ]; then
   git checkout -- . 2>/dev/null
   git clean -qfd 2>/dev/null
   git checkout -q "$BASE" 2>/dev/null && git branch -qD "$BRANCH" 2>/dev/null
+  rm -f "$SPEC"
   printf '\nRepo is exactly as you left it. Transcript kept: %s\n' "$LOG"
   printf 'Send me that transcript plus the failure list above.\n'
   exit 1
 fi
 
+rm -f "$SPEC"
 step "All gates green"
 git --no-pager diff --stat
 git diff > "/tmp/diff-$ISSUE.patch"
