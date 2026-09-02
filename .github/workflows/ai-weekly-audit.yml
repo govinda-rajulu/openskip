@@ -55,7 +55,13 @@ jobs:
               "full": "Cover all areas: security, performance, compatibility, architecture rule compliance, and code quality.",
           }
 
-          context_str = "\n\n".join(f"=== {k} ===\n{v[:8000]}" for k,v in codebase.items())
+          FILE_CAP = 200000
+          def _ctx(k, v):
+              if len(v) <= FILE_CAP:
+                  return "=== " + k + " (COMPLETE FILE, " + str(len(v)) + " chars) ===" + chr(10) + v
+              return ("=== " + k + " (TRUNCATED: showing " + str(FILE_CAP) + " of " + str(len(v))
+                      + " chars. Do NOT report anything in this file as incomplete or unimplemented.) ===" + chr(10) + v[:FILE_CAP])
+          context_str = (chr(10) + chr(10)).join(_ctx(k, v) for k, v in codebase.items())
 
           prompt = f"""You are auditing SkipStream browser extension codebase.
           Scope: {scope} — {scope_prompts.get(scope, scope_prompts['full'])}
@@ -66,8 +72,20 @@ jobs:
           - No innerHTML anywhere
           - No console.log anywhere
           
+          SETTLED - already investigated, NOT findings. Do not report these:
+          - fetchWithRetry retrying on 4xx: those statuses return immediately, there is no retry (settled 2026-08-15; issues 51, 56)
+          - Supabase URL validation or subdomain takeover: isValidSupabaseUrl uses an anchored single-label regex (settled 2026-08-15; issues 46, 50, 55)
+          - Firefox MV2, or background persistent:false: MV2 is deliberate, Mozilla supports it with no end date (settled 2026-08-15)
+          - applyThemeFromSeed unguarded: popup.js already guards it (settled 2026-08-15)
+          - Math.cbrt polyfill: unnecessary at Firefox 140+ (settled 2026-08-15)
+          - deriving userId from the anon key: harmful, would allow row enumeration; the random UUID is deliberate (settled 2026-08-15; issue 45)
+          
+          NEVER report that a function is incomplete, truncated, or not implemented. You are
+          reading a subset of a large codebase. Absence from your context is not absence from
+          the code. If you cannot see a definition, say nothing about it.
+          
           CODEBASE:
-          {context_str[:70000]}
+          {context_str[:260000]}
           
           Reply ONLY with a JSON object (no markdown):
           {{
@@ -150,7 +168,10 @@ jobs:
             });
 
             // Also create individual issues for high-severity automatable findings
-            for (const f of findings.filter(f=>f.severity==='high' && f.automatable)) {
+            // Fan-out disabled 2026-09-02: it re-filed already-disproved findings as high
+            // priority bugs twice (issues 50/51, then 55/56). The summary issue is enough.
+            const FANOUT_ENABLED = false;
+            for (const f of (FANOUT_ENABLED ? findings.filter(f=>f.severity==='high' && f.automatable) : [])) {
               await github.rest.issues.create({
                 owner:context.repo.owner, repo:context.repo.repo,
                 title:`${f.title} (${f.file})`,
