@@ -1361,14 +1361,14 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
 
   function parseSubs(raw) {
     if (!raw) return [];
-    raw = raw.replace(/^\uFEFF/, '');
+    raw = raw.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(/^WEBVTT[^\n]*\n/, '');
     const result = [];
     for (const blk of raw.split(/\n{2,}/)) {
       const lines = blk.trim().split(/\r?\n/);
       const arrow = lines.findIndex(l => l.includes('-->'));
       if (arrow < 0) continue;
       const [sStr, eStr] = lines[arrow].split('-->').map(s => s.trim());
-      const ts = str => { const m = str.match(/(\d+):(\d{2}):(\d{2})[.,](\d{3})/); return m ? +m[1]*3600 + +m[2]*60 + +m[3] + +m[4]/1000 : NaN; };
+      const ts = str => { const m = str.match(/(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{3})/); return m ? (+(m[1]||0))*3600 + +m[2]*60 + +m[3] + +m[4]/1000 : NaN; };
       const start = ts(sStr), end = ts(eStr);
       if (isNaN(start) || isNaN(end) || start >= end) continue;
       const text = lines.slice(arrow + 1).join('\n').replace(/<[^>]+>/g, '').replace(/\{[^}]+\}/g, '').trim();
@@ -1723,7 +1723,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       const info = await resolveShowInfo();
 
       // Init subtitles for any identified content (movies + TV), not just skippable episodes
-      if (info.imdbId && !_subState.subs.length && !_subState.loading) {
+      if (!_subState.subs.length && !_subState.loading) {
         _subVideo = video;
         initSubtitles(video, info).catch(() => {});
       }
