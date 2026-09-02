@@ -727,6 +727,7 @@ function loadStats(data) {
 
   const sessionGrid = $('statsGrid');
   const allGrid     = $('statsAllGrid');
+  const siteGrid    = $('statsSiteBreakdown');
 
   if (sessionGrid) {
     sessionGrid.replaceChildren();
@@ -738,16 +739,62 @@ function loadStats(data) {
     allGrid.appendChild(makeStatCard(totalSkips, 'Total skips'));
     allGrid.appendChild(makeStatCard(sessions,   'Sessions'));
     allGrid.appendChild(makeStatCard(fmtTime(totalTime), 'Total time saved'));
+  }
 
+  if (siteGrid) {
+    siteGrid.replaceChildren();
     if (siteCounts) {
-      const rankedSites = Object.entries(siteCounts)
+      const entries = Object.entries(siteCounts)
         .filter(([site, count]) => !!site && Number.isFinite(Number(count)) && Number(count) > 0)
         .map(([site, count]) => [site.replace(/^www\./i, ''), Number(count)])
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 8);
+        .sort((a, b) => b[1] - a[1]);
 
-      for (const [siteName, siteCount] of rankedSites) {
-        allGrid.appendChild(makeStatCard(siteCount, siteName));
+      if (entries.length > 0) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const header = document.createElement('div');
+        header.className = 'card-header';
+        const icon = document.createElement('div');
+        icon.className = 'card-icon blue';
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '16');
+        svg.setAttribute('height', '16');
+        svg.setAttribute('viewBox', '0 0 16 16');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'var(--accent)');
+        svg.setAttribute('stroke-width', '1.8');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        const p1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        p1.setAttribute('d', 'M1 1v14h14');
+        const p2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        p2.setAttribute('d', 'M4 11l3-4 3 2 4-5');
+        svg.appendChild(p1);
+        svg.appendChild(p2);
+        icon.appendChild(svg);
+        const titleWrap = document.createElement('div');
+        titleWrap.className = 'card-title-wrap';
+        const title = document.createElement('h2');
+        title.className = 'card-title';
+        title.textContent = 'Top Sites';
+        titleWrap.appendChild(title);
+        header.appendChild(icon);
+        header.appendChild(titleWrap);
+        card.appendChild(header);
+        const body = document.createElement('div');
+        body.className = 'card-body';
+        const grid = document.createElement('div');
+        grid.className = 'stats-grid';
+        entries.slice(0, 8).forEach(([name, count]) => grid.appendChild(makeStatCard(count, name)));
+        body.appendChild(grid);
+        if (entries.length > 8) {
+          const more = document.createElement('p');
+          more.style.cssText = 'font-size:11px;color:var(--text3);margin-top:12px;text-align:center';
+          more.textContent = `+${entries.length - 8} more sites`;
+          body.appendChild(more);
+        }
+        card.appendChild(body);
+        siteGrid.appendChild(card);
       }
     }
   }
