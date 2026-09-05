@@ -1557,6 +1557,22 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     btn.onmouseup = () => { btn.style.transform = 'scale(1)'; };
     btn.addEventListener('click', e => {
       e.preventDefault(); e.stopPropagation();
+      if (!_subState.subs || _subState.subs.length === 0) {
+        const inp = document.createElement('input');
+        inp.type = 'file';
+        inp.accept = '.srt,.vtt';
+        inp.style.display = 'none';
+        document.documentElement.appendChild(inp);
+        inp.addEventListener('change', () => {
+          const f = inp.files && inp.files[0];
+          if (!f) { inp.remove(); return; }
+          f.text().then(t => br.storage.local.set({ subtitle_override_srt: t }))
+           .catch(() => { console.warn('[SkipStream] subtitle file unreadable'); })
+           .then(() => inp.remove());
+        });
+        inp.click();
+        return;
+      }
       _subState.enabled = !_subState.enabled;
       br.storage.local.set({ subtitle_enabled: _subState.enabled }).catch(() => {});
       renderSubFrame(video); syncCCBtn();
