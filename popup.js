@@ -169,6 +169,7 @@ document.querySelectorAll('.smode-chip').forEach(chip => {
     // Persist immediately
     br.storage.local.set({
       [KEYS.skipMode]:  inferred,
+      [KEYS.enabled]:   inferred !== 'off',
       [KEYS.skipIntro]: i,
       [KEYS.skipRecap]: r,
       [KEYS.skipOutro]: o,

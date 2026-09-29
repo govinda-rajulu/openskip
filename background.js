@@ -30,8 +30,13 @@ const ALARM_QUEUE_FLUSH = 'ss_queue_flush';
 
 if (IS_SW) {
   br.alarms.create(ALARM_HEARTBEAT,   { periodInMinutes: HEARTBEAT_INTERVAL_MIN });
-  br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: QUEUE_FLUSH_INTERVAL_MIN });
 }
+// The queue flush + daily cleanup alarm is needed on Firefox too (it was SW-only,
+// so Firefox never flushed the offline queue or pruned old rows). get-then-create:
+// a background wake must not restart the 5-minute timer.
+Promise.resolve(br.alarms.get(ALARM_QUEUE_FLUSH))
+  .then(a => { if (!a) br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: QUEUE_FLUSH_INTERVAL_MIN }); })
+  .catch(() => { try { br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: QUEUE_FLUSH_INTERVAL_MIN }); } catch { /* ok */ } });
 
 br.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === ALARM_HEARTBEAT) {
@@ -261,7 +266,8 @@ async function flushOfflineQueue() {
       const remaining = [];
       for (const body of queue) {
         const result = await supabaseUpsert(body);
-        if (!result.ok && result.err !== 'not_configured') remaining.push(body);
+        const permanent = /^HTTP 4\d\d/.test(result.err || '') && !/^HTTP 40[8]|^HTTP 429/.test(result.err || '');
+        if (!result.ok && result.err !== 'not_configured' && !permanent) remaining.push(body);
       }
       await br.storage.local.set({ [QUEUE_KEY]: remaining });
     } catch (e) { logError('queue_flush', e); }
@@ -279,7 +285,7 @@ async function cleanupOldData() {
     const stored = await br.storage.local.get('skipstream_last_cleanup');
     const last = stored.skipstream_last_cleanup || 0;
     if (Date.now() - last < 24 * 60 * 60 * 1000) return;
-    await fetch(
+    const res = await fetch(
       `${supabaseUrl}/rest/v1/rpc/ss_prune_playback`,
       {
         method: 'POST',
@@ -292,6 +298,7 @@ async function cleanupOldData() {
         body: JSON.stringify({ p_user_id: userId, p_days: 90 }),
       }
     );
+    if (!res.ok) { logError('data_cleanup', new Error('HTTP ' + res.status)); return; }
     await br.storage.local.set({ skipstream_last_cleanup: Date.now() });
   } catch (e) { logError('data_cleanup', e); }
 }
@@ -424,6 +431,59 @@ async function fetchSegmentsMulti(imdbId, season, episode) {
   const merged = Object.assign({}, animeskip || {}, introdb || {});
   return Object.keys(merged).length ? merged : null;
 }
+
+// ── Settings sync snapshot ───────────────────────────────────────────────────
+// ss_put_settings overwrites every column, so a write carrying only site_rules
+// used to wipe cloud prefs, stats and theme. Every write now sends a full
+// snapshot: parts the caller supplied win, the rest come from local storage.
+// SYNC_PREF_KEYS is also the allowlist options.js applies when pulling.
+const SYNC_PREF_KEYS = ['skipEnabled', 'skipMode', 'skipIntro', 'skipRecap', 'skipOutro',
+  'resumePlayback', 'autoNextEpisode', 'playbackSpeed',
+  'subtitle_language', 'subtitle_font_size', 'subtitle_enabled'];
+
+function pickSyncPrefs(obj) {
+  const out = {};
+  if (obj && typeof obj === 'object') for (const k of SYNC_PREF_KEYS) if (obj[k] !== undefined) out[k] = obj[k];
+  return out;
+}
+
+async function settingsSnapshot(body) {
+  const s = await br.storage.local.get([...SYNC_PREF_KEYS, 'skipstream_site_rules', 'skipstream_stats', 'skipstream_theme']);
+  const given = pickSyncPrefs(body.prefs);
+  const stats = body.stats && typeof body.stats === 'object' && Object.keys(body.stats).length ? body.stats : s.skipstream_stats;
+  const theme = typeof body.theme === 'string' && body.theme ? body.theme : s.skipstream_theme;
+  return {
+    prefs:      Object.keys(given).length ? given : pickSyncPrefs(s),
+    site_rules: body.site_rules && typeof body.site_rules === 'object' ? body.site_rules : (s.skipstream_site_rules || {}),
+    stats:      stats && typeof stats === 'object' ? stats : {},
+    theme:      typeof theme === 'string' && theme ? theme : null,
+  };
+}
+
+// Prefs are written by the popup, which never pushed them (69ad02c removed the
+// options-page push). Push a snapshot 5s after any synced key changes locally.
+let _settingsPushTimer = null;
+br.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  const keys = Object.keys(changes);
+  if (!keys.some(k => SYNC_PREF_KEYS.includes(k) || k === 'skipstream_site_rules' || k === 'skipstream_theme')) return;
+  clearTimeout(_settingsPushTimer);
+  _settingsPushTimer = setTimeout(async () => {
+    try {
+      const { supabaseUrl, supabaseAnonKey } = await getConfig();
+      if (!supabaseUrl || !supabaseAnonKey || !isValidSupabaseUrl(supabaseUrl)) return;
+      const userId = await getDerivedUserId();
+      if (!userId) return;
+      const snap = await settingsSnapshot({});
+      const res = await fetchWithRetry(`${supabaseUrl}/rest/v1/rpc/ss_put_settings`, {
+        method: 'POST',
+        headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_user_id: userId, p_stats: snap.stats, p_prefs: snap.prefs, p_site_rules: snap.site_rules, p_theme: snap.theme }),
+      });
+      if (!res.ok) logError('settings_push', new Error('HTTP ' + res.status));
+    } catch (e) { logError('settings_push', e); }
+  }, 5000);
+});
 
 // ── Service checks ────────────────────────────────────────────────────────────
 
@@ -712,7 +772,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ p_user_id: msg.userId, p_media_id: msg.mediaId }),
       })
-        .then(r => r.json())
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(data => {
           const row = data && typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length ? data : null;
           sendResponse({ data: row });
@@ -727,6 +787,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ ok: false, err: 'not_configured' }); return; }
       if (!isValidSupabaseUrl(supabaseUrl)) { sendResponse({ ok: false, err: 'invalid_url' }); return; }
       try {
+        const snap = await settingsSnapshot(msg.body || {});
         const res = await fetchWithRetry(
           `${supabaseUrl}/rest/v1/rpc/ss_put_settings`,
           {
@@ -737,10 +798,10 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
             },
             body: JSON.stringify({
               p_user_id:    msg.body.user_id,
-              p_stats:      msg.body.stats      || {},
-              p_prefs:      msg.body.prefs      || {},
-              p_site_rules: msg.body.site_rules || {},
-              p_theme:      msg.body.theme      || null,
+              p_stats:      snap.stats,
+              p_prefs:      snap.prefs,
+              p_site_rules: snap.site_rules,
+              p_theme:      snap.theme,
             }),
           }
         );
@@ -794,7 +855,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ p_user_id: msg.userId }),
       })
-        .then(r => r.json())
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
         .then(data => sendResponse({ data: Array.isArray(data) ? data : [] }))
         .catch(err => sendResponse({ data: null, err: String(err) }));
     });
