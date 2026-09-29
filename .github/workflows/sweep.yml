@@ -10,7 +10,9 @@ jobs:
   sweep:
     # Trigger: new issue title starts with "sweep:" OR comment is "sweep: <task>"
     if: |
-      (github.event_name == 'issues' && startsWith(github.event.issue.title, 'sweep:')) ||
+      (github.event_name == 'issues' &&
+       github.event.sender.login == github.repository_owner &&
+       startsWith(github.event.issue.title, 'sweep:')) ||
       (github.event_name == 'issue_comment' &&
        github.event.comment.user.login == github.repository_owner &&
        startsWith(github.event.comment.body, 'sweep:'))
@@ -75,7 +77,7 @@ jobs:
                     - No localStorage or fetch() in content-scripts/content.js
                     - No innerHTML anywhere
                     - No console.log (use console.warn)
-                    - userId = SHA-256("skipstream:uid:" + supabaseAnonKey)
+                    - userId = random UUID per install (skipstream_install_id), never derived from the anon key
                     
                     CODEBASE:
                     {ctx[:75000]}

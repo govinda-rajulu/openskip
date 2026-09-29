@@ -72,8 +72,8 @@ jobs:
           - No fetch() in content-scripts/content.js
           - No innerHTML anywhere
           - No console.log anywhere
-          - userId = SHA-256("skipstream:uid:" + supabaseAnonKey)
-          - SPA nav = pushState/replaceState intercept, no setInterval
+          - userId = random UUID per install (skipstream_install_id), never derived from the anon key
+          - SPA nav = per-video href check on timeupdate + popstate
           
           PR: {pr_title}
           {pr_body[:500] if pr_body else ''}

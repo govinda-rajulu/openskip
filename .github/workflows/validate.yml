@@ -31,6 +31,7 @@ jobs:
           node --check options.js
           node --check popup.js
           node --check content-scripts/content.js
+          node --check theme-engine.js
           echo "✅ All JS files pass syntax check"
 
       - name: Validate manifest.json

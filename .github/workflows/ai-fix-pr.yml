@@ -71,8 +71,8 @@ jobs:
           2. NEVER use fetch() in content-scripts/content.js — all network calls go through background.js
           3. NEVER use innerHTML — use DOM API: createElement, textContent, replaceChildren
           4. NEVER use console.log — only console.warn for diagnostics
-          5. userId = SHA-256("skipstream:uid:" + supabaseAnonKey) — never random, never stored as-is
-          6. SPA nav = intercept pushState/replaceState + popstate listener — no setInterval polling
+          5. userId = random UUID (crypto.randomUUID) made once per install, stored as skipstream_install_id
+          6. SPA nav = per-video location.href check on timeupdate + popstate (pushState wraps cannot see page calls from the isolated world)
           7. Video detection: width >= 25% viewport, height >= 20% viewport, aspect ratio 1.2-3.0
           
           ISSUE #{issue_num}: {issue_title}
