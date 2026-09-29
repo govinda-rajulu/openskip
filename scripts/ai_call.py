@@ -34,6 +34,8 @@ MODEL_GEMINI = os.environ.get("AI_MODEL_GEMINI") or "gemini-2.0-flash"
 MODEL_NVIDIA = os.environ.get("AI_MODEL_NVIDIA") or "openai/gpt-oss-20b"
 
 TIMEOUT = 120
+RETRY_CODES = (429, 500, 502, 503, 504)
+LENGTH_RETRY_CAP = 16384
 
 
 def _post(url, payload, headers, timeout=TIMEOUT):
@@ -68,16 +70,48 @@ def _chat_text(res):
     return clean(msg.get("content") or "")
 
 
+def _chat_cut_off(res):
+    """True when the budget ran out (finish_reason length), usually spent on thinking."""
+    try:
+        return res["choices"][0].get("finish_reason") == "length"
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return False
+
+
+def _post_retry(url, payload, headers, timeout=TIMEOUT, waits=(5, 15)):
+    """Busy (429) or server error (5xx): wait and retry, as the providers' docs advise."""
+    for wait in list(waits) + [None]:
+        try:
+            return _post(url, payload, headers, timeout)
+        except urllib.error.HTTPError as e:
+            if wait is None or e.code not in RETRY_CODES:
+                raise
+            time.sleep(wait)
+
+
+def _chat(url, payload, headers):
+    """One OpenAI-style call. If the answer is empty because thinking used the whole
+    budget, ask once more with 4x the budget (max LENGTH_RETRY_CAP)."""
+    res = _post_retry(url, payload, headers)
+    text = _chat_text(res)
+    if not text and _chat_cut_off(res) and payload["max_tokens"] < LENGTH_RETRY_CAP:
+        more = dict(payload, max_tokens=min(payload["max_tokens"] * 4, LENGTH_RETRY_CAP))
+        print("ai_call: " + payload["model"] + " ran out of tokens while thinking, retrying with " + str(more["max_tokens"]))
+        text = _chat_text(_post_retry(url, more, headers))
+    return text
+
+
 def _openrouter(prompt, max_tokens):
     if not OPENROUTER_KEY:
         raise RuntimeError("no OPENROUTER_API_KEY")
-    res = _post(
+    return _chat(
         "https://openrouter.ai/api/v1/chat/completions",
         {
             "model": MODEL_OPENROUTER,
             "max_tokens": max_tokens,
             "temperature": 0.1,
-            "reasoning": {"exclude": True},
+            # low effort = about 20% of max_tokens for thinking, the rest is left for the answer
+            "reasoning": {"effort": "low", "exclude": True},
             "messages": [{"role": "user", "content": prompt}],
         },
         {
@@ -87,7 +121,6 @@ def _openrouter(prompt, max_tokens):
             "X-Title": "openskip-agent",
         },
     )
-    return _chat_text(res)
 
 
 _GEMINI_PICKED = None
@@ -139,10 +172,18 @@ def _gemini_once(model, prompt, max_tokens):
         try:
             res = _post(url, payload, {"Content-Type": "application/json"}, timeout=90)
             try:
-                parts = res["candidates"][0]["content"]["parts"]
+                cand = res["candidates"][0]
             except (KeyError, IndexError, TypeError):
                 return ""
-            return clean("".join(p.get("text", "") for p in parts if not p.get("thought")))
+            parts = (cand.get("content") or {}).get("parts") or []
+            text = clean("".join(p.get("text", "") for p in parts if not p.get("thought")))
+            budget = payload["generationConfig"]["maxOutputTokens"]
+            if not text and cand.get("finishReason") == "MAX_TOKENS" and budget < LENGTH_RETRY_CAP:
+                # maxOutputTokens includes thinking tokens (Gemini thinking docs)
+                payload["generationConfig"]["maxOutputTokens"] = min(budget * 4, LENGTH_RETRY_CAP)
+                print("ai_call: " + model + " ran out of tokens while thinking, retrying with " + str(payload["generationConfig"]["maxOutputTokens"]))
+                continue
+            return text
         except urllib.error.HTTPError as e:
             last = e
             if e.code == 429:
@@ -193,7 +234,7 @@ def _gemini(prompt, max_tokens):
 def _nvidia(prompt, max_tokens):
     if not NVIDIA_KEY:
         raise RuntimeError("no NVIDIA_API_KEY")
-    res = _post(
+    return _chat(
         "https://integrate.api.nvidia.com/v1/chat/completions",
         {
             "model": MODEL_NVIDIA,
@@ -207,7 +248,6 @@ def _nvidia(prompt, max_tokens):
             "Accept": "application/json",
         },
     )
-    return _chat_text(res)
 
 
 PROVIDERS = [("openrouter", _openrouter), ("gemini", _gemini), ("nvidia", _nvidia)]

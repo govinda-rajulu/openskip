@@ -208,5 +208,63 @@ test('F2: every JSON-contract agent asks with accept=looks_json', () => {
   assert.equal((wf('ai-fix-pr.yml').match(/accept=looks_json/g) || []).length, 2);
   assert.match(wf('sweep.yml'), /ask\(prompt, accept=looks_json\)/);
   assert.match(wf('ai-weekly-audit.yml'), /ask\(prompt, accept=looks_json\)/);
-  assert.match(readFileSync('scripts/ai_call.py', 'utf8'), /"reasoning": \{"exclude": True\}/);
+  assert.match(readFileSync('scripts/ai_call.py', 'utf8'), /"reasoning": \{"effort": "low", "exclude": True\}/);
+});
+
+test('F4: a seat that spends its whole budget thinking is asked once more with 4x tokens', () => {
+  const r = py([
+    'import ai_call, urllib.error',
+    'ai_call.OPENROUTER_KEY = "k"; ai_call.NVIDIA_KEY = "k"; ai_call.GEMINI_KEY = "k"',
+    'budgets = []',
+    'def post(url, payload, headers, timeout=0):',
+    '    if "generativelanguage" in url:',
+    '        b = payload["generationConfig"]["maxOutputTokens"]; budgets.append(("g", b))',
+    '        if b < 2048: return {"candidates": [{"finishReason": "MAX_TOKENS", "content": {"parts": [{"text": "hm", "thought": True}]}}]}',
+    '        return {"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": "OK"}]}}]}',
+    '    budgets.append((payload["model"][:3], payload["max_tokens"]))',
+    '    if payload["max_tokens"] < 2048: return {"choices": [{"finish_reason": "length", "message": {"content": None}}]}',
+    '    return {"choices": [{"finish_reason": "stop", "message": {"content": "OK"}}]}',
+    'ai_call._post = post',
+    'print("OR", ai_call._openrouter("x", 512))',
+    'print("NV", ai_call._nvidia("x", 512))',
+    'print("GM", ai_call._gemini_once("gemini-3.6-flash", "x", 512))',
+    'print("B", budgets)',
+    'def stop(url, payload, headers, timeout=0):',
+    '    return {"choices": [{"finish_reason": "stop", "message": {"content": ""}}]}',
+    'ai_call._post = stop; budgets.clear()',
+    'print("EMPTYSTOP", repr(ai_call._openrouter("x", 512)))',
+  ].join('\n'));
+  assert.match(r.out, /OR OK/);
+  assert.match(r.out, /NV OK/);
+  assert.match(r.out, /GM OK/);
+  assert.match(r.out, /ran out of tokens while thinking, retrying with 2048/);
+  assert.match(r.out, /B \[\('goo', 512\), \('goo', 2048\), \('ope', 512\), \('ope', 2048\), \('g', 512\), \('g', 2048\)\]/);
+  assert.match(r.out, /EMPTYSTOP ''/);
+});
+
+test('F4: 429 and 5xx wait and retry (5s, 15s), other errors fail at once', () => {
+  const r = py([
+    'import ai_call, urllib.error',
+    'ai_call.OPENROUTER_KEY = "k"',
+    'waits = []; ai_call.time.sleep = lambda s: waits.append(s)',
+    'codes = [429, 503]',
+    'def post(url, payload, headers, timeout=0):',
+    '    if codes: raise urllib.error.HTTPError(url, codes.pop(0), "busy", None, None)',
+    '    return {"choices": [{"finish_reason": "stop", "message": {"content": "OK"}}]}',
+    'ai_call._post = post',
+    'print("ANS", ai_call._openrouter("x", 512), waits)',
+    'codes[:] = [429, 429, 429]; waits.clear()',
+    'try:',
+    '    ai_call._openrouter("x", 512)',
+    'except urllib.error.HTTPError as e:',
+    '    print("GAVEUP", e.code, waits)',
+    'codes[:] = [401]; waits.clear()',
+    'try:',
+    '    ai_call._openrouter("x", 512)',
+    'except urllib.error.HTTPError as e:',
+    '    print("AUTH", e.code, waits)',
+  ].join('\n'));
+  assert.match(r.out, /ANS OK \[5, 15\]/);
+  assert.match(r.out, /GAVEUP 429 \[5, 15\]/);
+  assert.match(r.out, /AUTH 401 \[\]/);
 });
