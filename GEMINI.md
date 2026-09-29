@@ -37,3 +37,8 @@ Do not "fix" them.
 ## Who judges this
 There is one non-technical primary user. A change she would not notice is
 not a priority. Numbers and correctness beat styling.
+
+## Knowledge base
+
+Before proposing a change, read `knowledge/README.md` (working agreement, dated state,
+lessons from past wrong calls). The code and live GitHub state win where they disagree.

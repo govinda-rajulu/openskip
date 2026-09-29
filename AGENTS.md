@@ -117,3 +117,10 @@ Adding a file to the repo alone does NOT ship it. This bug has shipped twice: po
 - popup.css and options.css use different CSS variable namespaces - do not assume a token exists in both
 - Only animate transform and opacity. No backdrop-filter (open Firefox Android bug), no multi-layer shadows
 - The constraint name in `supabase_setup.sql` is `playback_states_user_id_media_id_key` - do not rename it
+
+## Knowledge base (read before proposing a change)
+
+`knowledge/README.md` is the entry point: the working agreement with the owner, the latest
+dated state, lessons from past wrong calls, and audit status. It is history and lessons;
+the code and live GitHub state win where they disagree. Add session notes there, dated and
+append-only.
