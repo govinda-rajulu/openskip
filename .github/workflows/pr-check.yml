@@ -17,8 +17,10 @@ jobs:
 
       - name: JS syntax check
         run: |
-          for f in background.js options.js popup.js content-scripts/content.js; do
-            [ -f "$f" ] && node --check "$f" && echo "✅ $f OK"
+          set -e
+          for f in background.js options.js popup.js theme-engine.js content-scripts/content.js; do
+            node --check "$f"
+            echo "✅ $f OK"
           done
 
       - name: Security checks
@@ -118,8 +120,11 @@ jobs:
       - name: Post summary comment
         uses: actions/github-script@v7
         if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
         with:
           script: |
+            const passed = process.env.JOB_STATUS === 'success';
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -139,5 +144,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
-              body: '## SkipStream Auto-Review ✅\n\nCI checks ran. Review the **Checks** tab above for details.\n\n**Before merging, verify manually:**\n- [ ] Tested in Firefox (about:debugging → Load Temporary Add-on)\n- [ ] No API keys or credentials in code\n- [ ] `CHANGELOG.md` updated if this is a user-facing change\n- [ ] Both `manifest.json` and `manifest-chrome.json` version match\n- [ ] No `fetch()` or `localStorage` in `content-scripts/content.js`\n- [ ] If manifest changed — re-validate with AMO validator'
+              body: (passed ? '## SkipStream Auto-Review ✅\n\nAll checklist checks passed.' : '## SkipStream Auto-Review ❌\n\nA checklist check FAILED. Open the **Checks** tab for the failing step.') + '\n\n**Before merging, verify manually:**\n- [ ] Tested in Firefox (about:debugging → Load Temporary Add-on)\n- [ ] No API keys or credentials in code\n- [ ] `CHANGELOG.md` updated if this is a user-facing change\n- [ ] Both `manifest.json` and `manifest-chrome.json` version match\n- [ ] No `fetch()` or `localStorage` in `content-scripts/content.js`\n- [ ] If manifest changed — re-validate with AMO validator'
             });

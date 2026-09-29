@@ -168,7 +168,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add updates.json
           git diff --staged --quiet || git commit -m "chore: update updates.json for v${VERSION} [skip ci]"
-          git push origin HEAD:main || echo "⚠ Push skipped (no changes or tag ref)"
+          if ! git push origin HEAD:main; then
+            echo "::warning::updates.json push to main was rejected (main is protected). AMO builds do not use updates.json."
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
