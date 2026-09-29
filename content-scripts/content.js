@@ -231,6 +231,9 @@ let _ssEffPrefs = null;
 
   // When running inside an embedded player iframe, resolve site identity
   // from document.referrer (the parent page) not from the player hostname.
+  // Exact host or a real subdomain of it; never a substring match (CodeQL js/incomplete-url-substring-sanitization).
+  function _hostIs(h, d) { return typeof h === 'string' && (h === d || h.endsWith('.' + d)); }
+
   function _siteHost() {
     if (window !== window.top && document.referrer) {
       try { return new URL(document.referrer).hostname.replace(/^www\./, ''); } catch { /* fall through */ }
@@ -299,7 +302,7 @@ function _pageUrl() {
     // YouTube: og:title is set on initial server render and never updated during
     // SPA navigation - stale across song/video changes in the same tab.
     // Read from YouTube's own live DOM title element instead.
-    if (host.includes('youtube.com') || host.includes('youtu.be')) {
+    if (_hostIs(host, 'youtube.com') || _hostIs(host, 'youtu.be')) {
       const ytEl = document.querySelector(
         'h1.title yt-formatted-string, ' +
         'ytd-watch-metadata h1 yt-formatted-string, ' +
@@ -1072,37 +1075,6 @@ function _pageUrl() {
   // Selector list based on public documentation and widely-used open-source extensions.
   // Works independently of IntroDB - no API key required.
 
-  const SKIP_SELECTORS = [
-    // Netflix
-    'button[data-uia="player-skip-intro"]',
-    'button[data-uia="player-skip-recap"]',
-    'button[data-uia="player-skip-credits"]',
-    '.skip-intro button',
-    // Prime Video
-    '.skipeIntro',
-    '.atvwebplayersdk-skip-intro-button',
-    '[class*="SkipButton"] button',
-    // Disney+
-    '[class*="SkipButton"]',
-    // Hulu
-    '.SkipButton',
-    // Max / HBO Max
-    '[class*="skip-intro"]',
-    '[data-testid*="skip-intro"]',
-    // Crunchyroll
-    '.skip-button:not([disabled])',
-    '[data-testid="skipButton"]',
-    // Peacock
-    '.progress-bar__skip-button',
-    // Paramount+
-    '[class*="skip-intro-button"]',
-    // Apple TV+
-    '[class*="skip-button"]',
-    // Tubi
-    'button.skip-intro-button',
-    // Generic fallback - buttons labelled "Skip Intro" or "Skip Recap"
-  ];
-
   const NEXT_EP_SELECTORS = [
     // Netflix
     'button[data-uia="next-episode-seamless-button"]',
@@ -1285,7 +1257,6 @@ function clickNativeSkipButton() {
 
   let btnAutoHideTimer  = null;
   let pendingSkipFn     = null;
-  let topFrameListening = false;
 
   function removeSkipBtn() {
     clearTimeout(btnAutoHideTimer);
@@ -1380,8 +1351,7 @@ function clickNativeSkipButton() {
     return Object.values(SEGMENT_LABELS).includes(base) || /^\u23ED Skip [A-Za-z_-]{1,20}$/.test(base);
   }
 
-  if (!topFrameListening && window === window.top) {
-    topFrameListening = true;
+  if (window === window.top) {
     window.addEventListener('message', e => {
       if (!e.data || typeof e.data !== 'object') return;
 if (e.data.type !== MSG_SHOW && e.data.type !== MSG_HIDE) return;

@@ -27,7 +27,6 @@ const https   = require('https');
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const AMO_BASE   = 'https://addons.mozilla.org';
 const API_KEY    = process.env.AMO_API_KEY;
 const API_SECRET = process.env.AMO_API_SECRET;
 const ADDON_SLUG = process.env.AMO_ADDON_SLUG || 'skipstream';
@@ -172,7 +171,7 @@ async function poll(fn, label, { interval = 8000, timeout = 600_000 } = {}) {
 function extractChangelogNotes(version) {
   try {
     const cl = fs.readFileSync('CHANGELOG.md', 'utf8');
-    const escaped = version.replace(/\./g, '\\.');
+    const escaped = String(version).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const re = new RegExp(`## \\[${escaped}\\][^\\n]*\\n([\\s\\S]*?)(?=\\n## \\[|$)`);
     const m  = cl.match(re);
     if (!m) return '';
