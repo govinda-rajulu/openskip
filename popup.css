@@ -476,11 +476,9 @@ body[data-tab="settings"] .tab-ink{ transform: translateX(100%); }
 .sub-status{
   display: block;
   margin: 8px 0 0;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .sub-lang-row{
   display: flex;

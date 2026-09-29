@@ -358,7 +358,22 @@ function _pageUrl() {
 
   const CACHE_KEY = 'skipstream_cache';
 
-  async function cacheWrite(mediaId, position, duration) {
+  // H11: cache writes are read-modify-write of one object; two at once used to
+  // lose one video's entry. Every write in this frame now waits for the last.
+  let _cacheChain = Promise.resolve();
+  function _serialCache(fn) {
+    const run = _cacheChain.then(fn, fn);
+    _cacheChain = run.catch(() => {});
+    return run;
+  }
+  function cacheWrite(mediaId, position, duration) {
+    return _serialCache(() => _cacheWriteNow(mediaId, position, duration));
+  }
+  function cacheWriteWithMeta(mediaId, position, duration, meta = {}) {
+    return _serialCache(() => _cacheWriteWithMetaNow(mediaId, position, duration, meta));
+  }
+
+  async function _cacheWriteNow(mediaId, position, duration) {
     try {
       const stored = await br.storage.local.get(CACHE_KEY);
       const cache  = stored[CACHE_KEY] || {};
@@ -380,7 +395,7 @@ function _pageUrl() {
   }
 
   // Cloud->local sync: accepts explicit meta when DOM title not yet available
-  async function cacheWriteWithMeta(mediaId, position, duration, meta = {}) {
+  async function _cacheWriteWithMetaNow(mediaId, position, duration, meta = {}) {
     try {
       const stored = await br.storage.local.get(CACHE_KEY);
       const cache  = stored[CACHE_KEY] || {};
@@ -416,8 +431,7 @@ function _pageUrl() {
     const mediaId = getMediaId();
     const pos = Math.round(video.currentTime * 10) / 10;
     const dur = Math.round(video.duration);
-    await cacheWrite(mediaId, pos, dur);
-
+    // H12: timer first (synchronous last-call-wins), then the local write.
     clearTimeout(saveTimer.id);
     saveTimer.id = setTimeout(async () => {
       if (getMediaId() !== mediaId) return;
@@ -446,6 +460,7 @@ function _pageUrl() {
         }
       } catch { /* background not ready */ }
     }, 3000);
+    await cacheWrite(mediaId, pos, dur);
   }
 
   // Immediate synchronous-as-possible flush (beforeunload - no async guarantee)
@@ -582,6 +597,7 @@ function _pageUrl() {
     const pendingPos = await checkPendingResume(mediaId);
     if (pendingPos && pendingPos >= 10) {
       const doSeek = () => {
+        if (getMediaId() !== mediaId) return;   // H10: page moved on while we waited
         if (video.currentTime > 3 || (video.played && video.played.length > 0)) return;
         try {
           video.currentTime = pendingPos;
@@ -604,7 +620,10 @@ function _pageUrl() {
           // Don't blindly trust cloud - if local has unsynced progress further along
           // (e.g. offline session, crash before the 3s upsert fired), keep it.
           const existingLocal = await cacheRead(mediaId);
-          const cloudIsNewer = !existingLocal || cloudSaved.p >= (existingLocal.p || 0) - 5;
+          // H9: newer wins by time. Position is only the tie-break for old rows with no time.
+          const cloudT = Date.parse(res.data.updated_at || '') || 0;
+          const cloudIsNewer = !existingLocal
+            || (cloudT && existingLocal.t ? cloudT >= existingLocal.t : cloudSaved.p >= (existingLocal.p || 0) - 5);
           if (cloudIsNewer) {
             saved = cloudSaved;
             // Write cloud data back to local cache - use cloud title/site if DOM not ready yet
@@ -624,6 +643,7 @@ function _pageUrl() {
     if (saved.d && saved.p / saved.d > 0.95 && saved.d - saved.p < 60) return;
 
     const doResume = () => {
+      if (getMediaId() !== mediaId) return;   // H10: page moved on while we waited
       if (video.currentTime > 3 || (video.played && video.played.length > 0)) return;
       // Silent resume: just seek and show brief toast, no prompt
       try {
@@ -887,8 +907,15 @@ function _pageUrl() {
   let _countdownTimer = null;
   let _countdownDetach = null;
 
+  // C9: stats are read-modify-write too; chain them so two skips never count as one.
+  let _statsChain = Promise.resolve();
+  function _serialStats(fn) {
+    _statsChain = _statsChain.then(fn, fn).catch(() => {});
+    return _statsChain;
+  }
+
   function recordSkipStat(timeSavedSec) {
-    br.storage.local.get('skipstream_stats').then(s => {
+    _serialStats(() => br.storage.local.get('skipstream_stats').then(s => {
       const st = s.skipstream_stats || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0, skipsToday: 0, statsDate: '', timeSavedToday: 0, skipsBySite: {} };
       const today = new Date().toDateString();
       const site = _siteHost();
@@ -910,8 +937,8 @@ function _pageUrl() {
       if (!st.skipsBySite) st.skipsBySite = {};
       st.skipsBySite[site] = (st.skipsBySite[site] || 0) + 1;
       
-      br.storage.local.set({ skipstream_stats: st });
-    }).catch(() => {});
+      return br.storage.local.set({ skipstream_stats: st });
+    }).catch(() => {}));
   }
 
   function showSkipCountdown(segKey, segment, video, onDone) {
@@ -1053,9 +1080,8 @@ function _pageUrl() {
           return true;
         }
       }
-      // Fallback: click first button in the overlay
-      const firstBtn = el.querySelector('button, [role="button"]');
-      if (firstBtn) { firstBtn.click(); return true; }
+      // No "click the first button" fallback: in a random overlay that could be
+      // Cancel, Sign out or an ad (C5).
     }
     return false;
   }
@@ -1063,6 +1089,7 @@ function _pageUrl() {
   // Poll every 3s - only when a video is playing
   // Stored so onNavigation can clear and restart it safely
   let _stillWatchingInterval = setInterval(() => {
+    if (prefs.skipEnabled === false) return;   // C5: master switch off = hands off the page
     const vid = document.querySelector('video');
     if (vid && !vid.paused) tryDismissStillWatching();
   }, 3000);
@@ -1269,7 +1296,7 @@ function clickNativeSkipButton() {
         }
       }
     });
-    _skipBtnObserver.observe(document.body, { childList: true, subtree: true });
+    _skipBtnObserver.observe(document.documentElement, { childList: true, subtree: true });   // H13: survives a new <body>
   }
 
 
@@ -1694,6 +1721,35 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     _subState.loading = false; syncCCBtn();
   }
 
+  // Popup "Find subtitles for this video": fetch now, even if subtitles were off,
+  // and report why when nothing loads.
+  async function fetchSubsNow() {
+    const video = _subVideo;
+    const info = await resolveShowInfo().catch(() => null);
+    if (!info?.imdbId) return { ok: false, reason: 'no_id' };
+    _subLastInfo = info;
+    _subState.loading = true; syncCCBtn();
+    if (!_subState.enabled) { _subState.enabled = true; br.storage.local.set({ subtitle_enabled: true }).catch(() => {}); }
+    const reqHref = location.href;
+    let result = null;
+    try {
+      result = await br.runtime.sendMessage({
+        type: 'OSUB_SEARCH_AND_FETCH',
+        imdbId: info.imdbId, season: info.season || null,
+        episode: info.episode || null, language: _subState.language,
+      });
+    } catch { result = null; }
+    _subState.loading = false;
+    if (location.href !== reqHref) { syncCCBtn(); return { ok: false, reason: 'navigated' }; }
+    if (!result?.ok || !result.text) { syncCCBtn(); return { ok: false, reason: result?.err || 'no_answer' }; }
+    const subs = parseSubs(result.text);
+    if (!subs.length) { syncCCBtn(); return { ok: false, reason: 'unreadable' }; }
+    _subState.subs = subs; _subState.source = 'osub';
+    syncCCBtn();
+    if (video) renderSubFrame(video);
+    return { ok: true, count: subs.length, name: result.name || '' };
+  }
+
   // Listen for subtitle file uploaded from popup/options, or any settings change
   br.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
@@ -1742,7 +1798,10 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     if (rect.width  < vw * 0.25) return false;
     if (rect.height < vh * 0.20) return false;
     const ar = rect.width / rect.height;
-    if (ar < 1.2 || ar > 3.0) return false;
+    if (ar > 3.0) return false;
+    // H4: portrait / square (Shorts, phone streams) only when the player is tall,
+    // so grid thumbnails stay out.
+    if (ar < 1.2 && rect.height < vh * 0.5) return false;
     const cs = window.getComputedStyle(video);
     if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
     return true;
@@ -1754,9 +1813,12 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     const ready = isMainPlayer(video);
     if (ready === null) {
       video.addEventListener('loadedmetadata', () => attachVideo(video), { once: true });
+    }
+    if (!ready) {
+      // H5: hidden / not laid out yet. Look again when it actually plays.
+      video.addEventListener('playing', () => attachVideo(video), { once: true });
       return;
     }
-    if (!ready) return;
 
     attachedVideos.add(video);
     await restorePlayback(video);
@@ -1796,11 +1858,11 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     window.addEventListener('beforeunload', flushHandler);
 
     // Track session count for stats
-    br.storage.local.get('skipstream_stats').then(s => {
+    _serialStats(() => br.storage.local.get('skipstream_stats').then(s => {
       const st = s.skipstream_stats || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0 };
-      st.sessionsTotal++;
-      br.storage.local.set({ skipstream_stats: st });
-    }).catch(() => {});
+      st.sessionsTotal = (Number(st.sessionsTotal) || 0) + 1;
+      return br.storage.local.set({ skipstream_stats: st });
+    }).catch(() => {}));
 
     // ── Segment resolution ──
     let segments = null;
@@ -2026,6 +2088,12 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
         if (!v.paused || v.currentTime > 0) { time = v.currentTime; break; }
       }
       sendResponse({ time });
+      return true;
+    }
+    if (msg.type === 'SUBS_FETCH_NOW') {
+      // Only the frame that owns the player answers; the others stay silent so it can.
+      if (!_subVideo) return false;
+      fetchSubsNow().then(sendResponse, () => sendResponse({ ok: false, reason: 'no_answer' }));
       return true;
     }
     if (msg.type === 'GET_SHOW_INFO') {
