@@ -56,6 +56,16 @@ let _flushingQueue = false;  // Mutex: prevent concurrent offline queue flushes
 let _configCache = null;
 let _configCacheTs = 0;
 
+// TMDB accepts a v4 read token (a three-part JWT) as Bearer, or a v3 key as
+// ?api_key=. Users paste either, so every TMDB call goes through here.
+function tmdbFetch(path, key) {
+  const k = String(key || '').trim();
+  const v4 = k.split('.').length === 3;
+  const url = 'https://api.themoviedb.org/3' + path +
+    (v4 ? '' : (path.includes('?') ? '&' : '?') + 'api_key=' + encodeURIComponent(k));
+  return fetchWithRetry(url, v4 ? { headers: { Authorization: `Bearer ${k}` } } : {});
+}
+
 async function getTmdbCache() {
   if (_tmdbCache) return _tmdbCache;
   try {
@@ -316,16 +326,37 @@ if (br.tabs && br.tabs.onRemoved) {
 
 // ── Segment providers ─────────────────────────────────────────────────────────
 
-async function providerIntroDB(imdbId, season, episode, { introdbApiKey }) {
-  // /segments is a public read endpoint - no auth required or checked.
-  // introdbApiKey is intentionally not sent here; it's only used for POST /submit.
-  if (!introdbApiKey) return null;
+// IntroDB reads are public ("No API key needed to read", introdb.app/docs/api).
+// Only the IMDb id and season/episode are sent. The key is never sent on reads;
+// it is reserved for submitting timings.
+async function providerIntroDB(imdbId, season, episode, _config, isMovie) {
+  if (!/^tt\d{7,8}$/.test(String(imdbId || ''))) return null;
   try {
-    const params = new URLSearchParams({ imdb_id: imdbId, season: String(season), episode: String(episode) });
+    const params = isMovie
+      ? new URLSearchParams({ imdb_id: imdbId, is_movie: 'true' })
+      : new URLSearchParams({ imdb_id: imdbId, season: String(season), episode: String(episode) });
     const r = await fetchWithRetry(`https://api.introdb.app/segments?${params}`);
     if (!r.ok) return null;
-    return await r.json();
+    return normalizeIntroDB(await r.json());
   } catch { return null; }
+}
+
+// Response: { imdb_id, season, episode, intro, recap, outro[, post_credits] },
+// each segment { start_sec, end_sec, start_ms, end_ms, confidence, submission_count }
+// or null. Keep only usable intro/recap/outro so a null here can never overwrite
+// an Anime-Skip segment in the merge. post_credits is a scene to WATCH: never skipped.
+function normalizeIntroDB(data) {
+  if (!data || typeof data !== 'object') return null;
+  const out = {};
+  for (const k of ['intro', 'recap', 'outro']) {
+    const s = data[k];
+    if (!s || typeof s !== 'object') continue;
+    const a = s.start_sec != null ? Number(s.start_sec) : (s.start_ms != null ? Number(s.start_ms) / 1000 : NaN);
+    const b = s.end_sec   != null ? Number(s.end_sec)   : (s.end_ms   != null ? Number(s.end_ms)   / 1000 : NaN);
+    if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a || a < 0) continue;
+    out[k] = { start_sec: a, end_sec: b, submission_count: s.submission_count ?? null, confidence: s.confidence ?? null };
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, animeSkipClientId, animeSkipAuthToken }) {
@@ -414,11 +445,11 @@ async function providerSponsorBlock(videoId) {
   } catch { return null; }
 }
 
-async function fetchSegmentsMulti(imdbId, season, episode) {
+async function fetchSegmentsMulti(imdbId, season, episode, isMovie) {
   const config = await getConfig();
   const [introdb, animeskip] = await Promise.all([
-    providerIntroDB(imdbId, season, episode, config),
-    providerAnimeSkip(imdbId, season, episode, config),
+    providerIntroDB(imdbId, season, episode, config, isMovie),
+    isMovie ? null : providerAnimeSkip(imdbId, season, episode, config),
   ]);
   if (!introdb && !animeskip) return null;
   const merged = Object.assign({}, animeskip || {}, introdb || {});
@@ -627,26 +658,27 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (msg.type === 'TMDB_TO_IMDB') {
     if (!/^\d+$/.test(String(msg.tmdbId))) { sendResponse({ imdbId: null }); return; }
-    const cacheKey = `tv:${msg.tmdbId}`;
+    const kind = msg.kind === 'movie' ? 'movie' : 'tv';
+    const cacheKey = `${kind}:${msg.tmdbId}`;
     getTmdbCache().then(async (cache) => {
-      if (cacheKey in cache) { sendResponse({ imdbId: cache[cacheKey] }); return; }
+      // Only real ids are trusted from cache; old null entries are retried.
+      if (cache[cacheKey]) { sendResponse({ imdbId: cache[cacheKey] }); return; }
       const { tmdbApiKey } = await getConfig();
-      if (!tmdbApiKey) { await setTmdbCache(cacheKey, null); sendResponse({ imdbId: null }); return; }
+      if (!tmdbApiKey) { sendResponse({ imdbId: null }); return; }
       try {
-        const r = await fetchWithRetry(`https://api.themoviedb.org/3/tv/${msg.tmdbId}/external_ids`, {
-          headers: { Authorization: `Bearer ${tmdbApiKey}` }
-        });
+        const r = await tmdbFetch(`/${kind}/${msg.tmdbId}/external_ids`, tmdbApiKey);
+        if (!r.ok) { sendResponse({ imdbId: null }); return; }
         const data = await r.json();
-        const id = data.imdb_id || null;
-        await setTmdbCache(cacheKey, id);
+        const id = /^tt\d{7,8}$/.test(String(data?.imdb_id || '')) ? data.imdb_id : null;
+        if (id) await setTmdbCache(cacheKey, id);
         sendResponse({ imdbId: id });
-      } catch { await setTmdbCache(cacheKey, null); sendResponse({ imdbId: null }); }
+      } catch { sendResponse({ imdbId: null }); }
     });
     return true;
   }
 
   if (msg.type === 'FETCH_SEGMENTS') {
-    fetchSegmentsMulti(msg.imdbId, msg.season, msg.episode)
+    fetchSegmentsMulti(msg.imdbId, msg.season, msg.episode, !!msg.isMovie)
       .then(data => {
         const tabId = sender?.tab?.id;
         if (tabId && badgeAPI?.setBadgeText) {
@@ -819,7 +851,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       const { tmdbApiKey } = await getConfig();
       if (!tmdbApiKey) {
-        await setTmdbCache(posterCacheKey, null);
+        // Not cached: adding a key later must be able to fill this in.
         sendResponse({ posterUrl: null });
         return;
       }
@@ -827,18 +859,17 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         // Try TV first
         let posterPath = null;
-        const tvRes = await fetchWithRetry(
-          `https://api.themoviedb.org/3/search/tv?api_key=${tmdbApiKey}&query=${q}&page=1`
-        );
+        let allOk = true;
+        const tvRes = await tmdbFetch(`/search/tv?query=${q}&page=1`, tmdbApiKey);
+        if (!tvRes.ok) allOk = false;
         if (tvRes.ok) {
           const tvData = await tvRes.json();
           posterPath = tvData.results?.[0]?.backdrop_path || tvData.results?.[0]?.poster_path || null;
         }
         // Fallback to movie if no TV result
         if (!posterPath) {
-          const mvRes = await fetchWithRetry(
-            `https://api.themoviedb.org/3/search/movie?api_key=${tmdbApiKey}&query=${q}&page=1`
-          );
+          const mvRes = await tmdbFetch(`/search/movie?query=${q}&page=1`, tmdbApiKey);
+          if (!mvRes.ok) allOk = false;
           if (mvRes.ok) {
             const mvData = await mvRes.json();
             posterPath = mvData.results?.[0]?.backdrop_path || mvData.results?.[0]?.poster_path || null;
@@ -847,10 +878,10 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const posterUrl = posterPath
           ? `https://image.tmdb.org/t/p/w300${posterPath}`
           : null;
-        await setTmdbCache(posterCacheKey, posterUrl);
+        // Cache hits, and misses only when TMDB really answered (not 401/5xx).
+        if (posterUrl || allOk) await setTmdbCache(posterCacheKey, posterUrl);
         sendResponse({ posterUrl });
       } catch {
-        await setTmdbCache(posterCacheKey, null);
         sendResponse({ posterUrl: null });
       }
     });

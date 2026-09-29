@@ -1,0 +1,29 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Syntax check every shipped JS file
+        run: |
+          set -e
+          for f in background.js options.js popup.js theme-engine.js content-scripts/*.js; do
+            node --check "$f"
+            echo "ok $f"
+          done
+      - name: Unit + load tests (node:test, no dependencies)
+        run: node --test tests/*.test.mjs

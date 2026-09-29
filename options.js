@@ -204,10 +204,9 @@ function setNavDot(key, state) {
 }
 
 // -- Verify: IntroDB --
-// NOTE: IntroDB's public API has no key-validation endpoint. /intro and /segments
-// are unauthenticated reads; only POST /submit requires X-API-Key. So this check
-// can only confirm (a) a key string is saved, and (b) the service is reachable.
-// It cannot confirm the key itself is valid - that's only provable on a real submit.
+// NOTE: IntroDB reads are public, so skipping works with no key. The key is only
+// for submitting timings (POST /submit, X-API-Key). This check confirms the
+// service is reachable; a key cannot be validated without a real submit.
 async function verifyIntrodb(key) {
   const dotMain  = $('dot-introdb');
   const msgMain  = $('msg-introdb');
@@ -218,30 +217,22 @@ async function verifyIntrodb(key) {
   if (msgMain) { msgMain.className = 'status-msg'; msgMain.textContent = 'Checking...'; }
   setNavDot('introdb', 'checking');
 
-  if (!key) {
-    setDot(dotMain, 'err', 'Not configured', msgMain);
-    setDot(dotCard, 'err');
-    setNavDot('introdb', 'err');
-    if (alertEl) showAlert(alertEl, 'warn', 'Paste your IntroDB API key and click Save & Verify.');
-    return false;
-  }
-
   try {
     // Reachability check only - this endpoint is public and ignores the key.
     const r = await fetch('https://api.introdb.app/segments?imdb_id=tt0944947&season=1&episode=1');
     if (r.ok) {
-      setDot(dotMain, 'ok', 'Configured - IntroDB service reachable', msgMain);
+      setDot(dotMain, 'ok', key ? 'Reachable - key saved for submitting timings' : 'Reachable - no key needed to skip', msgMain);
       setDot(dotCard, 'ok');
       setNavDot('introdb', 'ok');
       if (alertEl) hideAlert(alertEl);
       return true;
     }
-    setDot(dotMain, 'warn', 'Configured - service returned HTTP ' + r.status, msgMain);
+    setDot(dotMain, 'warn', 'IntroDB returned HTTP ' + r.status, msgMain);
     setDot(dotCard, 'warn');
     setNavDot('introdb', 'warn');
     return false;
   } catch (e) {
-    setDot(dotMain, 'warn', 'Configured - network error reaching service', msgMain);
+    setDot(dotMain, 'warn', 'Network error reaching IntroDB', msgMain);
     setDot(dotCard, 'warn');
     setNavDot('introdb', 'warn');
     return false;
@@ -338,9 +329,11 @@ async function verifyTmdb(key) {
   }
 
   try {
-    const r = await fetch('https://api.themoviedb.org/3/configuration', {
-      headers: { Authorization: 'Bearer ' + key }
-    });
+    // v4 read token (three-part JWT) -> Bearer; v3 key -> ?api_key= (same rule as background tmdbFetch)
+    const k = String(key).trim();
+    const r = k.split('.').length === 3
+      ? await fetch('https://api.themoviedb.org/3/configuration', { headers: { Authorization: 'Bearer ' + k } })
+      : await fetch('https://api.themoviedb.org/3/configuration?api_key=' + encodeURIComponent(k));
     if (r.ok) {
       setDot(dotMain, 'ok', 'Connected - TMDB metadata active', msgMain);
       setDot(dotCard, 'ok');
