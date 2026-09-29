@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+### Fixed
+- Skipping stopped working after the first video when a site reused its player (YouTube next, autoplay next episode)
+- YouTube sponsor skipping never ran: SponsorBlock was only asked when an IMDb episode was found, which YouTube never has
+- IntroDB skips needed an API key even though IntroDB reads are public; they now work with no setup
+- Alt+Right (skip this segment) threw an error and did nothing
+- A per-site rule was ignored on the first video of every page, and never matched inside embedded players or when saved with www.
+- The skip button from embedded players never reached the main page, so it could be drawn inside the tiny player frame
+- Pausing after a countdown finished could fire the countdown a second time
+- History entries pulled from the cloud linked to an id instead of the page
+- A TMDB v3 key broke IMDb lookups, a v4 token broke posters; both key types now work everywhere
+- A missing or rejected TMDB key was cached as "no result" forever, so adding a key later changed nothing
+- Movie pages were looked up as TV shows on TMDB
+
+### Added
+- Movie end-credits skipping from IntroDB (post-credit scenes are never skipped)
+- Automated tests (node --test tests/*.test.mjs) and a Tests workflow
+
 ## [1.10.0] - 2026-08-04
 ### Fixed
 - Settings page ignored your accent colour and stayed locked to green

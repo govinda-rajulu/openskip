@@ -9,12 +9,8 @@
   const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
   // ── SPA navigation tracking ────────────────────────────────────────────────────
-  let _lastHref = location.href;
-  function checkUrlChange() {
-    if (location.href === _lastHref) return false;
-    _lastHref = location.href;
-    return true;
-  }
+  // Each attached video tracks its own href (see _vidHref in attachVideo), so a
+  // URL change is seen by every video, not only the first one to poll.
 
   // ── Module state ───────────────────────────────────────────────────────────
   let _masterJustEnabled = false;
@@ -159,26 +155,46 @@ let _ssEffPrefs = null;
 
   // ── Per-site prefs override ──────────────────────────────────────────────────
   // Reads skipstream_site_rules from storage and merges into prefs for current host.
-  const _sitePrefsCache = { host: null, rules: null, ts: 0 };
+  // Read once at init, then kept current by storage.onChanged (no polling in
+  // every frame). Rule keys are normalised (lowercase, no www.) so a rule saved
+  // as www.example.com still matches. Inside a player iframe the parent site's
+  // rule is checked first, because users name the site they visit, not the
+  // player host. Callers that must not race the first read await _sitePrefsReady.
+  const _sitePrefsCache = { rules: {} };
+
+  function _normSiteRules(raw) {
+    const out = {};
+    if (raw && typeof raw === 'object') {
+      for (const [d, m] of Object.entries(raw)) {
+        const k = String(d || '').trim().toLowerCase().replace(/^www\./, '');
+        if (k && typeof m === 'string') out[k] = m;
+      }
+    }
+    return out;
+  }
+
+  const _sitePrefsReady = br.storage.local.get('skipstream_site_rules')
+    .then(s => { _sitePrefsCache.rules = _normSiteRules(s.skipstream_site_rules); })
+    .catch(() => { /* keep {} so skipping still follows global prefs */ });
+
+  br.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.skipstream_site_rules) {
+      _sitePrefsCache.rules = _normSiteRules(changes.skipstream_site_rules.newValue);
+    }
+  });
+
+  function _siteRuleFor(rules, host) {
+    if (!host) return null;
+    for (const [domain, m] of Object.entries(rules)) {
+      if (host === domain || host.endsWith('.' + domain)) return m;
+    }
+    return null;
+  }
 
   function getSitePrefs(basePrefs) {
-    const host = location.hostname.replace(/^www\./, '');
-    const now  = Date.now();
-    // Refresh cache every 5s so option changes apply quickly
-    if (_sitePrefsCache.host !== host || now - _sitePrefsCache.ts > 5000) {
-      _sitePrefsCache.host = host;
-      _sitePrefsCache.ts   = now;
-      br.storage.local.get('skipstream_site_rules').then(s => {
-        _sitePrefsCache.rules = s.skipstream_site_rules || {};
-      }).catch(() => {});
-    }
     const rules = _sitePrefsCache.rules;
-    if (!rules) return basePrefs;
-    // Match host or any parent domain
-    let mode = null;
-    for (const [domain, m] of Object.entries(rules)) {
-      if (host === domain || host.endsWith('.' + domain)) { mode = m; break; }
-    }
+    const own   = location.hostname.toLowerCase().replace(/^www\./, '');
+    const mode  = _siteRuleFor(rules, _siteHost().toLowerCase()) || _siteRuleFor(rules, own);
     if (!mode) return basePrefs;
     // Map mode string to pref flags
     const override = { skipEnabled: true, skipIntro: false, skipRecap: false, skipOutro: false };
@@ -227,6 +243,16 @@ let _ssEffPrefs = null;
       try { return new URL(document.referrer).hostname.replace(/^www\./, ''); } catch { /* fall through */ }
     }
     return location.hostname.replace(/^www\./, '');
+  }
+
+  // YouTube video id from watch / embed / shorts / live URLs on YouTube hosts only.
+  function _youtubeVideoId() {
+    const h = location.hostname.toLowerCase();
+    if (!/(^|\.)(youtube\.com|youtube-nocookie\.com)$/.test(h)) return null;
+    const v = new URLSearchParams(location.search).get('v');
+    if (v && /^[A-Za-z0-9_-]{11}$/.test(v)) return v;
+    const m = location.pathname.match(/^\/(?:embed|shorts|live)\/([A-Za-z0-9_-]{11})/);
+    return m ? m[1] : null;
   }
 
 function _pageUrl() {
@@ -546,6 +572,7 @@ function _pageUrl() {
   async function restorePlayback(video) {
     if (!prefs.resumePlayback) return;
     if (_masterJustEnabled) return;
+    await _sitePrefsReady;
     if (!getSitePrefs(prefs).skipEnabled) return;
     if (_promptedVideos.has(video)) return;
     _promptedVideos.add(video);
@@ -639,8 +666,11 @@ function _pageUrl() {
     const imdbMatch = href.match(/\b(tt\d{7,8})\b/);
     if (imdbMatch) info.imdbId = imdbMatch[1];
     if (!info.tmdbId) {
-      const tmdbMatch = pathname.match(/\/(?:tv|show|shows|series|movie|film|watch)\/(\d+)/);
-      if (tmdbMatch) info.tmdbId = parseInt(tmdbMatch[1], 10);
+      const tmdbMatch = pathname.match(/\/(tv|show|shows|series|movie|film|watch)\/(\d+)/);
+      if (tmdbMatch) {
+        info.tmdbId = parseInt(tmdbMatch[2], 10);
+        if (tmdbMatch[1] === 'movie' || tmdbMatch[1] === 'film') info.tmdbKind = 'movie';
+      }
     }
     const seFromUrl = extractSeEpisode(href);
     if (seFromUrl) {
@@ -753,18 +783,19 @@ function _pageUrl() {
 
   const imdbCache = new Map();
 
-  async function tmdbToImdb(tmdbId) {
-    const key = `tv:${tmdbId}`;
+  async function tmdbToImdb(tmdbId, kind) {
+    const k = kind === 'movie' ? 'movie' : 'tv';
+    const key = `${k}:${tmdbId}`;
     if (imdbCache.has(key)) return imdbCache.get(key);
     try {
-      const res = await br.runtime.sendMessage({ type: 'TMDB_TO_IMDB', tmdbId });
-      imdbCache.set(key, res.imdbId);
-      return res.imdbId;
-    } catch { imdbCache.set(key, null); return null; }
+      const res = await br.runtime.sendMessage({ type: 'TMDB_TO_IMDB', tmdbId, kind: k });
+      if (res?.imdbId) imdbCache.set(key, res.imdbId);
+      return res?.imdbId || null;
+    } catch { return null; }
   }
 
   async function resolveShowInfo() {
-    const info = { imdbId: null, tmdbId: null, season: null, episode: null };
+    const info = { imdbId: null, tmdbId: null, tmdbKind: null, season: null, episode: null };
     parseUrlInfo(info);
     parsePageInfo(info);
 
@@ -781,7 +812,7 @@ function _pageUrl() {
       }
     }
 
-    if (!info.imdbId && info.tmdbId) info.imdbId = await tmdbToImdb(info.tmdbId);
+    if (!info.imdbId && info.tmdbId) info.imdbId = await tmdbToImdb(info.tmdbId, info.tmdbKind);
     if (!info.imdbId) parsePathTitle(info);
     return info;
   }
@@ -790,8 +821,9 @@ function _pageUrl() {
 
   const segmentCache = new Map();
 
-  async function fetchSegments(imdbId, season, episode) {
-    const key = `${imdbId}:${season}:${episode}`;
+  // Only real data is cached: a miss must stay retryable (API down, key added later).
+  async function fetchSegments(imdbId, season, episode, isMovie) {
+    const key = isMovie ? `${imdbId}:movie` : `${imdbId}:${season}:${episode}`;
     if (segmentCache.has(key)) return segmentCache.get(key);
     
     // If this is a YouTube video, try SponsorBlock first
@@ -808,25 +840,27 @@ function _pageUrl() {
     
     // Regular IntroDB/AnimeSkip path for non-YouTube
     try {
-      const res = await br.runtime.sendMessage({ type: 'FETCH_SEGMENTS', imdbId, season, episode });
-      if (res.err === 'not_configured') {
-        console.warn('[SkipStream] IntroDB API key not set - skipping disabled. Add your key in Settings.');
-        segmentCache.set(key, null);
-        return null;
-      }
-      const data = res.data || null;
-      segmentCache.set(key, data);
+      const res = await br.runtime.sendMessage({ type: 'FETCH_SEGMENTS', imdbId, season, episode, isMovie: !!isMovie });
+      const data = res?.data || null;
+      if (data) segmentCache.set(key, data);
       return data;
     } catch { return null; }
   }
 
   function findActiveSegment(segments, currentTime) {
+    // A segment needs numeric start < end; null/garbage rows never match.
+    function hit(time, s) {
+      if (!s || typeof s !== 'object') return false;
+      const a = Number(s.start_sec), b = Number(s.end_sec);
+      if (s.start_sec == null || s.end_sec == null || !Number.isFinite(a) || !Number.isFinite(b) || b <= a) return false;
+      return time >= a - 2 && time < b + 1;
+    }
     function isInSegment(time, segmentOrArray) {
       if (!segmentOrArray) return null;
       if (Array.isArray(segmentOrArray)) {
-        return segmentOrArray.find(s => time >= s.start_sec - 2 && time < s.end_sec + 1) || null;
+        return segmentOrArray.find(s => hit(time, s)) || null;
       }
-      return (time >= segmentOrArray.start_sec - 2 && time < segmentOrArray.end_sec + 1) ? segmentOrArray : null;
+      return hit(time, segmentOrArray) ? segmentOrArray : null;
     }
     for (const key of ['intro', 'recap', 'outro', 'sponsor', 'selfpromo']) {
       const seg = segments[key];
@@ -841,7 +875,7 @@ function _pageUrl() {
 
   function segmentLabel(key, segment) {
     const base  = SEGMENT_LABELS[key] || `⏭ Skip ${key}`;
-    const count = segment && (segment.report_count ?? segment.votes ?? segment.confidence ?? null);
+    const count = segment && (segment.submission_count ?? segment.report_count ?? segment.votes ?? null);
     if (!count || count < 2) return base;
     const badge = count >= 10 ? ' ★' : count >= 5 ? ' ◆' : '';
     return base + badge;
@@ -851,6 +885,7 @@ function _pageUrl() {
 
   const COUNTDOWN_ID = 'skipstream-countdown';
   let _countdownTimer = null;
+  let _countdownDetach = null;
 
   function recordSkipStat(timeSavedSec) {
     br.storage.local.get('skipstream_stats').then(s => {
@@ -880,8 +915,9 @@ function _pageUrl() {
   }
 
   function showSkipCountdown(segKey, segment, video, onDone) {
-    // Clear any existing countdown
+    // Clear any existing countdown (its pause listener must not fire later)
     clearInterval(_countdownTimer);
+    if (_countdownDetach) { _countdownDetach(); _countdownDetach = null; }
     const existing = document.getElementById(COUNTDOWN_ID);
     if (existing) existing.remove();
 
@@ -901,6 +937,15 @@ function _pageUrl() {
     // Prompt mode = show countdown with undo button
     const fullLabel = segmentLabel(segKey, segment);
     let secs = 3;
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (_countdownDetach === detach) _countdownDetach = null;
+      detach();
+      onDone();
+    };
+    const detach = () => { video.removeEventListener('pause', onPause); };
 
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     const container = fsEl || document.body || document.documentElement;
@@ -944,14 +989,14 @@ function _pageUrl() {
       video.currentTime = segment.end_sec;
       video._ssCooldownUntil = Date.now() + 1500;
       recordSkipStat(segment.end_sec - prevTime);
-      onDone();
+      finish();
     };
 
     undoBtn.onclick = e => {
       e.preventDefault(); e.stopPropagation();
       clearInterval(_countdownTimer);
       toast.remove();
-      onDone();
+      finish();
     };
 
     const update = () => {
@@ -977,12 +1022,13 @@ function _pageUrl() {
     }, 1000);
 
     // If video pauses during countdown - cancel skip
-    const onPause = () => {
+    function onPause() {
       clearInterval(_countdownTimer);
       if (toast.isConnected) toast.remove();
-      onDone();
-    };
+      finish();
+    }
     video.addEventListener('pause', onPause, { once: true });
+    _countdownDetach = detach;
   }
 
   // ── "Still watching?" auto-dismiss ──────────────────────────────────────────
@@ -1322,12 +1368,19 @@ function clickNativeSkipButton() {
     }
   }
 
+  // Only labels this script itself produces (segmentLabel) may be drawn by the top frame.
+  function _isRelayLabel(l) {
+    if (typeof l !== 'string' || l.length > 48) return false;
+    const base = l.replace(/ [\u2605\u25C6]$/, '');
+    return Object.values(SEGMENT_LABELS).includes(base) || /^\u23ED Skip [A-Za-z_-]{1,20}$/.test(base);
+  }
+
   if (!topFrameListening && window === window.top) {
     topFrameListening = true;
     window.addEventListener('message', e => {
       if (!e.data || typeof e.data !== 'object') return;
 if (e.data.type !== MSG_SHOW && e.data.type !== MSG_HIDE) return;
-if (e.data.type === MSG_SHOW && (typeof e.data.label !== 'string' || !/^[\w .+-]{1,40}$/.test(e.data.label))) return;
+if (e.data.type === MSG_SHOW && !_isRelayLabel(e.data.label)) return;
       if (e.data.type === MSG_SHOW) {
         createSkipBtn(e.data.label, () => { try { e.source?.postMessage({ type: MSG_DO }, '*'); } catch { /* ok */ } });
       }
@@ -1733,10 +1786,21 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     let segments = null;
     let resolved = false;
     let activeSegmentKey = '';
+    let _vidHref = location.href;   // per-video: every video sees a URL change
+    let _segGen = 0;                // bumps on URL change; stale fetches are dropped
+    let _resolving = false;
 
     async function resolveSegments() {
-      if (resolved) return;
+      if (resolved || _resolving) return;
+      _resolving = true;
+      const gen = _segGen;
+      try { await _resolveSegmentsOnce(gen); } finally { _resolving = false; }
+    }
+
+    async function _resolveSegmentsOnce(gen) {
+      await _sitePrefsReady;
       const info = await resolveShowInfo();
+      if (gen !== _segGen) return;
 
       // Init subtitles for any identified content (movies + TV), not just skippable episodes
       if (!_subState.subs.length && !_subState.loading) {
@@ -1744,20 +1808,26 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
         initSubtitles(video, info).catch(() => {});
       }
 
-      if (!info.imdbId || !info.season || !info.episode) {
-        if (!/\/movie\/\d+/.test(location.pathname)) {
-          console.warn('[SkipStream] Could not identify episode - skip segments unavailable.');
-        }
+      // YouTube -> SponsorBlock (keyed by video id, never by IMDb id).
+      // Episode -> IntroDB/Anime-Skip. IMDb id with no season/episode -> movie
+      // (IntroDB end credits). Anything else: nothing to look up.
+      const ytId = _youtubeVideoId();
+      let fetched = null;
+      if (ytId) {
+        fetched = await fetchSegments('yt/' + ytId, 0, 0);
+      } else if (info.imdbId && info.season && info.episode) {
+        fetched = await fetchSegments(info.imdbId, info.season, info.episode);
+      } else if (info.imdbId && !info.season && !info.episode) {
+        fetched = await fetchSegments(info.imdbId, 0, 0, true);
+      } else {
         return;
       }
-      const fetched = await fetchSegments(info.imdbId, info.season, info.episode);
+      if (gen !== _segGen) return;
       if (fetched) {
         resolved = true;
         segments = fetched;
-      } else {
-        // resolved stays false so timed retries can still attempt if API was temporarily unavailable
-        console.warn('[SkipStream] No segment data for', info.imdbId, `S${info.season}E${info.episode}`);
       }
+      // else resolved stays false so the timed retries can try again
     }
 
     video.addEventListener('loadedmetadata', resolveSegments);
@@ -1772,10 +1842,19 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     
     // Segment check logic - called on timeupdate
     const checkSkipSegments = () => {
-      if (checkUrlChange()) {
+      if (location.href !== _vidHref) {
+        // Same <video>, new title (YouTube next, next episode): start over.
+        _vidHref = location.href;
+        _segGen++;
         segments = null;
+        resolved = false;
         activeSegmentKey = '';
         hideSkipBtn();
+        _promptedVideos.delete(video);
+        const resumeOnce = () => { restorePlayback(video).catch(() => {}); };
+        video.addEventListener('loadedmetadata', resumeOnce, { once: true });
+        setTimeout(() => { video.removeEventListener('loadedmetadata', resumeOnce); resumeOnce(); }, 2500);
+        [1500, 5000, 12000].forEach(ms => setTimeout(() => { if (!resolved) resolveSegments(); }, ms));
         if (_skipBtnObserver) { _skipBtnObserver.disconnect(); _skipBtnObserver = null; }
         startNativeSkipObserver(video);
         startNativeBtnPoller(video);
@@ -1839,13 +1918,12 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       if (e.altKey && e.key === 'ArrowRight') {
         e.preventDefault();
         if (segments) {
-          for (const [, seg] of Object.entries(segments)) {
-            const active = isInSegment(video.currentTime, seg);
-            if (active) {
-              const _ssPrevT = video.currentTime; video.currentTime = active.end_sec;
-              recordSkipStat(active.end_sec - _ssPrevT);
-              break;
-            }
+          const hitSeg = findActiveSegment(segments, video.currentTime);
+          if (hitSeg) {
+            const _ssPrevT = video.currentTime;
+            video.currentTime = hitSeg.segment.end_sec;
+            video._ssCooldownUntil = Date.now() + 1500;
+            recordSkipStat(hitSeg.segment.end_sec - _ssPrevT);
           }
         }
       }
@@ -1972,7 +2050,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
               p:         row.playback_time || 0,
               d:         row.duration      || 0,
               t:         cloudTs || Date.now(),
-              url:       row.media_id,
+              url:       row.page_url || row.media_id,
               title:     row.video_title   || '',
               site:      row.site          || '',
               site_name: row.site_name     || '',
