@@ -1,0 +1,37 @@
+name: AI Seat Probe
+
+# One tiny "reply OK" call per AI provider, so a dead model id or key shows up
+# here instead of as a silent agent. Runs on PRs that touch the provider code,
+# on demand, and every Monday before the weekly audit.
+on:
+  pull_request:
+    paths:
+      - 'scripts/ai_call.py'
+      - '.github/workflows/ai-probe.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '30 7 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe every seat
+        env:
+          AI_MODEL_OPENROUTER: ${{ vars.AI_MODEL_OPENROUTER }}
+          AI_MODEL_GEMINI: ${{ vars.AI_MODEL_GEMINI }}
+          AI_MODEL_NVIDIA: ${{ vars.AI_MODEL_NVIDIA }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          python3 scripts/ai_call.py --probe | tee /tmp/probe.txt
+          { echo "## AI seat probe"; echo '```'; cat /tmp/probe.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

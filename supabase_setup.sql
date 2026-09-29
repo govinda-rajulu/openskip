@@ -57,6 +57,8 @@ drop policy if exists ss_anon_select on public.playback_states;
 drop policy if exists ss_anon_insert on public.playback_states;
 drop policy if exists ss_anon_update on public.playback_states;
 drop policy if exists ss_anon_delete on public.playback_states;
+-- allow_all (roles public, using true) was found live on 29 Sep 2026 from a pre-ss_anon install.
+drop policy if exists allow_all on public.playback_states;
 
 -- ── 5. Auto-update updated_at trigger ────────────────────────────────────────
 create or replace function public.ss_set_updated_at()
