@@ -58,6 +58,12 @@ const DENY = new Set([
 
 const $ = id => document.getElementById(id);
 
+// Only these keys may arrive from cloud settings (same list as background.js
+// SYNC_PREF_KEYS). Anything else in a cloud row, e.g. a credential, is ignored.
+const CLOUD_PREF_ALLOW = ['skipEnabled', 'skipMode', 'skipIntro', 'skipRecap', 'skipOutro',
+  'resumePlayback', 'autoNextEpisode', 'playbackSpeed',
+  'subtitle_language', 'subtitle_font_size', 'subtitle_enabled'];
+
 const subFontSizeInput = $('subFontSize');
 if (subFontSizeInput) {
   const persistSubFontSize = () => {
@@ -507,7 +513,9 @@ async function loadCredentials() {
         // Only apply cloud prefs if local has no skipMode set (fresh install / new device)
         const hasLocal = !!data[S.skipMode];
         if (!hasLocal) {
-          await br.storage.local.set(cloudResult.data.prefs);
+          const safe = {};
+          for (const k of CLOUD_PREF_ALLOW) if (cloudResult.data.prefs[k] !== undefined && !DENY.has(k)) safe[k] = cloudResult.data.prefs[k];
+          if (Object.keys(safe).length) await br.storage.local.set(safe);
         }
       }
       if (cloudResult?.data?.site_rules) {
@@ -830,7 +838,7 @@ function getHistoryItems() {
     if (nextTs > existingTs) merged.set(key, item);
   }
 
-  return [...merged.values()];
+  return [...merged.values()].sort((a, b) => _ssTs(b) - _ssTs(a));
 }
 
 // In-memory poster cache: title -> poster_url (null = not found)
@@ -1103,7 +1111,8 @@ async function loadHistory(data) {
         const result = await new Promise(res => {
           br.runtime.sendMessage({ type: 'SUPABASE_GET_ALL', userId }, r => res(r));
         });
-        if (result?.data && result.data.length > 0) {
+        // An empty cloud list is real (history cleared elsewhere): show it as empty.
+        if (Array.isArray(result?.data)) {
           _histCloud = result.data.map(row => ({
             title:    row.video_title || '',
             site:     row.site_name   || row.site || '',
@@ -1179,8 +1188,16 @@ async function loadHistory(data) {
           const raw = await br.storage.local.get('skipstream_cache');
           const cache = raw['skipstream_cache'] || {};
           const entries = Object.entries(cache);
+          // Newer-wins: read the cloud first and only push rows this device changed
+          // more recently. A failed read aborts: pushing blind overwrote other devices.
+          const cloud = await new Promise(res => br.runtime.sendMessage({ type: 'SUPABASE_GET_ALL', userId }, res));
+          if (!cloud || !Array.isArray(cloud.data)) throw new Error('cloud read failed: ' + (cloud?.err || 'no data'));
+          const cloudTs = {};
+          for (const row of cloud.data) if (row && row.media_id) cloudTs[row.media_id] = new Date(row.updated_at || 0).getTime() || 0;
           for (const [mediaId, entry] of entries) {
             if (!entry.p || !entry.title) continue;
+            const localTs = Number(entry.t) || 0;
+            if (mediaId in cloudTs && cloudTs[mediaId] >= localTs) continue;
             const r = await new Promise(res => br.runtime.sendMessage({
               type: 'SUPABASE_UPSERT',
               body: {
@@ -1193,6 +1210,7 @@ async function loadHistory(data) {
                 video_title:  entry.title || '',
                 page_url:     entry.url   || '',
                 device_name:  'SkipStream Options Sync',
+                ...(localTs ? { updated_at: new Date(Math.min(localTs, Date.now())).toISOString() } : {}),
               }
             }, res));
             if (r && r.ok) pushed++; else { failed++; pushErr = r?.err || pushErr; }
@@ -1468,6 +1486,8 @@ if (clearCloudHistoryBtn) {
       const sbUrl = (creds[S.supabaseUrl] || '').replace(/\/$/, '');
       const sbKey = creds[S.supabaseAnonKey];
       if (!sbUrl || !sbKey) { showAlert($('alert-cloud'), 'warn', 'Supabase not configured.'); return; }
+      // Same rule as background isValidSupabaseUrl: the anon key only goes to *.supabase.co
+      if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(sbUrl)) { showAlert($('alert-cloud'), 'err', 'Supabase URL must be https://<project>.supabase.co'); return; }
       const r = await fetch(`${sbUrl}/rest/v1/rpc/ss_clear_playback`, {
         method: 'POST',
         headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey, 'Content-Type': 'application/json' },
