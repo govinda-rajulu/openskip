@@ -93,7 +93,7 @@ jobs:
           Be direct and specific. Skip praise for obvious things. Max 400 words."""
 
           try:
-              text = ask(prompt, max_tokens=1000)
+              text = ask(prompt, max_tokens=4000)
               open("/tmp/ai_review.txt","w").write(text)
           except Exception as e:
               open("/tmp/ai_review.txt","w").write(f"ERROR:{e}")
@@ -192,7 +192,7 @@ jobs:
           Be concise and specific (max 200 words)."""
 
           try:
-              text = ask(prompt, max_tokens=600)
+              text = ask(prompt, max_tokens=2000)
               open("/tmp/inline_reply.txt","w").write(text)
           except Exception as e:
               open("/tmp/inline_reply.txt","w").write(f"Error: {e}")

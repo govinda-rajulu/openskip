@@ -19,6 +19,7 @@ Raises RuntimeError only if every configured provider fails or answers empty.
 """
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -42,13 +43,29 @@ def _post(url, payload, headers, timeout=TIMEOUT):
         return json.load(r)
 
 
+def _get(url, timeout=30):
+    with urllib.request.urlopen(urllib.request.Request(url, method="GET"), timeout=timeout) as r:
+        return json.load(r)
+
+
+_THINK = re.compile(r"<think(?:ing)?>.*?</think(?:ing)?>", re.S | re.I)
+
+
+def clean(text):
+    """Drop reasoning blocks some free models put inside the answer."""
+    t = _THINK.sub("", text or "")
+    if re.match(r"\s*<think(?:ing)?>", t, re.I):  # unterminated: the whole answer was thinking
+        return ""
+    return t.strip()
+
+
 def _chat_text(res):
     """OpenAI-style answer text, or '' when the model sent nothing usable."""
     try:
         msg = res["choices"][0]["message"]
     except (KeyError, IndexError, TypeError):
         return ""
-    return (msg.get("content") or "").strip()
+    return clean(msg.get("content") or "")
 
 
 def _openrouter(prompt, max_tokens):
@@ -60,6 +77,7 @@ def _openrouter(prompt, max_tokens):
             "model": MODEL_OPENROUTER,
             "max_tokens": max_tokens,
             "temperature": 0.1,
+            "reasoning": {"exclude": True},
             "messages": [{"role": "user", "content": prompt}],
         },
         {
@@ -72,15 +90,32 @@ def _openrouter(prompt, max_tokens):
     return _chat_text(res)
 
 
-def _gemini(prompt, max_tokens):
-    if not GEMINI_KEY:
-        raise RuntimeError("no GEMINI_API_KEY")
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        + MODEL_GEMINI
-        + ":generateContent?key="
-        + GEMINI_KEY
-    )
+_GEMINI_PICKED = None
+
+
+def gemini_pick(names):
+    """Best live model for generateContent: newest stable flash, then flash-lite, then any stable gemini."""
+    def ver(n):
+        m = re.match(r"gemini-(\d+(?:\.\d+)?)-", n)
+        return float(m.group(1)) if m else 0.0
+    stable = [n for n in names if n.startswith("gemini-") and not re.search(r"exp|preview|tts|image|live|audio|embedding|thinking", n)]
+    for rx in (r"^gemini-\d+(?:\.\d+)?-flash$", r"^gemini-\d+(?:\.\d+)?-flash-lite$", r"^gemini-"):
+        hits = sorted((n for n in stable if re.match(rx, n)), key=ver, reverse=True)
+        if hits:
+            return hits[0]
+    return None
+
+
+def _gemini_live_model():
+    res = _get("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=" + GEMINI_KEY)
+    names = [m.get("name", "").split("/", 1)[-1] for m in res.get("models", [])
+             if "generateContent" in (m.get("supportedGenerationMethods") or [])]
+    return gemini_pick(names)
+
+
+def _gemini_once(model, prompt, max_tokens):
+    url = ("https://generativelanguage.googleapis.com/v1beta/models/" + model
+           + ":generateContent?key=" + GEMINI_KEY)
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.1, "maxOutputTokens": max_tokens},
@@ -90,9 +125,10 @@ def _gemini(prompt, max_tokens):
         try:
             res = _post(url, payload, {"Content-Type": "application/json"}, timeout=90)
             try:
-                return res["candidates"][0]["content"]["parts"][0]["text"].strip()
+                parts = res["candidates"][0]["content"]["parts"]
             except (KeyError, IndexError, TypeError):
                 return ""
+            return clean("".join(p.get("text", "") for p in parts if not p.get("thought")))
         except urllib.error.HTTPError as e:
             last = e
             if e.code == 429:
@@ -100,6 +136,25 @@ def _gemini(prompt, max_tokens):
                 continue
             raise
     raise RuntimeError("gemini rate limited: " + str(last))
+
+
+def _gemini(prompt, max_tokens):
+    """AI_MODEL_GEMINI first; if Google retired it (404), use the newest live flash model."""
+    global _GEMINI_PICKED
+    if not GEMINI_KEY:
+        raise RuntimeError("no GEMINI_API_KEY")
+    model = _GEMINI_PICKED or MODEL_GEMINI
+    try:
+        return _gemini_once(model, prompt, max_tokens)
+    except urllib.error.HTTPError as e:
+        if e.code != 404 or _GEMINI_PICKED:
+            raise
+        live = _gemini_live_model()
+        if not live or live == model:
+            raise
+        _GEMINI_PICKED = live
+        print("ai_call: gemini model " + model + " is gone, using " + live + " (set repo variable AI_MODEL_GEMINI=" + live + " to pin it)")
+        return _gemini_once(live, prompt, max_tokens)
 
 
 def _nvidia(prompt, max_tokens):
@@ -125,17 +180,28 @@ def _nvidia(prompt, max_tokens):
 PROVIDERS = [("openrouter", _openrouter), ("gemini", _gemini), ("nvidia", _nvidia)]
 
 
-def ask(prompt, max_tokens=8192):
-    """Try each provider in order. Return the first non-empty answer.
+def looks_json(text):
+    """True when the answer is one JSON object (what the fix agents and the audit need)."""
+    try:
+        return isinstance(json.loads(strip_fences(text)), dict)
+    except Exception:
+        return False
+
+
+def ask(prompt, max_tokens=8192, accept=None):
+    """Try each provider in order. Return the first non-empty answer that `accept` likes.
 
     Any failure (HTTP 4xx/5xx incl. 404 dead model id and 410 Gone, timeout,
-    empty answer) falls through to the next provider."""
+    empty answer, or an answer `accept` rejects, e.g. thinking text instead of
+    JSON) falls through to the next provider."""
     errors = []
     for name, fn in PROVIDERS:
         try:
             text = fn(prompt, max_tokens)
             if not text:
                 raise RuntimeError("empty answer")
+            if accept is not None and not accept(text):
+                raise RuntimeError("answer rejected: " + repr(text[:60]))
             print("ai_call: provider=" + name + " chars=" + str(len(text)))
             return text
         except Exception as e:
@@ -154,14 +220,22 @@ def strip_fences(text):
 
 
 def probe():
-    """One tiny call per provider. Returns the number of seats that answered."""
+    """One small call per provider. A seat counts only if its answer contains OK.
+
+    512 tokens because reasoning models (gpt-oss, nemotron, gemini 2.5) think
+    before they answer; a 16-token budget comes back empty or mid-thought."""
     ok = 0
     for name, fn in PROVIDERS:
         try:
-            text = fn("Reply with exactly: OK", 16)
-            good = bool(text)
-            ok += good
-            print(name + ": " + ("OK " if good else "EMPTY ") + repr(text[:20]))
+            text = fn("Reply with exactly the two letters OK and nothing else.", 512)
+            model = {"openrouter": MODEL_OPENROUTER, "gemini": _GEMINI_PICKED or MODEL_GEMINI, "nvidia": MODEL_NVIDIA}.get(name, "?")
+            if "OK" in text.upper()[:40]:
+                ok += 1
+                print(name + ": OK " + model)
+            elif text:
+                print(name + ": ANSWERED-BUT-NOT-OK " + model + " " + repr(text[:40]))
+            else:
+                print(name + ": EMPTY " + model)
         except urllib.error.HTTPError as e:
             print(name + ": FAIL HTTP " + str(e.code) + (" (model id dead? check the AI_MODEL_ repo variable)" if e.code in (404, 410) else ""))
         except Exception as e:

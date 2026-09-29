@@ -97,3 +97,54 @@ test('weekly audit keeps only findings whose quote is really in the file', () =>
 test('setup SQL drops the allow_all policy found live on 29 Sep', () => {
   assert.match(readFileSync('supabase_setup.sql', 'utf8'), /drop policy if exists allow_all on public\.playback_states;/);
 });
+
+test('F2: thinking is stripped, non-JSON answers fall through, probe needs a real OK', () => {
+  const r = py([
+    'import ai_call',
+    'print("C1", repr(ai_call.clean("<think>plan</think>\\n{\\"a\\":1}")))',
+    'print("C2", repr(ai_call.clean("<think>never closed")))',
+    'def talk(p, m): return "The user wants me to"',
+    'def js(p, m): return "{\\"edits\\": []}"',
+    'ai_call.PROVIDERS = [("chatty", talk), ("json", js)]',
+    'print("A1", ai_call.ask("x", accept=ai_call.looks_json))',
+    'print("A2", ai_call.ask("x"))',
+    'ai_call.PROVIDERS = [("chatty", talk)]',
+    'print("P", ai_call.probe())',
+  ].join('\n'));
+  assert.match(r.out, /C1 '\{"a":1\}'/);
+  assert.match(r.out, /C2 ''/);
+  assert.match(r.out, /A1 \{"edits": \[\]\}/);
+  assert.match(r.out, /A2 The user wants me to/);
+  assert.match(r.out, /chatty: ANSWERED-BUT-NOT-OK/);
+  assert.match(r.out, /P 0/);
+});
+
+test('F2: a retired Gemini model (404) switches to the newest live flash model', () => {
+  const r = py([
+    'import ai_call, urllib.error',
+    'print("PICK", ai_call.gemini_pick(["gemini-1.5-flash","gemini-2.5-flash","gemini-2.5-flash-lite","gemini-3.0-flash-preview","gemini-2.5-pro","text-embedding-004"]))',
+    'print("PICK2", ai_call.gemini_pick(["gemini-2.5-flash-lite","gemini-2.5-pro"]))',
+    'ai_call.GEMINI_KEY = "k"; ai_call.MODEL_GEMINI = "gemini-2.0-flash"',
+    'seen = []',
+    'def once(model, p, m):',
+    '    seen.append(model)',
+    '    if model == "gemini-2.0-flash": raise urllib.error.HTTPError("u", 404, "nf", None, None)',
+    '    return "OK"',
+    'ai_call._gemini_once = once',
+    'ai_call._gemini_live_model = lambda: "gemini-2.5-flash"',
+    'print("ANS", ai_call._gemini("x", 10), seen)',
+    'print("ANS2", ai_call._gemini("x", 10), seen)',
+  ].join('\n'));
+  assert.match(r.out, /PICK gemini-2\.5-flash\n/);
+  assert.match(r.out, /PICK2 gemini-2\.5-flash-lite/);
+  assert.match(r.out, /gemini model gemini-2\.0-flash is gone, using gemini-2\.5-flash/);
+  assert.match(r.out, /ANS OK \['gemini-2\.0-flash', 'gemini-2\.5-flash'\]/);
+  assert.match(r.out, /ANS2 OK \['gemini-2\.0-flash', 'gemini-2\.5-flash', 'gemini-2\.5-flash'\]/);
+});
+
+test('F2: every JSON-contract agent asks with accept=looks_json', () => {
+  assert.equal((wf('ai-fix-pr.yml').match(/accept=looks_json/g) || []).length, 2);
+  assert.match(wf('sweep.yml'), /ask\(prompt, accept=looks_json\)/);
+  assert.match(wf('ai-weekly-audit.yml'), /ask\(prompt, accept=looks_json\)/);
+  assert.match(readFileSync('scripts/ai_call.py', 'utf8'), /"reasoning": \{"exclude": True\}/);
+});

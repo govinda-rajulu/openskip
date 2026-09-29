@@ -60,7 +60,7 @@ jobs:
           python3 << 'PYEOF'
           import sys
           sys.path.insert(0, "scripts")
-          from ai_call import ask, strip_fences
+          from ai_call import ask, strip_fences, looks_json
           from ai_edits import apply_text, CONTRACT
           import os, json
 
@@ -90,7 +90,7 @@ jobs:
           {CONTRACT}"""
 
           try:
-              text = ask(prompt, max_tokens=8192)
+              text = ask(prompt, max_tokens=8192, accept=looks_json)
               fixes = apply_text(text)  # find/replace guard + node --check + full test suite
               open("/tmp/ai_fix.json","w").write(json.dumps(fixes))
           except Exception as e:
@@ -241,7 +241,7 @@ jobs:
           python3 << 'PYEOF'
           import sys
           sys.path.insert(0, "scripts")
-          from ai_call import ask, strip_fences
+          from ai_call import ask, strip_fences, looks_json
           from ai_edits import apply_text, CONTRACT
           import os, json
 
@@ -314,7 +314,7 @@ jobs:
               exit(0)
 
           try:
-              text = ask(prompt, max_tokens=8192)
+              text = ask(prompt, max_tokens=8192, accept=looks_json if mode == "fix" else None)
               # Determine if response is JSON (code change) or markdown (explanation)
               stripped = strip_fences(text)
               is_json = stripped.startswith("[") or stripped.startswith("{")

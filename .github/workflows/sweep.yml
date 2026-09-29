@@ -59,7 +59,7 @@ jobs:
           python3 << 'PYEOF'
           import sys
           sys.path.insert(0, "scripts")
-          from ai_call import ask, strip_fences
+          from ai_call import ask, strip_fences, looks_json
           from ai_edits import apply_text, CONTRACT
           import os, json, urllib.request, urllib.error, time
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
@@ -92,7 +92,7 @@ jobs:
                     {CONTRACT}"""
 
           try:
-              text = ask(prompt)
+              text = ask(prompt, accept=looks_json)
               fixes = apply_text(text)  # find/replace guard + node --check + full test suite
               open("/tmp/sweep.json","w").write(json.dumps(fixes))
           except Exception as e:

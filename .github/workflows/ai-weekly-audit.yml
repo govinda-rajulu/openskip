@@ -38,7 +38,7 @@ jobs:
           python3 << 'PYEOF'
           import sys
           sys.path.insert(0, "scripts")
-          from ai_call import ask, strip_fences
+          from ai_call import ask, strip_fences, looks_json
           import os, json, urllib.request, urllib.error, time
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
           openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
@@ -113,7 +113,7 @@ jobs:
           If no issues found, return empty findings array."""
 
           try:
-              text = ask(prompt)
+              text = ask(prompt, accept=looks_json)
               text = strip_fences(text)
               result = json.loads(text)
               # Quote gate: a finding survives only if its quote is really in the named file.
