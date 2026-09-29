@@ -54,12 +54,17 @@ jobs:
               if f'alter table public.{tbl} enable row level security' not in sql:
                   errors.append(f"RLS not enabled for {tbl}")
 
-          # Policies: select/insert/update/delete for both tables
+          # Zero-policy model: both tables are reached only through security-definer
+          # RPCs. Legacy open policies must be DROPPED, and none may be created.
           for tbl_prefix in ['ss_anon', 'ss_settings']:
               for op in ['select', 'insert', 'update', 'delete']:
                   policy = f'{tbl_prefix}_{op}'
-                  if policy not in sql:
-                      errors.append(f"Missing policy: {policy}")
+                  if f'drop policy if exists {policy}' not in sql:
+                      errors.append(f"Legacy policy not dropped: {policy}")
+          if re.search(r'create policy', sql, re.IGNORECASE):
+              errors.append("create policy found: tables must have zero policies")
+          if re.search(r'grant\s+[a-z, ]+\s+on\s+public\.playback_states\s+to\s+anon', sql, re.IGNORECASE):
+              errors.append("playback_states must not be granted to anon")
 
           # Verification function
           if 'ss_verify_setup' not in sql:

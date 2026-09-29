@@ -48,30 +48,27 @@ create index if not exists playback_states_updated_at_idx
 -- ── 4. Row-level security ─────────────────────────────────────────────────────
 alter table public.playback_states enable row level security;
 
-do $$ begin
-  if not exists (select 1 from pg_policies
-    where schemaname='public' and tablename='playback_states' and policyname='ss_anon_select') then
-    execute 'create policy ss_anon_select on public.playback_states for select using (true)';
-  end if;
-  if not exists (select 1 from pg_policies
-    where schemaname='public' and tablename='playback_states' and policyname='ss_anon_insert') then
-    execute 'create policy ss_anon_insert on public.playback_states for insert with check (true)';
-  end if;
-  if not exists (select 1 from pg_policies
-    where schemaname='public' and tablename='playback_states' and policyname='ss_anon_update') then
-    execute 'create policy ss_anon_update on public.playback_states for update using (true) with check (true)';
-  end if;
-  if not exists (select 1 from pg_policies
-    where schemaname='public' and tablename='playback_states' and policyname='ss_anon_delete') then
-    execute 'create policy ss_anon_delete on public.playback_states for delete using (true)';
-  end if;
-end $$;
+-- Zero-policy model (same as user_settings). The old ss_anon_* policies were
+-- using (true), so anyone holding the public anon key could read, change or
+-- delete EVERY user's rows through /rest/v1/playback_states. The extension only
+-- uses the security-definer ss_*_playback RPCs below, which need no policy and
+-- no table grant. Re-running this script on an old install removes them.
+drop policy if exists ss_anon_select on public.playback_states;
+drop policy if exists ss_anon_insert on public.playback_states;
+drop policy if exists ss_anon_update on public.playback_states;
+drop policy if exists ss_anon_delete on public.playback_states;
 
 -- ── 5. Auto-update updated_at trigger ────────────────────────────────────────
 create or replace function public.ss_set_updated_at()
   returns trigger language plpgsql as $$
 begin
-  new.updated_at := now();
+  -- An explicit updated_at from ss_put_playback (newer-wins sync) is kept, but
+  -- never in the future. Any other update is stamped now().
+  if tg_op = 'UPDATE' and new.updated_at is distinct from old.updated_at and new.updated_at is not null then
+    new.updated_at := least(new.updated_at, now());
+  else
+    new.updated_at := now();
+  end if;
   return new;
 end;
 $$;
@@ -130,7 +127,8 @@ do $$ begin
 end $$;
 
 -- ── 8. Table grants (must run after both tables exist) ───────────────────────
-grant select, insert, update, delete on public.playback_states to anon, authenticated;
+-- No direct table access: all playback traffic goes through the RPCs.
+revoke select, insert, update, delete on public.playback_states from anon, authenticated;
 grant usage on all sequences in schema public to anon, authenticated;
 
 -- ── 8b. Settings RPCs (security definer) ─────────────────────────────────────
@@ -211,16 +209,20 @@ grant execute on function public.ss_put_creds(text,jsonb) to anon, authenticated
 -- ── 8c. Playback RPCs (security definer) ─────────────────────────────────────
 create or replace function public.ss_put_playback(p_row jsonb)
 returns void language sql security definer set search_path = public as $$
+  -- Newer wins: a caller may send updated_at (Options "Sync Now" sends the
+  -- local save time); live playback sends none and gets now(). An older write
+  -- never overwrites a newer row from another device.
   insert into public.playback_states (
     user_id, media_id, playback_time, duration, site, site_name,
-    video_title, device_name, page_url
+    video_title, device_name, page_url, updated_at
   )
   values (
     p_row->>'user_id', p_row->>'media_id',
     coalesce((p_row->>'playback_time')::int, 0),
     nullif(p_row->>'duration','')::int,
     p_row->>'site', p_row->>'site_name',
-    p_row->>'video_title', p_row->>'device_name', p_row->>'page_url'
+    p_row->>'video_title', p_row->>'device_name', p_row->>'page_url',
+    least(coalesce(nullif(p_row->>'updated_at','')::timestamptz, now()), now())
   )
   on conflict (user_id, media_id) do update set
     playback_time = excluded.playback_time,
@@ -230,7 +232,9 @@ returns void language sql security definer set search_path = public as $$
     video_title   = excluded.video_title,
     device_name   = excluded.device_name,
     page_url      = excluded.page_url,
-    updated_at    = now();
+    updated_at    = excluded.updated_at
+  where public.playback_states.updated_at is null
+     or excluded.updated_at >= public.playback_states.updated_at;
 $$;
 
 create or replace function public.ss_get_playback(p_user_id text, p_media_id text)
@@ -311,6 +315,14 @@ begin
     'user_settings_rls',
     (select relrowsecurity from pg_class
       where relname='user_settings' and relnamespace='public'::regnamespace),
+    'playback_states_direct_access_revoked',
+    not exists (
+      select 1 from information_schema.role_table_grants
+      where table_schema='public'
+        and table_name='playback_states'
+        and grantee in ('anon','authenticated')
+        and privilege_type in ('SELECT','INSERT','UPDATE','DELETE')
+    ),
     'user_settings_direct_access_revoked',
     not exists (
       select 1 from information_schema.role_table_grants
@@ -353,6 +365,14 @@ begin
       exists(select 1 from information_schema.tables where table_schema='public' and table_name='playback_states')
       and exists(select 1 from information_schema.tables where table_schema='public' and table_name='user_settings')
       and (select count(*) from pg_policies where schemaname='public' and tablename='user_settings') = 0
+      and (select count(*) from pg_policies where schemaname='public' and tablename='playback_states') = 0
+      and not exists (
+        select 1 from information_schema.role_table_grants
+        where table_schema='public'
+          and table_name='playback_states'
+          and grantee in ('anon','authenticated')
+          and privilege_type in ('SELECT','INSERT','UPDATE','DELETE')
+      )
       and exists(select 1 from pg_proc p
         join pg_namespace n on n.oid = p.pronamespace
         where n.nspname='public' and p.proname='ss_get_settings')
