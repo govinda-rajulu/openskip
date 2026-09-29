@@ -93,24 +93,38 @@ def _openrouter(prompt, max_tokens):
 _GEMINI_PICKED = None
 
 
-def gemini_pick(names):
-    """Best live model for generateContent: newest stable flash, then flash-lite, then any stable gemini."""
+def gemini_rank(names):
+    """Live generateContent models, best first: stable flash (newest first), then flash-lite, then any stable gemini."""
     def ver(n):
         m = re.match(r"gemini-(\d+(?:\.\d+)?)-", n)
         return float(m.group(1)) if m else 0.0
     stable = [n for n in names if n.startswith("gemini-") and not re.search(r"exp|preview|tts|image|live|audio|embedding|thinking", n)]
+    out = []
     for rx in (r"^gemini-\d+(?:\.\d+)?-flash$", r"^gemini-\d+(?:\.\d+)?-flash-lite$", r"^gemini-"):
-        hits = sorted((n for n in stable if re.match(rx, n)), key=ver, reverse=True)
-        if hits:
-            return hits[0]
-    return None
+        for n in sorted((n for n in stable if re.match(rx, n)), key=ver, reverse=True):
+            if n not in out:
+                out.append(n)
+    return out
 
 
-def _gemini_live_model():
+def gemini_pick(names):
+    r = gemini_rank(names)
+    return r[0] if r else None
+
+
+def _gemini_live_models():
     res = _get("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=" + GEMINI_KEY)
     names = [m.get("name", "").split("/", 1)[-1] for m in res.get("models", [])
              if "generateContent" in (m.get("supportedGenerationMethods") or [])]
-    return gemini_pick(names)
+    return gemini_rank(names)
+
+
+GEMINI_TRIES = 4
+
+
+def _gemini_skippable(e):
+    """404 = model retired, 5xx = model overloaded (503) or broken: try the next live model."""
+    return isinstance(e, urllib.error.HTTPError) and (e.code == 404 or e.code >= 500)
 
 
 def _gemini_once(model, prompt, max_tokens):
@@ -134,27 +148,46 @@ def _gemini_once(model, prompt, max_tokens):
             if e.code == 429:
                 time.sleep(20 * (attempt + 1))
                 continue
+            if e.code >= 500 and attempt == 0:
+                time.sleep(5)
+                continue
             raise
     raise RuntimeError("gemini rate limited: " + str(last))
 
 
 def _gemini(prompt, max_tokens):
-    """AI_MODEL_GEMINI first; if Google retired it (404), use the newest live flash model."""
+    """AI_MODEL_GEMINI first. If it is retired (404) or overloaded (5xx, after one retry),
+    walk the ranked live model list, at most GEMINI_TRIES models in total."""
     global _GEMINI_PICKED
     if not GEMINI_KEY:
         raise RuntimeError("no GEMINI_API_KEY")
-    model = _GEMINI_PICKED or MODEL_GEMINI
+    first = _GEMINI_PICKED or MODEL_GEMINI
     try:
-        return _gemini_once(model, prompt, max_tokens)
+        return _gemini_once(first, prompt, max_tokens)
     except urllib.error.HTTPError as e:
-        if e.code != 404 or _GEMINI_PICKED:
+        if not _gemini_skippable(e):
             raise
-        live = _gemini_live_model()
-        if not live or live == model:
-            raise
-        _GEMINI_PICKED = live
-        print("ai_call: gemini model " + model + " is gone, using " + live + " (set repo variable AI_MODEL_GEMINI=" + live + " to pin it)")
-        return _gemini_once(live, prompt, max_tokens)
+        err = e
+    tried = [first + " (HTTP " + str(err.code) + ")"]
+    try:
+        live = _gemini_live_models()
+    except Exception:
+        raise err
+    for model in [m for m in live if m != first][:GEMINI_TRIES - 1]:
+        try:
+            text = _gemini_once(model, prompt, max_tokens)
+        except urllib.error.HTTPError as e:
+            if not _gemini_skippable(e):
+                raise
+            err = e
+            tried.append(model + " (HTTP " + str(e.code) + ")")
+            continue
+        _GEMINI_PICKED = model
+        print("ai_call: gemini tried " + ", ".join(tried) + "; answered by " + model
+              + " (set repo variable AI_MODEL_GEMINI=" + model + " to pin it)")
+        return text
+    print("ai_call: gemini tried " + ", ".join(tried) + "; no live model answered")
+    raise err
 
 
 def _nvidia(prompt, max_tokens):

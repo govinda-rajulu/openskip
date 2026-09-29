@@ -131,15 +131,77 @@ test('F2: a retired Gemini model (404) switches to the newest live flash model',
     '    if model == "gemini-2.0-flash": raise urllib.error.HTTPError("u", 404, "nf", None, None)',
     '    return "OK"',
     'ai_call._gemini_once = once',
-    'ai_call._gemini_live_model = lambda: "gemini-2.5-flash"',
+    'ai_call._gemini_live_models = lambda: ["gemini-2.5-flash"]',
     'print("ANS", ai_call._gemini("x", 10), seen)',
     'print("ANS2", ai_call._gemini("x", 10), seen)',
   ].join('\n'));
   assert.match(r.out, /PICK gemini-2\.5-flash\n/);
   assert.match(r.out, /PICK2 gemini-2\.5-flash-lite/);
-  assert.match(r.out, /gemini model gemini-2\.0-flash is gone, using gemini-2\.5-flash/);
+  assert.match(r.out, /gemini tried gemini-2\.0-flash \(HTTP 404\); answered by gemini-2\.5-flash/);
   assert.match(r.out, /ANS OK \['gemini-2\.0-flash', 'gemini-2\.5-flash'\]/);
   assert.match(r.out, /ANS2 OK \['gemini-2\.0-flash', 'gemini-2\.5-flash', 'gemini-2\.5-flash'\]/);
+});
+
+test('F3: an overloaded Gemini model (503) walks the ranked live list and names every model tried', () => {
+  const r = py([
+    'import ai_call, urllib.error',
+    'print("RANK", ai_call.gemini_rank(["gemini-2.5-flash-lite","gemini-3.8-flash","gemini-2.5-flash","gemini-3.8-flash-preview","gemini-2.5-pro"]))',
+    'ai_call.GEMINI_KEY = "k"; ai_call.MODEL_GEMINI = "gemini-3.8-flash"',
+    'seen = []',
+    'def once(model, p, m):',
+    '    seen.append(model)',
+    '    if model in ("gemini-3.8-flash", "gemini-3.5-flash"): raise urllib.error.HTTPError("u", 503, "busy", None, None)',
+    '    return "OK"',
+    'ai_call._gemini_once = once',
+    'ai_call._gemini_live_models = lambda: ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"]',
+    'print("ANS", ai_call._gemini("x", 10), seen)',
+    'def dead(model, p, m):',
+    '    raise urllib.error.HTTPError("u", 503, "busy", None, None)',
+    'ai_call._gemini_once = dead; ai_call._GEMINI_PICKED = None',
+    'try:',
+    '    ai_call._gemini("x", 10)',
+    'except urllib.error.HTTPError as e:',
+    '    print("RAISED", e.code)',
+    'def bad(model, p, m):',
+    '    raise urllib.error.HTTPError("u", 400, "bad", None, None)',
+    'ai_call._gemini_once = bad',
+    'try:',
+    '    ai_call._gemini("x", 10)',
+    'except urllib.error.HTTPError as e:',
+    '    print("RAISED400", e.code)',
+  ].join('\n'));
+  assert.match(r.out, /RANK \['gemini-3\.8-flash', 'gemini-2\.5-flash', 'gemini-2\.5-flash-lite', 'gemini-2\.5-pro'\]/);
+  assert.match(r.out, /gemini tried gemini-3\.8-flash \(HTTP 503\), gemini-3\.5-flash \(HTTP 503\); answered by gemini-2\.5-flash/);
+  assert.match(r.out, /ANS OK \['gemini-3\.8-flash', 'gemini-3\.5-flash', 'gemini-2\.5-flash'\]/);
+  assert.match(r.out, /gemini tried gemini-3\.8-flash \(HTTP 503\), gemini-3\.5-flash \(HTTP 503\), gemini-2\.5-flash \(HTTP 503\), gemini-2\.5-flash-lite \(HTTP 503\); no live model answered/);
+  assert.match(r.out, /RAISED 503/);
+  assert.match(r.out, /RAISED400 400/);
+});
+
+test('F3: one 503 is retried once on the same model before moving on', () => {
+  const r = py([
+    'import ai_call, urllib.error',
+    'ai_call.GEMINI_KEY = "k"',
+    'calls = []',
+    'def post(url, payload, headers, timeout=0):',
+    '    calls.append(url)',
+    '    if len(calls) == 1: raise urllib.error.HTTPError(url, 503, "busy", None, None)',
+    '    return {"candidates": [{"content": {"parts": [{"text": "OK"}]}}]}',
+    'ai_call._post = post',
+    'ai_call.time.sleep = lambda s: None',
+    'print("ONCE", ai_call._gemini_once("gemini-3.8-flash", "x", 10), len(calls))',
+    'calls.clear()',
+    'def post2(url, payload, headers, timeout=0):',
+    '    calls.append(url)',
+    '    raise urllib.error.HTTPError(url, 503, "busy", None, None)',
+    'ai_call._post = post2',
+    'try:',
+    '    ai_call._gemini_once("gemini-3.8-flash", "x", 10)',
+    'except urllib.error.HTTPError as e:',
+    '    print("GAVEUP", e.code, len(calls))',
+  ].join('\n'));
+  assert.match(r.out, /ONCE OK 2/);
+  assert.match(r.out, /GAVEUP 503 2/);
 });
 
 test('F2: every JSON-contract agent asks with accept=looks_json', () => {
