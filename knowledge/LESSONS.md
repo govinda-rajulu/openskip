@@ -4,6 +4,15 @@ Newest first. Append; never delete. Older lessons live verbatim in
 [archive/skills/](archive/skills/) (MY-WRONG-CALLS-4-5-SEP, FIXED-WORK-AND-WRONG-CALLS,
 SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
 
+## 29 Sep 2026, afternoon (knowledge migration)
+
+1. **"Merged" in chat is not merged.** After a merge was reported, `/pulls/74` still said
+   `merged: false`. Nothing was cut until `/pulls/N` and the folder on main were read.
+2. **Pinned controllers go first.** A patch-factory packet required an exact main, so it ran
+   before the unrelated knowledge PR merged. Order packets that pin main ahead of others.
+3. **Condensing memory can drop a rule (assistant's wrong call).** Trimming notes removed the
+   "never use openskip_fixed.zip" line; it was restored. Compare before and after a trim.
+
 ## 29 Sep 2026 (audits, packets A to H, agent fleet)
 
 1. **Agent-fleet failures were not rate limits.** Checked against provider docs:

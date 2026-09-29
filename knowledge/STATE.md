@@ -2,6 +2,19 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
+## 29 Sep 2026, 13:45 IST (end of the migration session)
+
+- **main** now includes #74 (this `knowledge/` folder). Nothing else merged since `e4af184`.
+- **Closed**: #60 as not planned, a duplicate of #61; the feature shipped in PR #62.
+- **Open PRs unchanged**: #71 (G), #72 (F), #73 (H). Owner plan: device test of #73 on the
+  weekend of 3 and 4 Oct 2026, then merge G, then F, then H.
+- **AMO listing** (icon, screenshots) the same weekend, using screenshots from the device
+  test. Browser only, no code. H23 blocks the next version upload, not the listing edit.
+- **Assistant notes**: the skills are now short pointers to this folder and their sub-skills
+  are archived. This folder is the record; do not rebuild state in skills or memory.
+- **Next session**: after the merges, the UI polish packet (see the 12:30 section below).
+  Read live `/pulls/71`, `/pulls/72`, `/pulls/73` first.
+
 ## 29 Sep 2026, 12:30 IST
 
 **main** `e4af184` (tree `0bfe56a6`): packets A to D merged today (including #68 cloud sync
