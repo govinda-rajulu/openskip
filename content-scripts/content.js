@@ -1280,6 +1280,8 @@ function clickNativeSkipButton() {
   const MSG_SHOW        = 'SKIPSTREAM_SHOW_BTN';
   const MSG_HIDE        = 'SKIPSTREAM_HIDE_BTN';
   const MSG_DO          = 'SKIPSTREAM_DO_SKIP';
+  const MSG_ACK         = 'SKIPSTREAM_ACK_BTN';
+  let _relayAcked       = false;
 
   let btnAutoHideTimer  = null;
   let pendingSkipFn     = null;
@@ -1353,12 +1355,15 @@ function clickNativeSkipButton() {
     btnAutoHideTimer = setTimeout(removeSkipBtn, 8000);
   }
 
+  // In a player iframe the top frame draws the button (it sits over the whole
+  // player, not inside a tiny frame). The iframe draws its own only if the top
+  // frame does not acknowledge within 400ms, so there is never a second button.
   function showSkipBtn(label, onSkip) {
     pendingSkipFn = onSkip;
-    createSkipBtn(label, onSkip);
-    if (window !== window.top) {
-      try { window.top.postMessage({ type: MSG_SHOW, label }, '*'); } catch { /* cross-origin */ }
-    }
+    if (window === window.top) { createSkipBtn(label, onSkip); return; }
+    _relayAcked = false;
+    try { window.top.postMessage({ type: MSG_SHOW, label }, '*'); } catch { /* cross-origin */ }
+    setTimeout(() => { if (!_relayAcked && pendingSkipFn === onSkip) createSkipBtn(label, onSkip); }, 400);
   }
 
   function hideSkipBtn() {
@@ -1383,6 +1388,7 @@ if (e.data.type !== MSG_SHOW && e.data.type !== MSG_HIDE) return;
 if (e.data.type === MSG_SHOW && !_isRelayLabel(e.data.label)) return;
       if (e.data.type === MSG_SHOW) {
         createSkipBtn(e.data.label, () => { try { e.source?.postMessage({ type: MSG_DO }, '*'); } catch { /* ok */ } });
+        try { e.source?.postMessage({ type: MSG_ACK }, '*'); } catch { /* ok */ }
       }
       if (e.data.type === MSG_HIDE) removeSkipBtn();
     });
@@ -1391,6 +1397,7 @@ if (e.data.type === MSG_SHOW && !_isRelayLabel(e.data.label)) return;
   if (window !== window.top) {
     window.addEventListener('message', e => {
       if (e.source !== window.top) return;
+if (e.data?.type === MSG_ACK) { _relayAcked = true; return; }
 if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn = null; }
     });
   }
@@ -1421,7 +1428,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       const arrow = lines.findIndex(l => l.includes('-->'));
       if (arrow < 0) continue;
       const [sStr, eStr] = lines[arrow].split('-->').map(s => s.trim());
-      const ts = str => { const m = str.match(/(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{3})/); return m ? (+(m[1]||0))*3600 + +m[2]*60 + +m[3] + +m[4]/1000 : NaN; };
+      const ts = str => { const m = str.match(/(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})(?!\d)/); return m ? (+(m[1]||0))*3600 + +m[2]*60 + +m[3] + +(m[4].padEnd(3, '0'))/1000 : NaN; };
       const start = ts(sStr), end = ts(eStr);
       if (isNaN(start) || isNaN(end) || start >= end) continue;
       const text = lines.slice(arrow + 1).join('\n').replace(/<[^>]+>/g, '').replace(/\{[^}]+\}/g, '').trim();
@@ -1648,6 +1655,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     return btn;
   }
 
+  let _subLastInfo = null;
   async function initSubtitles(video, info) {
     await loadSubPrefs();
     ensureCCBtn(video);
@@ -1658,21 +1666,30 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       const s = await br.storage.local.get('subtitle_override_srt');
       if (s.subtitle_override_srt) {
         _subState.subs = parseSubs(s.subtitle_override_srt);
+        _subState.source = 'override';
         syncCCBtn();
         return;
       }
     } catch { /* ok */ }
 
     if (!info?.imdbId) { syncCCBtn(); return; }
+    _subLastInfo = info;
+    // Subtitles off = nothing is sent to OpenSubtitles (no quota, no viewing data).
+    if (!_subState.enabled) { syncCCBtn(); return; }
 
     _subState.loading = true; syncCCBtn();
+    const reqHref = location.href;
     try {
       const result = await br.runtime.sendMessage({
         type: 'OSUB_SEARCH_AND_FETCH',
         imdbId: info.imdbId, season: info.season || null,
         episode: info.episode || null, language: _subState.language,
       });
-      if (result?.ok && result.text) _subState.subs = parseSubs(result.text);
+      // A late answer for the previous episode must not land on this one.
+      if (location.href === reqHref && result?.ok && result.text) {
+        _subState.subs = parseSubs(result.text);
+        _subState.source = 'osub';
+      }
     } catch { /* subtitle fetch failed, extension still works */ }
     _subState.loading = false; syncCCBtn();
   }
@@ -1688,6 +1705,9 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     }
     if ('subtitle_enabled' in changes) {
       _subState.enabled = !!changes.subtitle_enabled.newValue;
+      if (_subState.enabled && !_subState.subs.length && !_subState.loading && _subVideo && _subLastInfo) {
+        initSubtitles(_subVideo, _subLastInfo).catch(() => {});
+      }
       syncCCBtn();
       if (_subVideo) renderSubFrame(_subVideo);
     }
@@ -1851,6 +1871,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
         activeSegmentKey = '';
         hideSkipBtn();
         _promptedVideos.delete(video);
+        if (_subState.source === 'osub') { _subState.subs = []; _subState.source = null; renderSubFrame(video); syncCCBtn(); }
         const resumeOnce = () => { restorePlayback(video).catch(() => {}); };
         video.addEventListener('loadedmetadata', resumeOnce, { once: true });
         setTimeout(() => { video.removeEventListener('loadedmetadata', resumeOnce); resumeOnce(); }, 2500);

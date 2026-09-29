@@ -163,3 +163,28 @@ test('no segment miss is cached forever in the page (fetchSegments)', () => {
   const f = CONTENT.slice(CONTENT.indexOf('async function fetchSegments'), CONTENT.indexOf('function findActiveSegment'));
   assert.equal(/segmentCache\.set\(key, null\)/.test(f), false);
 });
+
+// ── Second audit (H-series) ───────────────────────────────────────────────────
+test('H26: subtitle timestamps with 1-2 fractional digits parse', () => {
+  // parseSubs holds regex braces, so slice it by its 2-space closing line instead
+  const i = CONTENT.indexOf('  function parseSubs(raw) {');
+  const src = CONTENT.slice(i, CONTENT.indexOf('\n  }\n', i) + 4);
+  const parseSubs = new Function(src + '\nreturn parseSubs;')();
+  const subs = parseSubs('1\r\n00:00:01,5 --> 00:00:02,25\r\nHello\r\n\r\n2\r\n00:00:03,000 --> 00:00:04,000\r\nWorld\r\n');
+  assert.equal(subs.length, 2);
+  assert.equal(subs[0].start ?? subs[0].s ?? subs[0][0], 1.5);
+});
+
+test('H7: an iframe relays first and draws its own button only without an ack', () => {
+  const f = CONTENT.slice(CONTENT.indexOf('function showSkipBtn'), CONTENT.indexOf('function hideSkipBtn'));
+  assert.ok(f.includes("if (window === window.top) { createSkipBtn(label, onSkip); return; }"));
+  assert.ok(f.includes('if (!_relayAcked && pendingSkipFn === onSkip) createSkipBtn(label, onSkip)'));
+  assert.ok(CONTENT.includes("e.source?.postMessage({ type: MSG_ACK }, '*')"));
+});
+
+test('H2: no OpenSubtitles request while subtitles are off', () => {
+  const f = CONTENT.slice(CONTENT.indexOf('async function initSubtitles'), CONTENT.indexOf('// Listen for subtitle file uploaded'));
+  const gate = f.indexOf('if (!_subState.enabled) { syncCCBtn(); return; }');
+  assert.ok(gate > 0 && gate < f.indexOf("type: 'OSUB_SEARCH_AND_FETCH'"));
+  assert.ok(f.includes('if (location.href === reqHref && result?.ok && result.text)'));
+});
