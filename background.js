@@ -432,6 +432,13 @@ async function fetchSegmentsMulti(imdbId, season, episode) {
   return Object.keys(merged).length ? merged : null;
 }
 
+// OpenSubtitles returns a base_url after login; the session bearer token is sent
+// there. Only OpenSubtitles hosts are accepted, anything else falls back.
+function osubHost(h) {
+  const v = String(h || '').trim().toLowerCase();
+  return /^([a-z0-9-]+\.)*opensubtitles\.(com|org)$/.test(v) ? v : 'api.opensubtitles.com';
+}
+
 // ── Settings sync snapshot ───────────────────────────────────────────────────
 // ss_put_settings overwrites every column, so a write carrying only site_rules
 // used to wipe cloud prefs, stats and theme. Every write now sends a full
@@ -534,7 +541,7 @@ async function osubLogin(username, password) {
     const data = await r.json();
     const sess = {
       token:    data.token,
-      base_url: data.base_url || 'api.opensubtitles.com',
+      base_url: osubHost(data.base_url),
       downloads_remaining: data.user?.allowed_downloads ?? null,
       expiry:   Date.now() + 23 * 60 * 60 * 1000,
     };
@@ -544,7 +551,7 @@ async function osubLogin(username, password) {
 }
 
 async function osubSearch(imdbId, season, episode, language, sess) {
-  const base = `https://${sess?.base_url || 'api.opensubtitles.com'}/api/v1`;
+  const base = `https://${osubHost(sess?.base_url)}/api/v1`;
   const headers = { 'Api-Key': OSUB_API_KEY, 'User-Agent': OSUB_UA };
   if (sess?.token) headers['Authorization'] = 'Bearer ' + sess.token;
 
@@ -580,7 +587,7 @@ async function osubDownload(file_id, sess) {
     if (cache[file_id]) return { ok: true, text: cache[file_id] };
   } catch { /* miss */ }
 
-  const base = `https://${sess?.base_url || 'api.opensubtitles.com'}/api/v1`;
+  const base = `https://${osubHost(sess?.base_url)}/api/v1`;
   const headers = { 'Api-Key': OSUB_API_KEY, 'User-Agent': OSUB_UA, 'Content-Type': 'application/json' };
   if (sess?.token) headers['Authorization'] = 'Bearer ' + sess.token;
 

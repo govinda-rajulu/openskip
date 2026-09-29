@@ -87,3 +87,26 @@ test('allowlists in background.js and options.js are identical', () => {
   const grab = (s, name) => JSON.parse(s.match(new RegExp(`const ${name} = (\\[[^\\]]*\\])`))[1].replace(/'/g, '"').replace(/\s+/g, ''));
   assert.deepEqual(grab(read('options.js'), 'CLOUD_PREF_ALLOW'), grab(read('background.js'), 'SYNC_PREF_KEYS'));
 });
+
+// ── Second audit (H-series) ───────────────────────────────────────────────────
+test('H14: the OpenSubtitles token only ever goes to an OpenSubtitles host', () => {
+  const bg = loadBackground({});
+  const h = bg.ctx.osubHost;
+  assert.equal(h('vip-api.opensubtitles.com'), 'vip-api.opensubtitles.com');
+  assert.equal(h('api.opensubtitles.com'), 'api.opensubtitles.com');
+  for (const bad of ['evil.com', 'opensubtitles.com.evil.com', 'api.opensubtitles.com/x', '', null, 'evil.com#.opensubtitles.com'])
+    assert.equal(h(bad), 'api.opensubtitles.com', String(bad));
+});
+
+test('H17/H19/H20: history + clear-cloud hardening present', () => {
+  const src = read('options.js');
+  assert.ok(src.includes('if (!/^https:\\/\\/[a-z0-9-]+\\.supabase\\.co$/i.test(sbUrl))'));
+  assert.ok(src.includes('if (Array.isArray(result?.data)) {'));
+  assert.ok(src.includes('return [...merged.values()].sort((a, b) => _ssTs(b) - _ssTs(a));'));
+});
+
+test('H27: master toggle restores the last non-off mode', () => {
+  const src = read('popup.js');
+  assert.ok(src.includes("(popupMode !== 'off' ? popupMode : (lastActiveMode || 'auto-all'))"));
+  assert.equal(src.includes("popupMode === 'off' ? 'auto-all' : popupMode"), false);
+});

@@ -845,7 +845,7 @@ function getHistoryItems() {
     if (nextTs > existingTs) merged.set(key, item);
   }
 
-  return [...merged.values()];
+  return [...merged.values()].sort((a, b) => _ssTs(b) - _ssTs(a));
 }
 
 // In-memory poster cache: title -> poster_url (null = not found)
@@ -1118,7 +1118,8 @@ async function loadHistory(data) {
         const result = await new Promise(res => {
           br.runtime.sendMessage({ type: 'SUPABASE_GET_ALL', userId }, r => res(r));
         });
-        if (result?.data && result.data.length > 0) {
+        // An empty cloud list is real (history cleared elsewhere): show it as empty.
+        if (Array.isArray(result?.data)) {
           _histCloud = result.data.map(row => ({
             title:    row.video_title || '',
             site:     row.site_name   || row.site || '',
@@ -1492,6 +1493,8 @@ if (clearCloudHistoryBtn) {
       const sbUrl = (creds[S.supabaseUrl] || '').replace(/\/$/, '');
       const sbKey = creds[S.supabaseAnonKey];
       if (!sbUrl || !sbKey) { showAlert($('alert-cloud'), 'warn', 'Supabase not configured.'); return; }
+      // Same rule as background isValidSupabaseUrl: the anon key only goes to *.supabase.co
+      if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(sbUrl)) { showAlert($('alert-cloud'), 'err', 'Supabase URL must be https://<project>.supabase.co'); return; }
       const r = await fetch(`${sbUrl}/rest/v1/rpc/ss_clear_playback`, {
         method: 'POST',
         headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey, 'Content-Type': 'application/json' },

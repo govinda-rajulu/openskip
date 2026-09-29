@@ -105,10 +105,15 @@ function inferMode(i, r, o) {
 }
 
 let popupMode = 'auto-all';
+// Last mode that was not 'off', so switching the master toggle off and on
+// restores the user's mode instead of silently becoming Auto All.
+let lastActiveMode = null;
+br.storage.local.get('skipstream_last_mode').then(s => { lastActiveMode = s.skipstream_last_mode || lastActiveMode; }).catch(() => {});
 let popupRate = 1;
 
 function applyModeToUI(mode, enabled) {
   popupMode = mode;
+  if (mode && mode !== 'off') lastActiveMode = mode;
   // Chips
   document.querySelectorAll('.smode-chip').forEach(c => {
     const isSel = c.dataset.mode === mode;
@@ -216,7 +221,8 @@ function applyStats(data) {
 // -- Master toggle --
 $('masterToggle')?.addEventListener('change', () => {
   const enabled = !!$('masterToggle')?.checked;
-  const nextMode = enabled ? (popupMode === 'off' ? 'auto-all' : popupMode) : 'off';
+  const nextMode = enabled ? (popupMode !== 'off' ? popupMode : (lastActiveMode || 'auto-all')) : 'off';
+  if (!enabled && popupMode !== 'off') br.storage.local.set({ skipstream_last_mode: popupMode }).catch(() => {});
   const nextSeg = MODE_TO_SEGS[nextMode] || { i: true, r: true, o: true };
   br.storage.local.set({
     [KEYS.enabled]: enabled,
