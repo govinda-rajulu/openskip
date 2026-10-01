@@ -2,6 +2,16 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
+## 1 Oct 2026, 01:30 IST (planning only, no code)
+
+- **main** `b085e982` (PR75). #71, #72, #73 still open; nothing merged since 29 Sep.
+- **New**: [ROADMAP.md](ROADMAP.md) puts the agent and security work into lanes after the
+  weekend merges; [handbook/AGENT-TOOLING.md](handbook/AGENT-TOOLING.md) records the 1 Oct
+  tool review. No workflow or code change.
+- **Read on 1 Oct**: the agent workflows show the model at most 80,000 characters, which cuts
+  off most of `content.js`, and their PRs use `GITHUB_TOKEN`, so CI does not run on them.
+  Details in ROADMAP lane 3.
+
 ## 29 Sep 2026, 13:45 IST (end of the migration session)
 
 - **main** now includes #74 (this `knowledge/` folder). Nothing else merged since `e4af184`.
