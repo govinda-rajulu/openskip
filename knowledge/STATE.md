@@ -2,6 +2,21 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
+## 1 Oct 2026, afternoon (end of the combined session)
+
+- **main** `91f8b752` (PR76: roadmap and agent tooling). #71, #72, #73 still open.
+- **Release decision: wait.** Nothing has gone to AMO since v1.10.0 (4 Aug 2026). Everything
+  since sits in #71 to #73, and #73 is not device-tested yet.
+- **H23 is in a PR, not merged**: branch `packet/h23-data-collection-20261001`. It changes the
+  Firefox `data_collection_permissions` from `none` to `browsingActivity`, `websiteContent` and
+  `authenticationInfo`. The PR body explains each category; the owner reviews it on the weekend.
+- **Weekend 3 and 4 Oct, in order**: device test #73; merge G #71, F #72, H #73; review and merge
+  the H23 PR; make PRIVACY.md (D1) match the declaration; bump to v1.11.0 and release; upload to
+  AMO and update the listing (icon, screenshots from the device test).
+- **Then**: the UI polish packet (29 Sep, 12:30 section below).
+- **Chats**: from 1 Oct the owner keeps one assistant chat per repo. A SkipStream chat starts here
+  and never carries patch-factory rules.
+
 ## 1 Oct 2026, 01:30 IST (planning only, no code)
 
 - **main** `b085e982` (PR75). #71, #72, #73 still open; nothing merged since 29 Sep.
