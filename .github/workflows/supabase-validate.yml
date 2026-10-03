@@ -10,13 +10,6 @@ on:
     paths:
       - 'supabase_setup.sql'
   workflow_dispatch:
-    inputs:
-      run_on_supabase:
-        description: 'Apply setup.sql to configured Supabase project'
-        required: false
-        default: 'false'
-        type: choice
-        options: ['false', 'true']
 
 jobs:
   validate-sql:
@@ -101,36 +94,7 @@ jobs:
           print("✅ All statements are idempotent")
           PYEOF
 
-      - name: Apply to Supabase (manual trigger only)
-        if: github.event_name == 'workflow_dispatch' && inputs.run_on_supabase == 'true'
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-        run: |
-          if [ -z "$SUPABASE_DB_URL" ]; then
-            echo "❌ SUPABASE_DB_URL secret not set."
-            echo "  Format: postgresql://postgres:YOUR_DB_PASSWORD@db.YOUR_PROJECT_REF.supabase.co:5432/postgres"
-            exit 1
-          fi
-          
-          # Mask DB URL, password, and host to prevent printing to logs
-          echo "::add-mask::$SUPABASE_DB_URL"
-          python3 -c '
-          import os, urllib.parse
-          url = os.environ.get("SUPABASE_DB_URL", "")
-          if url:
-              try:
-                  parsed = urllib.parse.urlparse(url)
-                  if parsed.password:
-                      print(f"::add-mask::{parsed.password}")
-                  if parsed.hostname:
-                      print(f"::add-mask::{parsed.hostname}")
-              except Exception:
-                  pass
-          '
-
-          sudo apt-get install -y postgresql-client -qq
-          psql "$SUPABASE_DB_URL" -f supabase_setup.sql
-          echo "✅ Setup SQL applied"
+      # CI never applies SQL to the live project. Owner pastes supabase_setup.sql in the Supabase SQL editor.
 
       - name: Summary
         if: always()

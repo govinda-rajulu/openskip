@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 ### Fixed
+- YouTube detection matched any host containing "youtube.com"; it now needs the real host or a subdomain
+- Code scanning clean-up: dead skip-selector list and relay guard removed, changelog version escaped fully, CI can no longer apply SQL to the live Supabase project
 - Skipping stopped working after the first video when a site reused its player (YouTube next, autoplay next episode)
 - YouTube sponsor skipping never ran: SponsorBlock was only asked when an IMDb episode was found, which YouTube never has
 - IntroDB skips needed an API key even though IntroDB reads are public; they now work with no setup

@@ -65,7 +65,7 @@ export function extractFunction(src, name) {
   const re = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`);
   const m = re.exec(src);
   if (!m) throw new Error('function not found: ' + name);
-  let i = src.indexOf('{', m.index + m[0].length - 1);
+  let i;
   // skip the parameter list's closing paren first
   let depthP = 1, j = m.index + m[0].length;
   while (depthP && j < src.length) { if (src[j] === '(') depthP++; else if (src[j] === ')') depthP--; j++; }
