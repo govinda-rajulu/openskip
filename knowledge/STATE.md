@@ -2,20 +2,41 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
-## 3 Oct 2026, evening (1.11.0 released, 1.12.0 packet)
+## Start here (3 Oct 2026, end of the long session)
 
-- **1.11.0 released**: PR #79 merged (main 3de59b05, tree `b1c6801a`), tag `v1.11.0`, Build &
-  Release and Submit to AMO both green 3 Oct 12:08 UTC. Device test on 1.11.0: detection, title,
-  poster, subtitles (after the connect-src fix), backup with keys, Undo notice all OK.
-- **Open from that test**: Check this page on 1Shows listed only the main page while the player
-  played; 1Shows showed three subtitle lines (one ours). Site report in 1.12.0 is the tool for both.
-- **1.12.0 packet** (`packet/release-1.12.0-20261003`, base tree `b1c6801a`): site report
-  (`content-scripts/probe.js` via `tabs.executeScript` allFrames + matchAboutBlank; Chrome
-  `scripting` permission), SponsorBlock all categories and actionTypes, per-category modes
-  (`sbModes`), mute and highlight, timeline marks (`showTimeline`), AnimeSkip section ends
-  (query had a non-existent `duration` field; unverified against the live API, needs a client id),
-  SkipDB fallback (api.skipdb.tv, ODbL), subtitle look (`subtitle_color/bg/font/outline`) and
-  per-show offset (`subtitle_offsets`). Tests 138 (14 new, all fail on 1.11.0).
+- **Released:** 1.11.0 (tag `v1.11.0`, main tree `b1c6801a`, AMO upload OK 3 Oct 12:08 UTC).
+- **In flight:** 1.12.0 PR from packet `os-120` (branch `packet/release-1.12.0-20261003`).
+  Owner: device test the ZIP, merge, push tag `v1.12.0` (that publishes to AMO).
+- **Owner, outside code:** AMO listing (screenshots, privacy link = PRIVACY.md on GitHub);
+  Edge Add-ons listing (free, takes the Chrome ZIP).
+- **Next code:** Supabase login (1.13.0, ROADMAP). Site fixes come from "Site report" pastes.
+- **How we work:** one packet per change set, rehearsed in the assistant's sandbox, run by the
+  owner in Cloud Shell, PR, device test, merge, tag. Reads pinned to commit shas (LESSONS).
+
+## What 1.12.0 contains
+
+- Site report (`content-scripts/probe.js`, `tabs.executeScript` allFrames + matchAboutBlank;
+  Chrome `scripting`). All SponsorBlock categories and action types, per-category `sbModes`,
+  mute, highlight, timeline marks (`showTimeline`). Anime Skip ends fixed (query had a made-up
+  `duration`; still unverified live). SkipDB fallback (ODbL). Subtitle look and per-show offset.
+- UI refresh: popup tabs Status / Playback / Tools, stat tiles, segmented tabs, cards, footer
+  links (GitHub, Privacy, Report a problem); Settings: system font stack, rounder cards, wrap on
+  phones, 44 px touch targets, focus rings, reduced motion. Checked by headless screenshots at
+  320 to 1280 px, light and dark.
+- On-video toasts share one placement (`TOAST_BOTTOM` with safe area, `TOAST_RADIUS`,
+  `_toastFit`: never wider than the screen, no motion when reduced motion is on).
+- Easter eggs: 5 clicks on the version badge (tips and stats), Konami code on popup and
+  Settings (colour party, accent restored), milestone note at 100/500/1000/5000/10000 skips.
+- 5S: README and TESTING.md rewritten to match the code (no IntroDB key needed, privacy is not
+  "no telemetry"); SECURITY_AUDIT.md moved to knowledge/audits; unused `update_release.py` and
+  `agent_team/crew_master.py` moved to knowledge/archive/unused. Branch cleanup: merged remote
+  branches deleted by the packet (list in its report); release tags kept.
+
+## Open (not code yet)
+
+- Check this page on 1Shows listed only the main page while the player played; use Site report.
+- 1Shows showed three subtitle lines, one ours; confirm with CC on/off.
+- Anime Skip needs a live test with a client id. SkipDB answers are not yet seen live.
 
 ## 3 Oct 2026 (release 1.11.0 packet)
 

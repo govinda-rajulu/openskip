@@ -424,11 +424,23 @@ loadState();
     
     if (clickCount === 5 && !easterEggTriggered) {
       easterEggTriggered = true;
-      const overlay = document.createElement('div');
-      overlay.className = 'easter-egg-overlay';
-      overlay.textContent = 'Made with ❤️ for you';
-      document.body.appendChild(overlay);
-      setTimeout(() => overlay.remove(), 3800); // Remove after animation
+      clickCount = 0;
+      br.storage.local.get('skipstream_stats').then(s => {
+        const st = s.skipstream_stats || {};
+        const lines = [
+          'Made by one person and a lot of skipped intros.',
+          'Tip: right-click CC on a video to fix subtitle timing. It is remembered per show.',
+          'Tip: Alt+Right skips the current segment, Alt+Z jumps back 15 s.',
+          'Psst: the Konami code works here and in Settings.',
+        ];
+        if (st.skipsTotal) lines.push(st.skipsTotal + ' skips so far. The intro composers will never know.');
+        if (st.timeSavedSec >= 600) lines.push(Math.round(st.timeSavedSec / 60) + ' minutes saved. Go outside for some of them.');
+        const overlay = document.createElement('div');
+        overlay.className = 'easter-egg-overlay';
+        overlay.textContent = lines[Math.floor(Math.random() * lines.length)];
+        document.body.appendChild(overlay);
+        setTimeout(() => { overlay.remove(); easterEggTriggered = false; }, 3800);
+      }).catch(() => { easterEggTriggered = false; });
     }
   });
 })();

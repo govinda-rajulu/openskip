@@ -50,7 +50,7 @@ Plan: a gh-aw workflow with the Gemini engine; owner-only `agent-go` label; per-
 (only the files the spec names, whole); a loop of at most 5 rounds with the test suite as
 backpressure; #72's edit contract kept; a path guard that fails on `.github/**`; CI dispatched
 explicitly on the PR head; one PR per issue; `AGENTS_PAUSED` honoured. Jules is the zero-setup
-fallback for small issues. Retire `agent_team/crew_master.py` (local Ollama, cannot run in CI).
+fallback for small issues. `agent_team/crew_master.py` retired to knowledge/archive/unused in 1.12.0.
 
 ## Lane 4: morning report and brakes
 
@@ -96,8 +96,14 @@ Add ideas here with a date. Move one into a lane only when the lane before it is
 - 3 Oct 2026: 1Shows showed three subtitle lines; one is ours (dark box), two are the site's own.
 - 3 Oct 2026: OpenSubtitles search by title when no IMDb id: done in 1.11.0 (popup button only; YouTube excluded). A confirm step showing the match is still open.
 - 3 Oct 2026: if "Check this page" shows blank frames holding players, add match_about_blank.
-- 3 Oct 2026: tidy agent docs (AGENTS.md, CLAUDE.md, GEMINI.md overlap); move SECURITY_AUDIT.md
-  into knowledge/audits; check update_release.py is still used.
+- 3 Oct 2026: agent docs overlap (AGENTS.md, CLAUDE.md, GEMINI.md): CI and scripts/agent.sh read
+  CLAUDE.md and GEMINI.md, so merge them only together with those workflows. SECURITY_AUDIT.md
+  and update_release.py: done (moved in 1.12.0).
+- 3 Oct 2026: Alt+S style keyboard commands do not exist on Firefox for Android; keep every
+  action reachable by touch.
+- 3 Oct 2026: declare `personallyIdentifyingInfo` (email) as optional when the Supabase login lands.
+- 3 Oct 2026: a bundled font (e.g. Inter, OFL) only if system fonts look wrong somewhere; the
+  1.12 refresh uses the system stack to stay small and offline.
 
 - 1 Oct 2026: competing drafts (attack, defend, judge) for risky PRs, after lane 3 has run 10 tasks.
 - 1 Oct 2026: typed verdict step (accept, reject, escalate) in the verdict script.

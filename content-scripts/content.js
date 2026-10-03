@@ -78,6 +78,19 @@
   });
 
   // Shared overlay mount: fullscreen-aware container, consistent stacking.
+  // ── On-video toasts: one placement for all of them ─────────────────────────
+  // Above the player's own controls, inside the phone's safe area, never wider
+  // than the screen, and without motion when the system asks for less motion.
+  const TOAST_BOTTOM = 'max(64px, calc(env(safe-area-inset-bottom, 0px) + 56px))';
+  const TOAST_RADIUS = '14px';
+  function _reducedMotion() { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } }
+  function _toastFit(el) {
+    el.style.maxWidth = 'calc(100vw - 24px)';
+    el.style.boxSizing = 'border-box';
+    if (_reducedMotion()) el.style.transition = 'none';
+    return el;
+  }
+
   function mountOverlay(id) {
     const old = document.getElementById(id);
     if (old) old.remove();
@@ -555,7 +568,7 @@ function _pageUrl() {
 
     Object.assign(toast.style, {
       left: '50%',
-      bottom: '68px',
+      bottom: TOAST_BOTTOM,
       transform: 'translate3d(-50%, 10px, 0) scale(.97)',
       opacity: '0',
       display: 'flex',
@@ -623,7 +636,7 @@ function _pageUrl() {
     toast.appendChild(mark);
     toast.appendChild(txt);
     toast.appendChild(restart);
-    container.appendChild(toast);
+    container.appendChild(_toastFit(toast));
 
     requestAnimationFrame(() => {
       toast.style.opacity = '1';
@@ -1096,6 +1109,32 @@ function _pageUrl() {
     return _statsChain;
   }
 
+  // Small easter egg: a one-off note at 100, 500, 1000, 5000 and 10000 skips.
+  const MILESTONES = [100, 500, 1000, 5000, 10000];
+  function _milestone(total) { return MILESTONES.includes(Number(total)) ? Number(total) : 0; }
+  function _milestoneText(n, sec) {
+    const s = Math.max(0, Number(sec) || 0);
+    const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+    const saved = h ? h + ' h ' + m + ' min' : m + ' min';
+    const extra = s >= 7200 ? ' That is about ' + Math.floor(s / 5400) + ' films.' : '';
+    return n + ' skips. ' + saved + ' of your life back.' + extra;
+  }
+  function _showMilestone(n, sec) {
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    const container = fsEl || document.body;
+    if (!container) return;
+    const p = pal();
+    const el = document.createElement('div');
+    el.setAttribute('role', 'status');
+    el.textContent = '🎉 ' + _milestoneText(n, sec);
+    Object.assign(el.style, { all: 'unset', position: fsEl ? 'absolute' : 'fixed', bottom: TOAST_BOTTOM, left: '50%', transform: 'translateX(-50%)',
+      zIndex: '2147483647', padding: '10px 16px', background: p.bg, color: p.text, border: '1px solid ' + p.edge, borderRadius: TOAST_RADIUS,
+      fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif', fontSize: '14px', fontWeight: '600', opacity: '0', transition: 'opacity 240ms ease' });
+    container.appendChild(_toastFit(el));
+    requestAnimationFrame(() => { el.style.opacity = '1'; });
+    setTimeout(() => el.remove(), 4500);
+  }
+
   function recordSkipStat(timeSavedSec) {
     _serialStats(() => br.storage.local.get('skipstream_stats').then(s => {
       const st = s.skipstream_stats || { skipsTotal: 0, timeSavedSec: 0, sessionsTotal: 0, skipsToday: 0, statsDate: '', timeSavedToday: 0, skipsBySite: {} };
@@ -1118,7 +1157,9 @@ function _pageUrl() {
       // Per-site tracking
       if (!st.skipsBySite) st.skipsBySite = {};
       st.skipsBySite[site] = (st.skipsBySite[site] || 0) + 1;
-      
+
+      const mile = _milestone(st.skipsTotal);
+      if (mile) setTimeout(() => _showMilestone(mile, st.timeSavedSec), 5600);
       return br.storage.local.set({ skipstream_stats: st });
     }).catch(() => {}));
   }
@@ -1141,10 +1182,10 @@ function _pageUrl() {
     box.id = SKIPPED_ID;
     box.setAttribute('role', 'status');
     Object.assign(box.style, {
-      all: 'unset', position: fsEl ? 'absolute' : 'fixed', bottom: '68px', right: '3%',
+      all: 'unset', position: fsEl ? 'absolute' : 'fixed', bottom: TOAST_BOTTOM, right: '3%',
       zIndex: '2147483647', display: 'flex', alignItems: 'center', gap: '12px',
       padding: '8px 8px 8px 14px', background: p.bg, color: p.text,
-      border: '1px solid ' + p.edge, borderRadius: '16px',
+      border: '1px solid ' + p.edge, borderRadius: TOAST_RADIUS,
       fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
       fontSize: '14px', fontWeight: '600', pointerEvents: 'auto',
       opacity: '0', transform: 'translate3d(0, 10px, 0)',
@@ -1169,7 +1210,7 @@ function _pageUrl() {
     };
     box.appendChild(msg);
     box.appendChild(undo);
-    container.appendChild(box);
+    container.appendChild(_toastFit(box));
     if (_diag.last) _diag.last.notice = true;
     requestAnimationFrame(() => { box.style.opacity = '1'; box.style.transform = 'translate3d(0, 0, 0)'; });
     _skippedTimer = setTimeout(close, 5000);
@@ -1225,12 +1266,12 @@ function _pageUrl() {
     const p = pal();
     Object.assign(toast.style, {
       all: 'unset', position: fsEl ? 'absolute' : 'fixed',
-      bottom: '68px', right: '3%', zIndex: '2147483647',
+      bottom: TOAST_BOTTOM, right: '3%', zIndex: '2147483647',
       display: 'flex', alignItems: 'center', gap: '11px',
       padding: '9px 11px 9px 14px',
       background: p.bg,
       color: p.text, border: '1px solid ' + p.edge,
-      borderRadius: '12px', boxShadow: '0 6px 22px ' + _ok(0.08, 0.02, _hexToOklch(_seedHex).H, 0.55) + '',
+      borderRadius: TOAST_RADIUS, boxShadow: '0 6px 22px ' + _ok(0.08, 0.02, _hexToOklch(_seedHex).H, 0.55) + '',
       fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
       fontSize: '13.5px', fontWeight: '600', letterSpacing: '-.01em',
       pointerEvents: 'auto',
@@ -1278,7 +1319,7 @@ function _pageUrl() {
     update();
     toast.appendChild(msgEl);
     toast.appendChild(undoBtn);
-    container.appendChild(toast);
+    container.appendChild(_toastFit(toast));
     requestAnimationFrame(() => {
       toast.style.opacity = '1';
       toast.style.transform = 'translate3d(0, 0, 0) scale(1)';
@@ -1550,11 +1591,11 @@ function clickNativeSkipButton() {
     const p = pal();
     Object.assign(btn.style, {
       all: 'unset', position: isFs ? 'absolute' : 'fixed',
-      bottom: '68px', right: '3%', zIndex: '2147483647',
+      bottom: TOAST_BOTTOM, right: '3%', zIndex: '2147483647',
       display: 'inline-flex', alignItems: 'center',
       padding: '12px 22px', background: p.accent,
       color: p.onAccent, border: '1px solid transparent',
-      borderRadius: '12px', cursor: 'pointer',
+      borderRadius: TOAST_RADIUS, cursor: 'pointer',
       fontSize: '14px', fontWeight: '600',
       fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
       letterSpacing: '-.005em', boxShadow: '0 6px 22px ' + _ok(0.08, 0.02, _hexToOklch(_seedHex).H, 0.55) + '',
@@ -1567,7 +1608,7 @@ function clickNativeSkipButton() {
     btn.onmouseout  = () => { btn.style.transform = 'translate3d(0, 0, 0) scale(1)'; };
     btn.onmousedown = () => { btn.style.transform = 'translate3d(0, 0, 0) scale(.97)'; };
     btn.onclick = e => { e.preventDefault(); e.stopPropagation(); onSkip(); removeSkipBtn(); };
-    container.appendChild(btn);
+    container.appendChild(_toastFit(btn));
     requestAnimationFrame(() => {
       btn.style.opacity = '1';
       btn.style.transform = 'translate3d(0, 0, 0) scale(1)';

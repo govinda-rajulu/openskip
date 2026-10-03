@@ -4,6 +4,26 @@ Newest first. Append; never delete. Older lessons live verbatim in
 [archive/skills/](archive/skills/) (MY-WRONG-CALLS-4-5-SEP, FIXED-WORK-AND-WRONG-CALLS,
 SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
 
+## 3 Oct 2026, evening (1.11.0 device test, 1.12.0, UI refresh)
+
+1. **Check which build is running before reading a test.** The first device test ran the old
+   add-on: the popup showed 1.10 wording. Look at the version badge and reopen video tabs
+   (old content scripts stay in open tabs) before trusting any result.
+2. **The extension's own CSP can block a feature.** Online subtitles never downloaded: the file
+   link is on www.opensubtitles.com, which connect-src did not list. Firefox reports this only as
+   "NetworkError". List every host a feature touches, wildcard per service.
+3. **A cross-site frame only gets the parent's origin as referrer.** History from embedded
+   players saved "https://site/" and the title "Player". Ask the background for the tab's
+   address and title instead.
+4. **Read the API docs before trusting a query.** The Anime Skip query asked for a `duration`
+   field; timestamps only mark where a section starts. It had never returned anything.
+5. **Headless Chrome has a minimum window width (about 500 px).** A "390 px" screenshot is a
+   crop of a 500 px page. For phone widths, render the page inside an iframe of that width.
+6. **A diagnostic in the popup beats guessing.** "Check this page" with what was identified,
+   the mode and the last skip turned "Undo doesn't work" into a screenshot that showed it did.
+7. **The public API is cached for branch lists too.** `/branches` showed an August main and no
+   PR branches. Branch and tag cleanup runs in Cloud Shell with `git ls-remote`, never from it.
+
 ## 3 Oct 2026 (release 1.11.0)
 
 1. **Public reads went stale again, both of them.** `/branches/main` returned an August commit
