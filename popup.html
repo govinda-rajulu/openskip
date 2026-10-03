@@ -117,8 +117,11 @@
         <h2 class="skip-label">Video not detected?</h2>
         <div class="sub-row">
           <button class="sub-upload-btn" id="diagBtn">Check this page</button>
+          <button class="sub-upload-btn" id="siteReportBtn">Site report</button>
         </div>
         <span class="sub-status" id="diagStatus" aria-live="polite" style="white-space:pre-line">Lists every frame and the videos SkipStream can see.</span>
+        <textarea id="siteReportText" readonly spellcheck="false" aria-label="Site report" style="display:none;width:100%;box-sizing:border-box;height:140px;margin-top:6px;font:11px/1.35 ui-monospace,Consolas,monospace;resize:vertical"></textarea>
+        <button class="sub-upload-btn" id="siteReportCopy" style="display:none;margin-top:6px">Copy report</button>
       </div>
 
       <div class="skip-section" style="--i:4">

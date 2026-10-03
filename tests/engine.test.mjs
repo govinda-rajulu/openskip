@@ -87,7 +87,7 @@ test('no key / 401 does not poison the cache forever', async () => {
 
 // ── Content engine (pure functions extracted from the real file) ──────────────
 test('findActiveSegment ignores null / inverted segments', () => {
-  const { findActiveSegment } = contentFns(['findActiveSegment']);
+  const { findActiveSegment } = contentFns(['findActiveSegment'], ['SEG_KEYS']);
   assert.equal(findActiveSegment({ intro: { start_sec: null, end_sec: null } }, 0.5), null);
   assert.equal(findActiveSegment({ intro: { start_sec: 50, end_sec: 10 } }, 20), null);
   assert.equal(findActiveSegment({ intro: { start_sec: 10, end_sec: 50 } }, 20).key, 'intro');

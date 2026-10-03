@@ -9,6 +9,8 @@ data to the services listed below. Firefox shows the same categories when you in
 
 - **IntroDB** (api.introdb.app): the IMDb id of what you watch, plus season and episode for TV.
   Used to look up intro, recap and credits times. No key and no account.
+- **SkipDB** (api.skipdb.tv): the same IMDb id, season and episode as IntroDB, for intro, recap,
+  credits and preview times IntroDB does not have. No key and no account.
 - **SponsorBlock** (sponsor.ajay.app), YouTube only: the first 4 characters of a SHA-256 hash of
   the video id, never the id itself, so the service cannot tell which video you watch.
 
@@ -41,7 +43,9 @@ device name, and settings and stats stay on this device.
 
 API keys and logins, your playback cache and local history, preferences, stats (unless backed
 up as above), the subtitle cache and an error log. The error log is never sent anywhere. The
-popup's "Check this page" result (frame addresses and video counts) stays in the popup.
+popup's "Check this page" result (frame addresses and video counts) stays in the popup. "Site report"
+reads the open tab only when you press it (players, stream type, frames, subtitle tracks, ids; addresses
+cut to host and path) and shows it in the popup; it is copied only when you press Copy.
 
 ## Backup files
 

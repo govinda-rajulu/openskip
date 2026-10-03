@@ -180,7 +180,7 @@ test('subtitles: no id -> OpenSubtitles title search, YouTube says why', async (
 
 // ── Skipping ──────────────────────────────────────────────────────────────────
 test('skip: automatic skip waits for the real start (no 2 s of content lost)', () => {
-  assert.match(CONTENT, /if \(effectivePrefs\[prefKey\] && video\.currentTime < Number\(active\.segment\.start_sec\) - 0\.3\) return;/);
+  assert.match(CONTENT, /if \(mode === 'auto' && video\.currentTime < Number\(active\.segment\.start_sec\) - 0\.3\) return;/);
 });
 
 test('skip: next YouTube video looks segments up at once, not 1.5 s later', () => {

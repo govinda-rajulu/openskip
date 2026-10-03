@@ -1,4 +1,4 @@
-/* SkipStream - popup v1.11.0 */
+/* SkipStream - popup v1.12.0 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
@@ -320,6 +320,54 @@ function diagText(r) {
     : 'No video in use yet. Press play first (on movie sites pick a source), then check again while it plays.';
   return head + '\n' + lines.join('\n');
 }
+
+// "Site report": players, stream type, frames, subtitle tracks and ids found in
+// every frame (content-scripts/probe.js). Shown here and copied only on request;
+// addresses are host + path only.
+function siteReportText(r, version) {
+  if (!r || !r.ok) return 'Could not read this page' + (r && r.err ? ': ' + r.err : '') + '. Reload it and try again.';
+  const f = Array.isArray(r.frames) ? r.frames : [];
+  const L = ['SkipStream ' + (version || '') + ' site report, ' + f.length + ' frame' + (f.length === 1 ? '' : 's')];
+  for (const x of f) {
+    L.push('');
+    L.push((x.top ? 'PAGE ' : 'FRAME ') + x.frame + (x.skipstream ? '' : '  [SkipStream not running here]'));
+    if (x.title) L.push('  title: ' + x.title);
+    if (!x.top && x.referrer) L.push('  referrer: ' + x.referrer);
+    if (x.players && x.players.length) L.push('  players: ' + x.players.join(', '));
+    if (x.libs && x.libs.length) L.push('  scripts: ' + x.libs.join(', '));
+    for (const v of x.videos || []) {
+      L.push('  video ' + v.size + ', ' + v.kind + (v.source ? ' (' + v.source + ')' : '') + ', ' + (v.duration ? v.duration + ' s' : 'no length') + (v.playing ? ', playing' : ', paused') + (v.inShadow ? ', inside a player component' : ''));
+      if (v.tracks && v.tracks.length) L.push('    subtitle tracks: ' + v.tracks.join('; '));
+    }
+    for (const fr of x.iframes || []) L.push('  iframe ' + fr.src + ' ' + fr.size + (fr.sandbox ? ' sandbox=' + fr.sandbox : ''));
+    if (x.ids && x.ids.length) L.push('  ids: ' + x.ids.join(', '));
+    if (x.error) L.push('  error: ' + x.error);
+  }
+  return L.join('\n');
+}
+
+$('siteReportBtn')?.addEventListener('click', async () => {
+  const btn = $('siteReportBtn'); const s = $('diagStatus'); const ta = $('siteReportText'); const cp = $('siteReportCopy');
+  if (btn) btn.disabled = true;
+  if (s) s.textContent = 'Reading every frame...';
+  let r = null;
+  try {
+    const [tab] = await br.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id != null) r = await br.runtime.sendMessage({ type: 'SS_SITE_REPORT', tabId: tab.id });
+  } catch (_) { r = null; }
+  const text = siteReportText(r, 'v' + br.runtime.getManifest().version);
+  if (ta) { ta.value = text; ta.style.display = 'block'; }
+  if (cp) cp.style.display = r && r.ok ? 'inline-block' : 'none';
+  if (s) s.textContent = r && r.ok ? 'Site report ready. Copy it and paste it into the chat or an issue.' : text;
+  if (btn) btn.disabled = false;
+});
+
+$('siteReportCopy')?.addEventListener('click', async () => {
+  const ta = $('siteReportText'); const s = $('diagStatus');
+  if (!ta) return;
+  try { await navigator.clipboard.writeText(ta.value); if (s) s.textContent = 'Copied.'; }
+  catch (_) { ta.focus(); ta.select(); if (s) s.textContent = 'Selected: press Ctrl+C to copy.'; }
+});
 
 $('diagBtn')?.addEventListener('click', async () => {
   const btn = $('diagBtn'); const s = $('diagStatus');

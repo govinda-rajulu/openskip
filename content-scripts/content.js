@@ -120,7 +120,7 @@
 
   // ── User prefs ─────────────────────────────────────────────────────────────
 
-  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipEnabled: true, autoNextEpisode: false, deviceName: '' };
+  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipEnabled: true, autoNextEpisode: false, deviceName: '', sbModes: null, showTimeline: true };
   let prefs = { ...PREF_DEFAULTS };
 let _ssEffPrefs = null;
 // What this frame found, for the popup's "Check this page" (local only, never sent anywhere).
@@ -961,6 +961,78 @@ function _pageUrl() {
     } catch { return null; }
   }
 
+  const SEG_KEYS = ['intro', 'recap', 'outro', 'preview', 'sponsor', 'selfpromo', 'interaction', 'music_offtopic', 'filler'];
+
+  // ── Segment markers on the timeline ─────────────────────────────────────────
+  // YouTube: drawn inside its own progress bar, like SponsorBlock. Other sites:
+  // a thin strip along the bottom of the video that shows while the mouse moves
+  // over it. Settings > "Show skips on the timeline" turns both off.
+  const SEG_COLORS = { intro: '#00e5ff', recap: '#ffb300', outro: '#3d5afe', preview: '#29b6f6', sponsor: '#00d400',
+    selfpromo: '#ffeb3b', interaction: '#cc00ff', music_offtopic: '#ff9900', filler: '#7300ff', poi_highlight: '#ff1684' };
+  function _timelineSpans(segs, duration) {
+    const out = [];
+    if (!segs || !(duration > 0)) return out;
+    for (const key of [...SEG_KEYS, 'poi_highlight']) {
+      const v = segs[key];
+      for (const sg of (Array.isArray(v) ? v : v ? [v] : [])) {
+        const a = Number(sg && sg.start_sec), b = key === 'poi_highlight' ? a : Number(sg && sg.end_sec);
+        if (!Number.isFinite(a) || !Number.isFinite(b) || a >= duration || b < a) continue;
+        const left = Math.max(0, a / duration * 100);
+        const width = key === 'poi_highlight' ? 0.6 : Math.min(100 - left, (Math.min(b, duration) - a) / duration * 100);
+        if (width > 0) out.push({ key, left: Math.round(left * 100) / 100, width: Math.round(width * 100) / 100 });
+      }
+    }
+    return out;
+  }
+  let _tlBox = null, _tlVideo = null, _tlSegs = null, _tlHideT = null, _tlMoveOn = false;
+  function _clearTimeline() { if (_tlBox) _tlBox.remove(); _tlBox = null; _tlSegs = null; }
+  function _placeStrip(box, video) {
+    const fs = document.fullscreenElement || document.webkitFullscreenElement;
+    if (fs) { Object.assign(box.style, { position: 'absolute', left: '0', width: '100%', bottom: '0', top: '' }); return; }
+    const r = video.getBoundingClientRect();
+    Object.assign(box.style, { position: 'fixed', left: r.left + 'px', width: r.width + 'px', top: (r.bottom - 5) + 'px', bottom: '' });
+  }
+  function _renderTimeline(video, segs) {
+    _tlVideo = video; _tlSegs = segs;
+    if (_tlBox) { _tlBox.remove(); _tlBox = null; }
+    if (!prefs.showTimeline || !video || !video.isConnected) return;
+    const d = Number(video.duration);
+    if (!Number.isFinite(d) || d <= 0) { video.addEventListener('durationchange', () => { if (_tlSegs === segs) _renderTimeline(video, segs); }, { once: true }); return; }
+    const spans = _timelineSpans(segs, d);
+    if (!spans.length) return;
+    const box = document.createElement('div');
+    box.id = 'skipstream-timeline';
+    const ytBar = _youtubeVideoId() ? document.querySelector('.ytp-progress-bar') : null;
+    if (ytBar) {
+      box.dataset.ss = 'yt';
+      Object.assign(box.style, { position: 'absolute', left: '0', right: '0', top: '0', bottom: '0', pointerEvents: 'none', zIndex: '40' });
+      ytBar.appendChild(box);
+    } else {
+      Object.assign(box.style, { height: '5px', pointerEvents: 'none', zIndex: '2147483644', opacity: '0', transition: 'opacity 200ms ease' });
+      (document.fullscreenElement || document.webkitFullscreenElement || document.body || document.documentElement).appendChild(box);
+      _placeStrip(box, video);
+      if (!_tlMoveOn) {
+        _tlMoveOn = true;
+        document.addEventListener('mousemove', throttle((e) => {
+          if (!_tlBox || !_tlVideo || _tlBox.dataset.ss === 'yt' || !_tlBox.isConnected) return;
+          const r = _tlVideo.getBoundingClientRect();
+          if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+          _placeStrip(_tlBox, _tlVideo);
+          _tlBox.style.opacity = '1';
+          clearTimeout(_tlHideT);
+          _tlHideT = setTimeout(() => { if (_tlBox) _tlBox.style.opacity = '0'; }, 2500);
+        }, 150), true);
+      }
+    }
+    for (const sp of spans) {
+      const m = document.createElement('div');
+      Object.assign(m.style, { position: 'absolute', top: '0', bottom: '0', left: sp.left + '%', width: Math.max(sp.width, 0.4) + '%',
+        background: SEG_COLORS[sp.key] || '#fff', opacity: '0.9', borderRadius: '1px' });
+      box.appendChild(m);
+    }
+    _tlBox = box;
+  }
+
   function findActiveSegment(segments, currentTime) {
     // A segment needs numeric start < end; null/garbage rows never match.
     function hit(time, s) {
@@ -976,7 +1048,7 @@ function _pageUrl() {
       }
       return hit(time, segmentOrArray) ? segmentOrArray : null;
     }
-    for (const key of ['intro', 'recap', 'outro', 'sponsor', 'selfpromo']) {
+    for (const key of SEG_KEYS) {
       const seg = segments[key];
       const active = isInSegment(currentTime, seg);
       if (active) return { key, segment: active };
@@ -984,8 +1056,24 @@ function _pageUrl() {
     return null;
   }
 
-  const PREF_FOR_SEGMENT = { intro: 'skipIntro', recap: 'skipRecap', outro: 'skipOutro', sponsor: 'skipIntro', selfpromo: 'skipIntro' };
-  const SEGMENT_LABELS   = { intro: '⏭ Skip Intro', recap: '⏭ Skip Recap', outro: '⏭ Skip Outro', sponsor: '⏭ Skip Sponsor', selfpromo: '⏭ Skip Self-promo' };
+  const PREF_FOR_SEGMENT = { intro: 'skipIntro', recap: 'skipRecap', outro: 'skipOutro', preview: 'skipOutro', sponsor: 'skipIntro', selfpromo: 'skipIntro' };
+  const SEGMENT_LABELS   = { intro: '⏭ Skip Intro', recap: '⏭ Skip Recap', outro: '⏭ Skip Outro', preview: '⏭ Skip Preview', sponsor: '⏭ Skip Sponsor', selfpromo: '⏭ Skip Self-promo',
+    interaction: '⏭ Skip Reminder', music_offtopic: '⏭ Skip Non-music', filler: '⏭ Skip Filler' };
+
+  // YouTube (SponsorBlock) categories each have a mode: auto, ask (button) or off
+  // (only drawn on the timeline). Sponsors and self-promo follow the Intros
+  // switch unless set in Settings, as they did before 1.12.
+  const SB_MODE_DEFAULTS = { sponsor: null, selfpromo: null, interaction: 'ask', preview: 'ask', music_offtopic: 'off', filler: 'off', intro: null, outro: null };
+  function _segMode(key, p, yt) {
+    if (!p) return 'ask';
+    if (yt && key in SB_MODE_DEFAULTS) {
+      const set = p.sbModes && typeof p.sbModes === 'object' ? p.sbModes[key] : null;
+      if (set === 'auto' || set === 'ask' || set === 'off') return set;
+      if (SB_MODE_DEFAULTS[key]) return SB_MODE_DEFAULTS[key];
+    }
+    const pk = PREF_FOR_SEGMENT[key];
+    return pk && p[pk] ? 'auto' : 'ask';
+  }
 
   function segmentLabel(key, segment) {
     const base  = SEGMENT_LABELS[key] || `⏭ Skip ${key}`;
@@ -1039,7 +1127,7 @@ function _pageUrl() {
   // best pattern, written fresh here). Undo jumps back and that segment is left
   // alone until it has played past, for this video only.
   const SKIPPED_ID = 'skipstream-skipped-notice';
-  const SKIPPED_NAMES = { intro: 'intro', recap: 'recap', outro: 'outro', sponsor: 'sponsor', selfpromo: 'self-promo' };
+  const SKIPPED_NAMES = { intro: 'intro', recap: 'recap', outro: 'outro', preview: 'preview', sponsor: 'sponsor', selfpromo: 'self-promo', interaction: 'reminder', music_offtopic: 'non-music', filler: 'filler' };
   let _skippedTimer = null;
   function showSkippedNotice(segKey, segment, video, prevTime) {
     clearTimeout(_skippedTimer);
@@ -1102,8 +1190,7 @@ function _pageUrl() {
     const existing = document.getElementById(COUNTDOWN_ID);
     if (existing) existing.remove();
 
-    const prefKey = PREF_FOR_SEGMENT[segKey];
-    const isAutoMode = !!(_ssEffPrefs || prefs)[prefKey]; // true = auto (instant), false/other = prompt
+    const isAutoMode = _segMode(segKey, _ssEffPrefs || prefs, !!_youtubeVideoId()) === 'auto'; // auto = instant, ask = prompt
 
     // FIX 1: Auto mode = instant skip, no countdown
     if (isAutoMode) {
@@ -1561,7 +1648,44 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   let _subOverlay = null;
   let _subCCBtn   = null;
 
+  // Subtitle look (Settings > Subtitles): colour, background, font, outline.
+  let _subStyle = { color: '#ffffff', bg: 38, font: 'sans', outline: true };
+  const SUB_FONTS = { sans: 'system-ui,-apple-system,sans-serif', serif: 'Georgia,"Times New Roman",serif', mono: 'ui-monospace,Consolas,monospace' };
+  function _subLook(st) {
+    const color = /^#[0-9a-f]{6}$/i.test(String(st && st.color)) ? st.color : '#ffffff';
+    const bgN = Number(st && st.bg);
+    const bg = Number.isFinite(bgN) ? Math.max(0, Math.min(90, bgN)) / 100 : 0.38;
+    return {
+      color, fontFamily: SUB_FONTS[st && st.font] || SUB_FONTS.sans, background: 'rgba(0,0,0,' + bg + ')',
+      textShadow: st && st.outline === false ? 'none' : '0 2px 8px rgba(0,0,0,0.7), 0 0 3px rgba(0,0,0,0.9), 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000',
+    };
+  }
+  function _applySubStyle(el) { if (el) Object.assign(el.style, _subLook(_subStyle)); }
+
+  // The sync offset is remembered per film or show (same IMDb id), since each
+  // release is off by its own amount. Shows without a saved offset use the last one.
+  async function _showOffset(id) {
+    if (!id) return null;
+    try { const m = (await br.storage.local.get('subtitle_offsets')).subtitle_offsets || {}; const v = Number(m[id]); return Number.isFinite(v) ? v : null; } catch { return null; }
+  }
+  async function _saveShowOffset(id, v) {
+    if (!id || !Number.isFinite(v)) return;
+    try {
+      const m = (await br.storage.local.get('subtitle_offsets')).subtitle_offsets || {};
+      delete m[id]; m[id] = v;
+      const keys = Object.keys(m); while (keys.length > 200) delete m[keys.shift()];
+      await br.storage.local.set({ subtitle_offsets: m });
+    } catch { /* ok */ }
+  }
+
   async function loadSubPrefs() {
+    try {
+      const st = await br.storage.local.get(['subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline']);
+      if (st.subtitle_color)               _subStyle.color   = st.subtitle_color;
+      if (st.subtitle_bg !== undefined)    _subStyle.bg      = Number(st.subtitle_bg);
+      if (st.subtitle_font)                _subStyle.font    = st.subtitle_font;
+      if (st.subtitle_outline !== undefined) _subStyle.outline = !!st.subtitle_outline;
+    } catch { /* defaults ok */ }
     try {
       const s = await br.storage.local.get(['subtitle_enabled','subtitle_language','subtitle_font_size','subtitle_sync','subtitle_drag_pos']);
       if (s.subtitle_enabled !== undefined) _subState.enabled  = !!s.subtitle_enabled;
@@ -1633,6 +1757,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     });
     subContainer(video).appendChild(el);
     _subOverlay = el;
+    _applySubStyle(el);
 
     // Drag: full x/y control with pointer capture
     let drag = false, sx = 0, sy = 0, sp = { x: _subState.dragPos?.x ?? 50, bottom: _subState.dragPos?.bottom ?? _subState.position };
@@ -1793,7 +1918,11 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     btn.addEventListener('contextmenu', e => {
       e.preventDefault();
       const v = prompt('Subtitle sync offset (seconds, e.g. -1.5):', String(_subState.sync));
-      if (v !== null && !isNaN(parseFloat(v))) { _subState.sync = parseFloat(v); br.storage.local.set({ subtitle_sync: _subState.sync }).catch(() => {}); }
+      if (v !== null && !isNaN(parseFloat(v))) {
+        _subState.sync = parseFloat(v);
+        br.storage.local.set({ subtitle_sync: _subState.sync }).catch(() => {});
+        _saveShowOffset(_subLastInfo && _subLastInfo.imdbId, _subState.sync);
+      }
     });
     subContainer(video).appendChild(btn);
     _subCCBtn = btn;
@@ -1828,6 +1957,8 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
 
     if (!info?.imdbId) { syncCCBtn(); return; }
     _subLastInfo = info;
+    const savedOffset = await _showOffset(info.imdbId);
+    if (savedOffset !== null) _subState.sync = savedOffset;
     // Subtitles off = nothing is sent to OpenSubtitles (no quota, no viewing data).
     if (!_subState.enabled) { syncCCBtn(); return; }
 
@@ -1910,6 +2041,13 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       _subState.sync = parseFloat(changes.subtitle_sync.newValue) || 0;
       if (_subVideo) renderSubFrame(_subVideo);
     }
+    let restyle = false;
+    if ('subtitle_color' in changes)   { _subStyle.color = changes.subtitle_color.newValue || '#ffffff'; restyle = true; }
+    if ('subtitle_bg' in changes)      { _subStyle.bg = Number(changes.subtitle_bg.newValue); restyle = true; }
+    if ('subtitle_font' in changes)    { _subStyle.font = changes.subtitle_font.newValue || 'sans'; restyle = true; }
+    if ('subtitle_outline' in changes) { _subStyle.outline = changes.subtitle_outline.newValue !== false; restyle = true; }
+    if (restyle) _applySubStyle(_subOverlay);
+    if ('showTimeline' in changes && _tlVideo) { if (changes.showTimeline.newValue === false) { if (_tlBox) { _tlBox.remove(); _tlBox = null; } } else if (_tlSegs) _renderTimeline(_tlVideo, _tlSegs); }
     if ('subtitle_drag_pos' in changes) {
       _subState.dragPos = changes.subtitle_drag_pos.newValue || { x: 50, bottom: 10 };
       if (_subOverlay && _subVideo) positionSub(_subOverlay, _subVideo);
@@ -2057,10 +2195,11 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
         return;
       }
       if (gen !== _segGen) return;
-      _diag.segs = fetched ? Object.keys(fetched).join(', ') : 'none found (yet)';
+      _diag.segs = fetched ? Object.keys(fetched).map(k => k === 'full' ? 'whole video: ' + fetched.full : k).join(', ') : 'none found (yet)';
       if (fetched) {
         resolved = true;
         segments = fetched;
+        _renderTimeline(video, segments);
       }
       // else resolved stays false so the timed retries can try again
     }
@@ -2085,6 +2224,9 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
         resolved = false;
         activeSegmentKey = '';
         hideSkipBtn();
+        _clearTimeline();
+        video._ssPoiShown = false;
+        if (video._ssMutedUntil) { video.muted = false; video._ssMutedUntil = 0; }
         _promptedVideos.delete(video);
         if (_subState.source === 'osub') { _subState.subs = []; _subState.source = null; renderSubFrame(video); syncCCBtn(); }
         const resumeOnce = () => { restorePlayback(video).catch(() => {}); };
@@ -2111,18 +2253,49 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
         return;
       }
 
-      const active = findActiveSegment(segments, video.currentTime);
+      const yt = !!_youtubeVideoId();
+      // Muted by a "mute" segment: give the sound back once it is over.
+      if (video._ssMutedUntil && (video.currentTime >= video._ssMutedUntil || video.currentTime < (video._ssMutedFrom || 0) - 1)) {
+        video.muted = false; video._ssMutedUntil = 0;
+      }
+      let active = findActiveSegment(segments, video.currentTime);
+      if (active && _segMode(active.key, effectivePrefs, yt) === 'off') active = null;
       if (active && video._ssCooldownUntil && Date.now() < video._ssCooldownUntil) return;
       if (active && _skipUndone(video, active.key, video.currentTime, getMediaId())) return;
 
+      // SponsorBlock highlight: offer "Jump to highlight" in the first minute.
+      const poi = Array.isArray(segments.poi_highlight) ? segments.poi_highlight[0] : null;
+      if (!active && poi && !video._ssPoiShown && video.currentTime < 60 && video.currentTime < Number(poi.start_sec) - 3) {
+        video._ssPoiShown = true;
+        activeSegmentKey = 'poi';
+        showSkipBtn('⤼ Jump to highlight', () => {
+          video.currentTime = Number(poi.start_sec);
+          _diag.last = { key: 'highlight', at: Date.now(), auto: false, notice: false, undone: false };
+          activeSegmentKey = '';
+          hideSkipBtn();
+        });
+        setTimeout(() => { if (activeSegmentKey === 'poi') { activeSegmentKey = ''; hideSkipBtn(); } }, 8000);
+        return;
+      }
+      // A real segment beats the highlight offer.
+      if (activeSegmentKey === 'poi') { if (!active) return; activeSegmentKey = ''; hideSkipBtn(); }
+
       if (active) {
-        const prefKey = PREF_FOR_SEGMENT[active.key];
+        const mode = _segMode(active.key, effectivePrefs, yt);
         // The 2 s lead is for showing the button; an automatic skip waits for the
         // real start so no content before a sponsor/intro is lost.
-        if (effectivePrefs[prefKey] && video.currentTime < Number(active.segment.start_sec) - 0.3) return;
+        if (mode === 'auto' && video.currentTime < Number(active.segment.start_sec) - 0.3) return;
+        // "Mute" segments (SponsorBlock): automatic mode mutes instead of jumping.
+        if (mode === 'auto' && active.segment.action === 'mute') {
+          if (!video._ssMutedUntil && !video.muted) {
+            video.muted = true; video._ssMutedFrom = Number(active.segment.start_sec); video._ssMutedUntil = Number(active.segment.end_sec);
+            _diag.last = { key: active.key + ' (muted)', at: Date.now(), auto: true, notice: true, undone: false };
+          }
+          return;
+        }
         if (active.key !== activeSegmentKey) {
           activeSegmentKey = active.key;
-          if (effectivePrefs[prefKey]) {
+          if (mode === 'auto') {
             showSkipCountdown(active.key, active.segment, video, () => {
               activeSegmentKey = '';
               hideSkipBtn();

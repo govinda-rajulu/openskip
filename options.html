@@ -281,6 +281,41 @@
           </div>
           <p class="help">To move subtitles, drag them on the video. The spot is remembered.</p>
         </div>
+        <div class="field">
+          <label class="field-label" for="subColor">Subtitle colour</label>
+          <select id="subColor">
+            <option value="#ffffff">White</option>
+            <option value="#ffeb3b">Yellow</option>
+            <option value="#7fe7ff">Cyan</option>
+            <option value="#b9f6ca">Green</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="subFont">Subtitle font</label>
+          <select id="subFont">
+            <option value="sans">Sans</option>
+            <option value="serif">Serif</option>
+            <option value="mono">Monospace</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="subBg">Subtitle background</label>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="subBg" min="0" max="90" step="5" value="38" aria-label="Subtitle background" style="flex:1;min-width:0">
+            <output id="subBgValue" for="subBg" style="min-width:42px;text-align:right;font-size:12px;color:var(--text2)">38%</output>
+          </div>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-name">Outline</div>
+            <div class="toggle-desc">Dark edge around the letters, easier to read on bright scenes</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="subOutline" aria-label="Subtitle outline" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <p class="help">Sync offset: right-click CC on the video. It is remembered for each film or show.</p>
         <div class="btn-row">
           <button class="btn-primary" id="saveOsub">Save &amp; Login</button>
           <button class="btn-ghost" id="logoutOsub">Log Out</button>
@@ -320,6 +355,34 @@
           </select>
           <button class="btn-primary" id="siteRuleAddBtn" style="flex:0 0 auto;padding:9px 16px">Add Rule</button>
         </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-wrap">
+          <h2 class="card-title">YouTube skips (SponsorBlock)</h2>
+          <div class="card-subtitle">What to do with each kind of segment. Auto skips, Ask shows a button, Off only marks it on the timeline</div>
+        </div>
+      </div>
+      <div class="card-body" id="sbModeList">
+        <div class="field"><label class="field-label" for="sbm-sponsor">Sponsors</label><select id="sbm-sponsor" data-sb="sponsor"><option value="">Follow the Intros switch</option><option value="auto">Auto</option><option value="ask">Ask</option><option value="off">Off</option></select></div>
+        <div class="field"><label class="field-label" for="sbm-selfpromo">Self-promotion</label><select id="sbm-selfpromo" data-sb="selfpromo"><option value="">Follow the Intros switch</option><option value="auto">Auto</option><option value="ask">Ask</option><option value="off">Off</option></select></div>
+        <div class="field"><label class="field-label" for="sbm-interaction">"Like and subscribe" reminders</label><select id="sbm-interaction" data-sb="interaction"><option value="">Ask (default)</option><option value="auto">Auto</option><option value="ask">Ask</option><option value="off">Off</option></select></div>
+        <div class="field"><label class="field-label" for="sbm-preview">Previews and recaps</label><select id="sbm-preview" data-sb="preview"><option value="">Ask (default)</option><option value="auto">Auto</option><option value="ask">Ask</option><option value="off">Off</option></select></div>
+        <div class="field"><label class="field-label" for="sbm-music_offtopic">Non-music parts of music videos</label><select id="sbm-music_offtopic" data-sb="music_offtopic"><option value="">Off (default)</option><option value="auto">Auto</option><option value="ask">Ask</option><option value="off">Off</option></select></div>
+        <div class="field"><label class="field-label" for="sbm-filler">Filler and jokes</label><select id="sbm-filler" data-sb="filler"><option value="">Off (default)</option><option value="auto">Auto</option><option value="ask">Ask</option><option value="off">Off</option></select></div>
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-name">Show skips on the timeline</div>
+            <div class="toggle-desc">Coloured marks on YouTube's progress bar; on other sites a thin strip along the video while the mouse moves</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="showTimeline" aria-label="Show skips on the timeline" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <p class="help">"Mute" segments are muted instead of skipped. A highlight, when the video has one, is offered as "Jump to highlight" in the first minute.</p>
       </div>
     </div>
       <div class="card">
@@ -495,6 +558,7 @@
       <div class="card-body">
         <p class="help">This product uses TMDB and the TMDB APIs but is not endorsed, certified or otherwise approved by TMDB. Posters and show data: <a href="https://www.themoviedb.org" target="_blank" rel="noopener">themoviedb.org</a>.</p>
         <p class="help">YouTube sponsor segments: <a href="https://sponsor.ajay.app" target="_blank" rel="noopener">SponsorBlock</a>, data licensed <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a>.</p>
+        <p class="help">Extra intro, recap, credits and preview times: <a href="https://skipdb.tv" target="_blank" rel="noopener">SkipDB</a>, data licensed <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>.</p>
         <p class="help">Skip times: <a href="https://introdb.app" target="_blank" rel="noopener">IntroDB</a> and <a href="https://anime-skip.com" target="_blank" rel="noopener">Anime Skip</a>. Subtitles: <a href="https://www.opensubtitles.com" target="_blank" rel="noopener">OpenSubtitles</a>.</p>
         <p class="help"><a href="https://github.com/govinda-rajulu/openskip/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy policy</a></p>
       </div>

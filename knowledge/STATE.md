@@ -2,6 +2,21 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
+## 3 Oct 2026, evening (1.11.0 released, 1.12.0 packet)
+
+- **1.11.0 released**: PR #79 merged (main 3de59b05, tree `b1c6801a`), tag `v1.11.0`, Build &
+  Release and Submit to AMO both green 3 Oct 12:08 UTC. Device test on 1.11.0: detection, title,
+  poster, subtitles (after the connect-src fix), backup with keys, Undo notice all OK.
+- **Open from that test**: Check this page on 1Shows listed only the main page while the player
+  played; 1Shows showed three subtitle lines (one ours). Site report in 1.12.0 is the tool for both.
+- **1.12.0 packet** (`packet/release-1.12.0-20261003`, base tree `b1c6801a`): site report
+  (`content-scripts/probe.js` via `tabs.executeScript` allFrames + matchAboutBlank; Chrome
+  `scripting` permission), SponsorBlock all categories and actionTypes, per-category modes
+  (`sbModes`), mute and highlight, timeline marks (`showTimeline`), AnimeSkip section ends
+  (query had a non-existent `duration` field; unverified against the live API, needs a client id),
+  SkipDB fallback (api.skipdb.tv, ODbL), subtitle look (`subtitle_color/bg/font/outline`) and
+  per-show offset (`subtitle_offsets`). Tests 138 (14 new, all fail on 1.11.0).
+
 ## 3 Oct 2026 (release 1.11.0 packet)
 
 - **Sweep** (`os-sweep-20261003`, owner Cloud Shell, RESULT OK): main `fe91918b` (tree `38b74d02`);
