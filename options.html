@@ -423,6 +423,11 @@
         </div>
       </div>
       <div class="card-body">
+        <ol class="help" style="margin:0 0 12px;padding-left:18px">
+          <li><strong>Save:</strong> pick what to include, type a passphrase if keys are on, press Export All.</li>
+          <li><strong>Restore:</strong> on the other browser, type the same passphrase, press Import Backup, pick the file.</li>
+          <li>The page reloads with everything back. Nothing is deleted on either browser.</li>
+        </ol>
         <div class="toggle-row">
           <div class="toggle-info">
             <div class="toggle-name">Include keys and logins</div>
@@ -446,7 +451,7 @@
         <div class="field" style="margin-top:14px">
           <label class="field-label" for="backupPass">Backup passphrase</label>
           <input type="password" id="backupPass" placeholder="At least 8 characters" autocomplete="new-password" spellcheck="false">
-          <p class="help">Needed to export keys and logins, and to import a backup that has them. It is never stored; if you lose it, those keys cannot be restored.</p>
+          <p class="help">Only for keys and logins. Never stored: lose it and the keys in that file are gone.</p>
         </div>
         <div class="btn-row">
           <button class="btn-primary" id="exportBtn">Export All</button>

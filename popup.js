@@ -310,9 +310,14 @@ function diagText(r) {
   const lines = f.map(x => (x.top ? 'Page ' : 'Frame ') + x.frame + ': ' + plural(x.videos, 'video')
     + (x.hidden ? ', ' + x.hidden + ' inside a player' : '')
     + (x.blankFrames ? ', ' + plural(x.blankFrames, 'blank frame') : '')
-    + (x.attached ? ', in use' : ''));
+    + (x.attached ? ', in use' : '')
+    + (x.attached && x.ident ? '\n  what: ' + x.ident : '')
+    + (x.attached && x.segs ? '\n  skips found: ' + x.segs : '')
+    + (x.attached && x.auto ? '\n  mode: ' + x.auto : '')
+    + (x.attached && x.last ? '\n  last skip: ' + x.last : '')
+    + (x.attached && x.subs ? '\n  subtitles: ' + x.subs : ''));
   const head = f.some(x => x.attached) ? 'SkipStream is watching a video here.'
-    : 'No video in use yet. Start the video, then check again.';
+    : 'No video in use yet. Press play first (on movie sites pick a source), then check again while it plays.';
   return head + '\n' + lines.join('\n');
 }
 

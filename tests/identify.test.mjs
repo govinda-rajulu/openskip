@@ -195,3 +195,63 @@ test('skip: a show page without S/E is not looked up as a movie', () => {
 test('keys: Alt+Z works on macOS (Option+Z types a symbol)', () => {
   assert.match(CONTENT, /e\.altKey && \(e\.code === 'KeyZ'/);
 });
+
+// ── Device test 3 Oct ─────────────────────────────────────────────────────────
+test('subtitles: every OpenSubtitles host may be fetched (download links are on www.opensubtitles.com)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const ff = JSON.parse(readFileSync('manifest.json', 'utf8')).content_security_policy;
+  const cr = JSON.parse(readFileSync('manifest-chrome.json', 'utf8')).content_security_policy.extension_pages;
+  for (const csp of [ff, cr]) {
+    const src = csp.split(';').find(d => d.trim().startsWith('connect-src')).trim().split(/\s+/);
+    assert.ok(src.includes('https://*.opensubtitles.com'), csp);
+    assert.ok(src.includes('https://*.opensubtitles.org'), csp);
+  }
+});
+
+test('backup: the card says how to save and restore in three short steps', async () => {
+  const { readFileSync } = await import('node:fs');
+  const html = readFileSync('options.html', 'utf8');
+  const card = html.slice(html.indexOf('Backup &amp; Restore'), html.indexOf('id="alert-export"'));
+  assert.match(card, /<strong>Save:<\/strong>/);
+  assert.match(card, /<strong>Restore:<\/strong>/);
+});
+
+// ── Check this page: what each frame found (for device tests) ─────────────────
+test('page check: each player frame says what it found, the skip mode and the last skip', async () => {
+  const { _diagLast, _diagAuto } = contentFns(['_diagLast', '_diagAuto'], [], { Math });
+  assert.equal(_diagLast({ key: 'sponsor', at: 1000, auto: true, notice: false, undone: false }, 13000), 'sponsor 12 s ago, automatic, NO notice');
+  assert.equal(_diagLast({ key: 'intro', at: 0, auto: true, notice: true, undone: true }, 2000), 'intro 2 s ago, automatic, notice shown, undone');
+  assert.equal(_diagLast(null, 0), '');
+  assert.equal(_diagAuto({ skipEnabled: true, skipIntro: true }), 'auto: intros and sponsors');
+  assert.equal(_diagAuto({ skipEnabled: true }), 'ask first (button)');
+  assert.equal(_diagAuto({ skipEnabled: false, skipIntro: true }), 'skipping off');
+
+  const bg = loadBackground({ storage: {} });
+  const run = bg.send({ type: 'SS_DIAG_RUN', tabId: 1 });
+  await new Promise(r => setTimeout(r, 50));
+  await bg.send({ type: 'SS_DIAG_REPORT', report: { frame: 'www.viduki.net/1/movie/603', top: false, videos: 1, attached: 1,
+    ident: 'tt0133093 (movie)', segs: 'outro', subs: 'OpenSubtitles, 1200 lines', last: 'outro 3 s ago, automatic, notice shown', auto: 'auto: outros' } });
+  const r = await run;
+  const vm = await import('node:vm');
+  const { extractFunction } = await import('./harness.mjs');
+  const diagText = vm.runInNewContext('(' + extractFunction(read('popup.js'), 'diagText') + ')', { Array, String });
+  const t = diagText(j(r));
+  for (const want of ['what: tt0133093 (movie)', 'skips found: outro', 'mode: auto: outros', 'last skip: outro 3 s ago, automatic, notice shown', 'subtitles: OpenSubtitles, 1200 lines'])
+    assert.ok(t.includes(want), want + ' missing in:\n' + t);
+});
+
+test('page check: skips record whether the notice was shown and undone', () => {
+  assert.match(CONTENT, /_diag\.last = \{ key: segKey, at: Date\.now\(\), auto: true, notice: false, undone: false \};\n\s*showSkippedNotice/);
+  assert.match(CONTENT, /container\.appendChild\(box\);\n\s*if \(_diag\.last\) _diag\.last\.notice = true;/);
+  assert.match(CONTENT, /if \(_diag\.last\) _diag\.last\.undone = true;/);
+});
+
+test('busy pages: the walk into player components runs at most every 2 s, with a trailing run', () => {
+  const f = CONTENT.slice(CONTENT.indexOf('function scanVideos'), CONTENT.indexOf('const debouncedScan'));
+  assert.match(f, /const wait = 2000 - \(Date\.now\(\) - _shadowAt\);/);
+  assert.match(f, /_shadowTimer = setTimeout\(\(\) => \{ _shadowTimer = null; scanVideos\(\); \}, wait\)/);
+});
+
+test('popup: the Intros mode says it also skips YouTube sponsors', () => {
+  assert.match(read('popup.html'), /<span class="smc-name">Intros<\/span><span class="smc-desc">Intros \+ sponsors<\/span>/);
+});

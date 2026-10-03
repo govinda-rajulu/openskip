@@ -10,11 +10,12 @@
 ### Added
 - Backup restores the whole extension: settings, per-site rules, stats and history (merged, newer wins), and if you choose, your keys and logins (encrypted with a passphrase) and your sync identity ("Link devices")
 - After an automatic skip, a "Skipped intro" notice with Undo
-- Popup "Check this page" lists every frame and the videos SkipStream can see
+- Popup "Check this page" lists every frame and the videos SkipStream can see, and for the player: what it identified, which skips were found, the skip mode, the last skip (and whether its notice showed or was undone) and the subtitle state
 - Sites with no ids at all (title only): with your TMDB key, an exact title match finds the film or show, so skips and subtitles work there too. Same-name works with nothing to tell them apart are left alone
 - "Find subtitles" searches OpenSubtitles by title when a video has no id (on YouTube it says why it cannot)
 
 ### Fixed
+- Online subtitles never downloaded ("NetworkError"): the file comes from www.opensubtitles.com, which the extension's own security policy blocked. All OpenSubtitles hosts are now allowed
 - Embedded players (movie sites with several sources) were only found if the video appeared within 5 seconds; now any time, also when the player hides the video inside its own component
 - Embedded players saved history with the site's home page as the address and the player's own title ("Player"), so Resume from history opened the home page. They now use the tab's real address and title, and read ids and season/episode from it
 - Titles: only the site name and streaming filler ("Watch", "Online Free", "HD") are removed; a title with its own dash ("Spider-Man - Into the Spider-Verse") is kept whole
@@ -25,6 +26,8 @@
 - After YouTube moved to the next video, sponsor segments were looked up 1.5 seconds late
 - Any site's ?v= address was treated as a YouTube video
 - Alt+Z did nothing on macOS
+- Pages with no plain video (YouTube home, store grids) were searched for hidden players on every change; now at most every 2 seconds
+- The Intros skip mode now says it also skips YouTube sponsors (it always did)
 - Undo during a skip countdown started a new countdown half a second later
 - Import replaced this browser's history and site rules with the backup's; it now merges them
 - Export no longer copies caches (subtitle text, TMDB lookups) into the backup file

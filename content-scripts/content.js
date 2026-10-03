@@ -123,6 +123,8 @@
   const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipEnabled: true, autoNextEpisode: false, deviceName: '' };
   let prefs = { ...PREF_DEFAULTS };
 let _ssEffPrefs = null;
+// What this frame found, for the popup's "Check this page" (local only, never sent anywhere).
+const _diag = { id: '', segs: '', last: null, subs: '' };
 
   async function loadPrefs() {
     try {
@@ -1073,12 +1075,14 @@ function _pageUrl() {
     undo.onclick = e => {
       e.preventDefault(); e.stopPropagation();
       video._ssUndone = { key: segKey, until: segment.end_sec, media: getMediaId() };
+      if (_diag.last) _diag.last.undone = true;
       try { if (video.isConnected) video.currentTime = prevTime; } catch { /* ok */ }
       close();
     };
     box.appendChild(msg);
     box.appendChild(undo);
     container.appendChild(box);
+    if (_diag.last) _diag.last.notice = true;
     requestAnimationFrame(() => { box.style.opacity = '1'; box.style.transform = 'translate3d(0, 0, 0)'; });
     _skippedTimer = setTimeout(close, 5000);
   }
@@ -1107,6 +1111,7 @@ function _pageUrl() {
       video.currentTime = segment.end_sec;
       video._ssCooldownUntil = Date.now() + 1500;
       recordSkipStat(segment.end_sec - prevTime);
+      _diag.last = { key: segKey, at: Date.now(), auto: true, notice: false, undone: false };
       showSkippedNotice(segKey, segment, video, prevTime);
       onDone();
       return;
@@ -1167,6 +1172,7 @@ function _pageUrl() {
       video.currentTime = segment.end_sec;
       video._ssCooldownUntil = Date.now() + 1500;
       recordSkipStat(segment.end_sec - prevTime);
+      _diag.last = { key: segKey, at: Date.now(), auto: false, notice: false, undone: false };
       finish();
     };
 
@@ -1814,6 +1820,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       if (s.subtitle_override_srt) {
         _subState.subs = parseSubs(s.subtitle_override_srt);
         _subState.source = 'override';
+        _diag.subs = 'your file';
         syncCCBtn();
         return;
       }
@@ -1837,6 +1844,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
         _subState.subs = parseSubs(result.text);
         _subState.source = 'osub';
       }
+      _diag.subs = _subState.subs.length ? 'OpenSubtitles, ' + _subState.subs.length + ' lines' : 'none (' + String(result?.err || 'no answer').slice(0, 60) + ')';
     } catch { /* subtitle fetch failed, extension still works */ }
     _subState.loading = false; syncCCBtn();
   }
@@ -1864,10 +1872,11 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     } catch { result = null; }
     _subState.loading = false;
     if (location.href !== reqHref) { syncCCBtn(); return { ok: false, reason: 'navigated' }; }
-    if (!result?.ok || !result.text) { syncCCBtn(); return { ok: false, reason: result?.err || 'no_answer' }; }
+    if (!result?.ok || !result.text) { _diag.subs = 'none (' + String(result?.err || 'no answer').slice(0, 60) + ')'; syncCCBtn(); return { ok: false, reason: result?.err || 'no_answer' }; }
     const subs = parseSubs(result.text);
     if (!subs.length) { syncCCBtn(); return { ok: false, reason: 'unreadable' }; }
     _subState.subs = subs; _subState.source = 'osub';
+    _diag.subs = 'OpenSubtitles, ' + subs.length + ' lines';
     syncCCBtn();
     if (video) renderSubFrame(video);
     return { ok: true, count: subs.length, name: result.name || '' };
@@ -2021,6 +2030,9 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       await _sitePrefsReady;
       const info = await resolveShowInfo();
       if (gen !== _segGen) return;
+      _diag.id = _youtubeVideoId() ? 'YouTube video'
+        : info.imdbId ? info.imdbId + (info.season && info.episode ? ' S' + info.season + 'E' + info.episode : info.tmdbKind === 'tv' ? ' (show, no episode)' : ' (movie)') + (info.byTitle ? ', matched by title' : '')
+        : 'not identified' + (info.title ? ' (title "' + String(info.title).slice(0, 60) + '")' : '');
 
       // Init subtitles for any identified content (movies + TV), not just skippable episodes
       if (!_subState.subs.length && !_subState.loading) {
@@ -2041,9 +2053,11 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
         // A show page without S/E is not a movie: nothing to look up yet.
         fetched = await fetchSegments(info.imdbId, 0, 0, true);
       } else {
+        _diag.segs = 'nothing to look up';
         return;
       }
       if (gen !== _segGen) return;
+      _diag.segs = fetched ? Object.keys(fetched).join(', ') : 'none found (yet)';
       if (fetched) {
         resolved = true;
         segments = fetched;
@@ -2119,6 +2133,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
               video.currentTime = active.segment.end_sec;
               video._ssCooldownUntil = Date.now() + 1500;
               recordSkipStat(active.segment.end_sec - prevTime);
+              _diag.last = { key: active.key, at: Date.now(), auto: false, notice: false, undone: false };
               activeSegmentKey = '';
               hideSkipBtn();
             });
@@ -2173,10 +2188,20 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     // ── DOM scanning + SPA navigation ─────────────────────────────────────────
 
     const _watchedShadows = new WeakSet();
+    // The walk into player components looks at every element, so on busy pages
+    // with no plain <video> (YouTube home, store grids) it runs at most every 2 s,
+    // with one trailing run so a late player is still found.
+    let _shadowAt = 0, _shadowTimer = null;
     function scanVideos() {
       const light = document.querySelectorAll('video');
       light.forEach(v => attachVideo(v));
       if (light.length) return;
+      const wait = 2000 - (Date.now() - _shadowAt);
+      if (wait > 0) {
+        if (!_shadowTimer) _shadowTimer = setTimeout(() => { _shadowTimer = null; scanVideos(); }, wait);
+        return;
+      }
+      _shadowAt = Date.now();
       _shadowVideos(document, 0, [], 6, sr => {
         if (_watchedShadows.has(sr)) return;
         _watchedShadows.add(sr);
@@ -2340,6 +2365,19 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   if (window === window.top) _ssStart();
   else _waitForVideo(document, _ssStart);
 
+  function _diagLast(l, now) {
+    if (!l) return '';
+    const ago = Math.max(0, Math.round((now - l.at) / 1000));
+    return l.key + ' ' + ago + ' s ago, ' + (l.auto ? 'automatic' : 'by you')
+      + (l.auto ? (l.notice ? ', notice shown' : ', NO notice') : '') + (l.undone ? ', undone' : '');
+  }
+  function _diagAuto(p) {
+    if (!p) return '';
+    if (!p.skipEnabled) return 'skipping off';
+    const on = [p.skipIntro && 'intros and sponsors', p.skipRecap && 'recaps', p.skipOutro && 'outros'].filter(Boolean);
+    return on.length ? 'auto: ' + on.join(', ') : 'ask first (button)';
+  }
+
   // "Check this page" in the popup: every frame reports what it sees, even one
   // still waiting for a video. Reports go to the background (local only).
   br.runtime.onMessage.addListener((msg) => {
@@ -2356,6 +2394,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       br.runtime.sendMessage({ type: 'SS_DIAG_REPORT', report: {
         frame: (location.hostname || location.protocol) + location.pathname, top: window === window.top,
         videos: light.length, hidden: hidden.length, blankFrames: blank, attached,
+        ident: _diag.id, segs: _diag.segs, subs: _diag.subs, last: _diagLast(_diag.last, Date.now()), auto: _diagAuto(_ssEffPrefs || prefs),
       } }).catch(() => {});
     } catch { /* never break the page */ }
     return false;

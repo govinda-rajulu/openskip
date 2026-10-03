@@ -919,6 +919,9 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         frame: String(r.frame || '').slice(0, 120), top: !!r.top,
         videos: Number(r.videos) || 0, hidden: Number(r.hidden) || 0,
         blankFrames: Number(r.blankFrames) || 0, attached: Number(r.attached) || 0,
+        ident: String(r.ident || '').slice(0, 120), segs: String(r.segs || '').slice(0, 120),
+        subs: String(r.subs || '').slice(0, 120), last: String(r.last || '').slice(0, 120),
+        auto: String(r.auto || '').slice(0, 80),
       });
     }
     sendResponse({ ok: true });

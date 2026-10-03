@@ -27,6 +27,14 @@ Newest checkpoint first. Each section is a dated snapshot; verify live before ac
   "Find subtitles" by title (popup only, never YouTube); auto-skip waits for the real start;
   next YouTube video resolves at once; `?v=` on other sites is not YouTube; Alt+Z on macOS.
   Tests 118 (21 new in identify.test.mjs, all 21 fail on the first packet's tree).
+- **Device test of #79 (owner, 3 Oct 16:00)**: first run was the old build (1.10 popup text);
+  check the version in about:debugging first. On 1.11.0: CC button, history title and poster
+  on 1Shows OK; YouTube subtitles reason OK; backup export/import with keys OK. Found:
+  "Find subtitles" gave NetworkError (download link on www.opensubtitles.com, blocked by
+  connect-src since before 1.10: fixed with *.opensubtitles.com); backup card had no short
+  steps (added). Open: Undo notice not seen on YouTube; Check this page listed only the top page.
+  Added for the retest: Check this page now shows per player what was identified, skips found,
+  mode, last skip (notice shown / undone) and subtitles; shadow walk throttled to 2 s.
 - **Found 3 Oct: cross-device sync did not work since 19 Jul** (c89ec20, in 1.10.0): each install
   has its own random `skipstream_install_id`, every RPC filters by it. 1.11.0 lets the owner
   link browsers with a backup; the Supabase login in 1.12.0 is the full fix.
