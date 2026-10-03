@@ -9,27 +9,24 @@ const badgeAPI = br.action || br.browserAction;
 
 // ── Magic number constants ─────────────────────────────────────────────────────
 
-const TMDB_CACHE_MAX = 200;
+const TMDB_CACHE_MAX = 500;
 const OFFLINE_QUEUE_MAX = 50;
 const OSUB_CACHE_MAX = 20;
 const FETCH_RETRY_COUNT = 3;
 const FETCH_RETRY_BASE_MS = 1000;
 const QUEUE_FLUSH_INTERVAL_MIN = 5;
-// Chrome clamps alarms below its minimum period. Chrome 120+ allows
-// 0.5 min; older builds clamp to 1 min. Requesting 0.5 is the shortest
-// interval that is honoured rather than silently rewritten.
-const HEARTBEAT_INTERVAL_MIN = 0.5;
 const CONFIG_CACHE_TTL_MS = 30000;
 
-// ── SW keepalive alarm ────────────────────────────────────────────────────────
-// Chrome SW dies after ~30s idle. An alarm fires every 25s to keep it awake
-// for pending operations. Only registered in SW context (Chrome MV3).
+// ── Alarms ────────────────────────────────────────────────────────────────────
+// Up to 1.10 a 30-second "keepalive" alarm held the Chrome service worker awake.
+// Chrome discourages that: events (messages, alarms, fetches) wake the worker and
+// state lives in storage. Older installs still have the alarm, so clear it.
 
 const ALARM_HEARTBEAT   = 'ss_heartbeat';
 const ALARM_QUEUE_FLUSH = 'ss_queue_flush';
 
 if (IS_SW) {
-  br.alarms.create(ALARM_HEARTBEAT,   { periodInMinutes: HEARTBEAT_INTERVAL_MIN });
+  try { Promise.resolve(br.alarms.clear(ALARM_HEARTBEAT)).catch(() => {}); } catch { /* ok */ }
 }
 // The queue flush + daily cleanup alarm is needed on Firefox too (it was SW-only,
 // so Firefox never flushed the offline queue or pruned old rows). get-then-create:
@@ -39,10 +36,6 @@ Promise.resolve(br.alarms.get(ALARM_QUEUE_FLUSH))
   .catch(() => { try { br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: QUEUE_FLUSH_INTERVAL_MIN }); } catch { /* ok */ } });
 
 br.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === ALARM_HEARTBEAT) {
-    // No-op touch of storage keeps SW alive for pending fetch chains
-    try { await br.storage.local.get('_ss_alive'); } catch { /* ok */ }
-  }
   if (alarm.name === ALARM_QUEUE_FLUSH) {
     await flushOfflineQueue();
     await cleanupOldData();
@@ -69,6 +62,108 @@ function tmdbFetch(path, key) {
   const url = 'https://api.themoviedb.org/3' + path +
     (v4 ? '' : (path.includes('?') ? '&' : '?') + 'api_key=' + encodeURIComponent(k));
   return fetchWithRetry(url, v4 ? { headers: { Authorization: `Bearer ${k}` } } : {});
+}
+
+// ── Title matching (posters, title -> IMDb id) ───────────────────────────────
+const _TITLE_STOP = new Set(['the', 'a', 'an', 'of', 'and', 'in', 'on', 'to']);
+function _normTitle(t) {
+  return String(t || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+function _sameTitle(a, b) {
+  const x = _normTitle(a).replace(/^the /, ''), y = _normTitle(b).replace(/^the /, '');
+  return !!x && x === y;
+}
+// Most of the work's own words appear in the page title.
+function _looseTitle(pageTitle, workTitle) {
+  const page = new Set(_normTitle(pageTitle).split(' '));
+  const words = _normTitle(workTitle).split(' ').filter(w => w && !_TITLE_STOP.has(w));
+  if (!words.length) return true;
+  return words.filter(w => page.has(w)).length / words.length >= 0.6;
+}
+// "Watch The Matrix (1999) Online Free | 1Shows" -> { q: "The Matrix", year: 1999, tv: false }
+// "Dark - S01E02 - Lies" -> { q: "Dark", year: null, tv: true }
+function cleanMediaTitle(raw) {
+  let t = String(raw || '').slice(0, 300).replace(/\s+/g, ' ').trim();
+  let tv = false, year = null;
+  t = t.split(/\s+\|\s+/)[0];
+  t = t.replace(/^\s*watch\s+/i, '');
+  const se = /\b(?:S\d{1,2}\s*[:\u00b7\u2022-]?\s*E\d{1,3}|Season\s+\d+|Episode\s+\d+|Ep\.?\s*\d+|\d{1,2}x\d{1,3})\b.*$/i;
+  if (se.test(t)) { tv = true; t = t.replace(se, ''); }
+  const maxYear = new Date().getFullYear() + 1;
+  const y = t.match(/[(\[]\s*((?:19|20)\d{2})\s*[)\]]/) || t.match(/\s((?:19|20)\d{2})\s*$/);
+  if (y && parseInt(y[1], 10) <= maxYear) {
+    const rest = t.replace(y[0], ' ').trim();
+    if (/[a-z]{2}/i.test(rest)) { year = parseInt(y[1], 10); t = rest; }
+  }
+  t = t.replace(/\s+(?:online|free|hd|full movie|full episodes?|streaming|english sub(?:bed)?|dubbed)(?=\s|$)/gi, ' ')
+       .replace(/[\s:|\u00b7\u2013\u2014-]+$/, '').replace(/^[\s:|\u00b7\u2013\u2014-]+/, '').replace(/\s+/g, ' ').trim();
+  return { q: t.slice(0, 100), year, tv };
+}
+
+function _tmdbYearParam(kind, year) {
+  if (!year) return '';
+  return kind === 'movie' ? `&year=${year}` : `&first_air_date_year=${year}`;
+}
+
+// Title -> IMDb id for sites that carry no ids. Exact name only; two works
+// with the same name and nothing to tell them apart give no answer.
+async function tmdbFindTitle(title, year, kind, key) {
+  const c = cleanMediaTitle(title);
+  const q = c.q;
+  const y = /^(19|20)\d{2}$/.test(String(year || '')) ? Number(year) : c.year;
+  const k = kind === 'movie' || kind === 'tv' ? kind : (c.tv ? 'tv' : '');
+  if (!q || q.length < 2) return { answered: true, imdbId: null };
+  let answered = true;
+  const hits = [];
+  for (const kd of (k ? [k] : ['movie', 'tv'])) {
+    const r = await tmdbFetch(`/search/${kd}?query=${encodeURIComponent(q)}&page=1&include_adult=false${_tmdbYearParam(kd, y)}`, key);
+    if (!r.ok) { answered = false; continue; }
+    const d = await r.json();
+    for (const x of (d.results || []).slice(0, 10)) {
+      if ([x.title, x.name, x.original_title, x.original_name].some(n => _sameTitle(n, q))) {
+        hits.push({ kind: kd, id: x.id, pop: Number(x.popularity) || 0 });
+      }
+    }
+  }
+  if (!hits.length) return { answered, imdbId: null };
+  hits.sort((a, b) => b.pop - a.pop);
+  if (hits.length > 1 && !y && hits[0].pop < hits[1].pop * 3) return { answered, imdbId: null, ambiguous: true };
+  const best = hits[0];
+  const r = await tmdbFetch(`/${best.kind}/${best.id}/external_ids`, key);
+  if (!r.ok) return { answered: false, imdbId: null };
+  const ext = await r.json();
+  const imdbId = /^tt\d{7,8}$/.test(String(ext?.imdb_id || '')) ? ext.imdb_id : null;
+  return { answered: true, imdbId, kind: best.kind, tmdbId: best.id };
+}
+
+// History artwork. A known TMDB id (movie/603, tv/1399) is used directly when
+// its name matches the saved title; otherwise an exact-name search, preferring
+// the kind the title suggests. Portrait posters first: the history slot is tall.
+async function tmdbPoster(mediaId, title, key) {
+  const pick = x => (x ? (x.poster_path || x.backdrop_path || null) : null);
+  const c = cleanMediaTitle(title);
+  let allOk = true;
+  const m = /^(movie|tv)\/(\d+)$/.exec(String(mediaId || ''));
+  if (m) {
+    const r = await tmdbFetch(`/${m[1]}/${m[2]}`, key);
+    if (r.ok) {
+      const d = await r.json();
+      if (!c.q || _looseTitle(title, d.title || d.name || '')) { const pp = pick(d); if (pp) return { path: pp, allOk }; }
+    } else if (r.status !== 404) allOk = false;
+  }
+  if (!c.q) return { path: null, allOk };
+  let first = null;
+  for (const kd of (c.tv ? ['tv', 'movie'] : ['movie', 'tv'])) {
+    const r = await tmdbFetch(`/search/${kd}?query=${encodeURIComponent(c.q)}&page=1${_tmdbYearParam(kd, c.year)}`, key);
+    if (!r.ok) { allOk = false; continue; }
+    const d = await r.json();
+    const res = (d.results || []).filter(x => pick(x));
+    const exact = res.find(x => [x.title, x.name, x.original_title, x.original_name].some(n => _sameTitle(n, c.q)));
+    if (exact) return { path: pick(exact), allOk };
+    if (!first && res[0]) first = res[0];
+  }
+  return { path: pick(first), allOk };
 }
 
 async function getTmdbCache() {
@@ -215,6 +310,19 @@ async function setTabState(tabId, value) {
   } catch { /* best-effort */ }
 }
 
+// ── Firefox data consent (audit H23b) ─────────────────────────────────────────
+// Stats, the settings backup and the browser/device name are "technical and
+// interaction data". Firefox only allows that category as optional: on by
+// default, switchable at install and in about:addons. Check it before every
+// send. Chrome has no data_collection key, so nothing changes there.
+async function techDataAllowed() {
+  try {
+    const p = await br.permissions.getAll();
+    if (!p || !Array.isArray(p.data_collection)) return true;
+    return p.data_collection.includes('technicalAndInteraction');
+  } catch { return false; }
+}
+
 // ── Supabase URL validation ───────────────────────────────────────────────────────
 
 function isValidSupabaseUrl(url) {
@@ -234,6 +342,7 @@ async function supabaseUpsert(body, { keepalive = false } = {}) {
   const { supabaseUrl, supabaseAnonKey } = await getConfig();
   if (!supabaseUrl || !supabaseAnonKey) return { ok: false, err: 'not_configured' };
   if (!isValidSupabaseUrl(supabaseUrl)) return { ok: false, err: 'invalid_url' };
+  if (body && body.device_name != null && !(await techDataAllowed())) body = { ...body, device_name: null };
   try {
     const res = await fetchWithRetry(
       `${supabaseUrl}/rest/v1/rpc/ss_put_playback`,
@@ -517,6 +626,7 @@ br.storage.onChanged.addListener((changes, area) => {
     try {
       const { supabaseUrl, supabaseAnonKey } = await getConfig();
       if (!supabaseUrl || !supabaseAnonKey || !isValidSupabaseUrl(supabaseUrl)) return;
+      if (!(await techDataAllowed())) return;
       const userId = await getDerivedUserId();
       if (!userId) return;
       const snap = await settingsSnapshot({});
@@ -599,23 +709,29 @@ async function osubLogin(username, password) {
   } catch (e) { return { ok: false, err: String(e) }; }
 }
 
-async function osubSearch(imdbId, season, episode, language, sess) {
+async function osubSearch(imdbId, season, episode, language, sess, query, year) {
   const base = `https://${osubHost(sess?.base_url)}/api/v1`;
   const headers = { 'Api-Key': OSUB_API_KEY, 'User-Agent': OSUB_UA };
   if (sess?.token) headers['Authorization'] = 'Bearer ' + sess.token;
 
-  const numericId = (imdbId || '').replace(/^tt/, '');
-  if (!numericId) return null;
+  const numericId = /^tt\d{7,8}$/.test(String(imdbId || '')) ? String(imdbId).slice(2) : '';
+  const q = String(query || '').replace(/\s+/g, ' ').trim().slice(0, 100);
+  if (!numericId && !q) return null;
 
   const params = new URLSearchParams({
-    imdb_id:         numericId,
     languages:       language || 'en',
     order_by:        'download_count',
     order_direction: 'desc',
   });
+  if (numericId) params.set('imdb_id', numericId);
+  else {
+    params.set('query', q);
+    if (/^(19|20)\d{2}$/.test(String(year || ''))) params.set('year', String(year));
+  }
   if (season)  params.set('season_number',  String(season));
   if (episode) params.set('episode_number', String(episode));
-  params.set('type', (season && episode) ? 'episode' : 'movie');
+  // A title search without S/E may be either kind: let OpenSubtitles decide.
+  if (numericId || (season && episode)) params.set('type', (season && episode) ? 'episode' : 'movie');
 
   try {
     const r = await fetchWithRetry(`${base}/subtitles?${params}`, { headers });
@@ -693,9 +809,6 @@ async function osubDownload(file_id, sess) {
 br.runtime.onInstalled.addListener(async ({ reason }) => {
   // Re-register alarms in case they were cleared by browser update or SW restart
   if (IS_SW) {
-    br.alarms.get(ALARM_HEARTBEAT).then(a => {
-      if (!a) br.alarms.create(ALARM_HEARTBEAT, { periodInMinutes: HEARTBEAT_INTERVAL_MIN });
-    }).catch(() => { br.alarms.create(ALARM_HEARTBEAT, { periodInMinutes: HEARTBEAT_INTERVAL_MIN }); });
     br.alarms.get(ALARM_QUEUE_FLUSH).then(a => {
       if (!a) br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: 5 });
     }).catch(() => { br.alarms.create(ALARM_QUEUE_FLUSH, { periodInMinutes: 5 }); });
@@ -731,12 +844,112 @@ br.storage.onChanged.addListener((changes, area) => {
   }
 });
 
+// ── Device linking (backup restore) ──────────────────────────────────────────
+// Restoring a backup that carries a sync identity makes this browser share
+// history with the browser that made it. This browser's own cloud rows move to
+// that id first (the newer position wins), so nothing it saved is lost. If the
+// move fails, the id is not switched.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function adoptInstallId(newId) {
+  if (!UUID_RE.test(String(newId || ''))) return { ok: false, err: 'bad_id' };
+  const oldId = await getDerivedUserId();
+  if (oldId === newId) return { ok: true, moved: 0, same: true };
+  let moved = 0;
+  const { supabaseUrl, supabaseAnonKey } = await getConfig();
+  if (oldId && supabaseUrl && supabaseAnonKey && isValidSupabaseUrl(supabaseUrl)) {
+    try {
+      const r = await fetchWithRetry(`${supabaseUrl}/rest/v1/rpc/ss_get_playback_all`, {
+        method: 'POST',
+        headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_user_id: oldId }),
+      });
+      if (!r.ok) return { ok: false, err: 'move_failed' };
+      const rows = await r.json();
+      for (const row of Array.isArray(rows) ? rows : []) {
+        if (!row || !row.media_id) continue;
+        const res = await supabaseUpsert({ ...row, user_id: newId });
+        if (!res.ok) return { ok: false, err: 'move_failed', moved };
+        moved++;
+      }
+    } catch { return { ok: false, err: 'move_failed', moved }; }
+  }
+  await br.storage.local.set({ [INSTALL_ID_KEY]: newId });
+  try { await br.storage.local.remove('_ss_cloud_sync_ts'); } catch { /* ok */ }
+  _cachedUserId = newId;
+  return { ok: true, moved };
+}
+
+// ── "Check this page" (popup) ────────────────────────────────────────────────
+// A tab message reaches every frame, but only the first answer comes back. So
+// each frame reports to the background instead, and the popup reads them all.
+const _diagReports = {};
+
+async function runPageCheck(tabId) {
+  _diagReports[tabId] = [];
+  try { await br.tabs.sendMessage(tabId, { type: 'SS_DIAG_PING' }); } catch { /* frames may not answer */ }
+  await new Promise(r => setTimeout(r, 1200));
+  const out = _diagReports[tabId] || [];
+  delete _diagReports[tabId];
+  return { ok: true, frames: out.slice(0, 40) };
+}
+
 // ── Message router ────────────────────────────────────────────────────────────
 
 br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const msg = message;
 
   
+  if (msg.type === 'ADOPT_INSTALL_ID') {
+    adoptInstallId(msg.installId).then(sendResponse, e => sendResponse({ ok: false, err: String(e) }));
+    return true;
+  }
+
+  if (msg.type === 'SS_DIAG_RUN') {
+    if (!Number.isInteger(msg.tabId)) { sendResponse({ ok: false, err: 'no_tab' }); return; }
+    runPageCheck(msg.tabId).then(sendResponse, () => sendResponse({ ok: false, err: 'failed' }));
+    return true;
+  }
+
+  if (msg.type === 'SS_DIAG_REPORT') {
+    const tabId = sender?.tab?.id;
+    if (Number.isInteger(tabId) && _diagReports[tabId] && msg.report && typeof msg.report === 'object') {
+      const r = msg.report;
+      _diagReports[tabId].push({
+        frame: String(r.frame || '').slice(0, 120), top: !!r.top,
+        videos: Number(r.videos) || 0, hidden: Number(r.hidden) || 0,
+        blankFrames: Number(r.blankFrames) || 0, attached: Number(r.attached) || 0,
+      });
+    }
+    sendResponse({ ok: true });
+    return;
+  }
+
+  // Embedded players ask which page they are on (address and title of the tab).
+  if (msg.type === 'GET_TAB_INFO') {
+    const t = sender?.tab;
+    sendResponse({ url: typeof t?.url === 'string' ? t.url : null, title: typeof t?.title === 'string' ? t.title : null });
+    return;
+  }
+
+  if (msg.type === 'TMDB_FIND_TITLE') {
+    const title = typeof msg.title === 'string' ? msg.title.slice(0, 200) : '';
+    const kind = msg.kind === 'movie' || msg.kind === 'tv' ? msg.kind : '';
+    const year = /^(19|20)\d{2}$/.test(String(msg.year || '')) ? Number(msg.year) : null;
+    const cacheKey = `find:${kind}:${_normTitle(title)}:${year || ''}`;
+    getTmdbCache().then(async (cache) => {
+      if (cacheKey in cache) { sendResponse({ answered: true, ...(cache[cacheKey] || { imdbId: null }) }); return; }
+      const { tmdbApiKey } = await getConfig();
+      if (!tmdbApiKey || !title) { sendResponse({ answered: false, imdbId: null }); return; }
+      try {
+        const r = await tmdbFindTitle(title, year, kind, tmdbApiKey);
+        if (r.answered) await setTmdbCache(cacheKey, r.imdbId ? { imdbId: r.imdbId, kind: r.kind } : null);
+        sendResponse(r);
+      } catch { sendResponse({ answered: false, imdbId: null }); }
+    });
+    return true;
+  }
+
   if (msg.type === 'INVALIDATE_USER_ID') {
     _cachedUserId = null;
     br.storage.local.remove(INSTALL_ID_KEY).catch(() => {});
@@ -760,10 +973,15 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (cache[cacheKey]) { sendResponse({ imdbId: cache[cacheKey] }); return; }
       const { tmdbApiKey } = await getConfig();
       if (!tmdbApiKey) { sendResponse({ imdbId: null }); return; }
+      const title = typeof msg.title === 'string' ? msg.title.trim() : '';
       try {
-        const r = await tmdbFetch(`/${kind}/${msg.tmdbId}/external_ids`, tmdbApiKey);
+        // With a page title, check the number really is this work on TMDB:
+        // many sites use their own numbers in /movie/123 style addresses.
+        const r = await tmdbFetch(title ? `/${kind}/${msg.tmdbId}?append_to_response=external_ids` : `/${kind}/${msg.tmdbId}/external_ids`, tmdbApiKey);
         if (!r.ok) { sendResponse({ imdbId: null }); return; }
-        const data = await r.json();
+        const raw = await r.json();
+        if (title && !_looseTitle(title, raw?.title || raw?.name || '')) { sendResponse({ imdbId: null, mismatch: true }); return; }
+        const data = title ? (raw?.external_ids || {}) : raw;
         const id = /^tt\d{7,8}$/.test(String(data?.imdb_id || '')) ? data.imdb_id : null;
         if (id) await setTmdbCache(cacheKey, id);
         sendResponse({ imdbId: id });
@@ -853,6 +1071,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
     getConfig().then(async ({ supabaseUrl, supabaseAnonKey }) => {
       if (!supabaseUrl || !supabaseAnonKey) { sendResponse({ ok: false, err: 'not_configured' }); return; }
       if (!isValidSupabaseUrl(supabaseUrl)) { sendResponse({ ok: false, err: 'invalid_url' }); return; }
+      if (!(await techDataAllowed())) { sendResponse({ ok: false, err: 'tech_data_off' }); return; }
       try {
         const snap = await settingsSnapshot(msg.body || {});
         const res = await fetchWithRetry(
@@ -937,9 +1156,10 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ posterUrl: `https://i.ytimg.com/vi/${ytMatch[1]}/mqdefault.jpg` });
       return;
     }
+    // poster2: entries from the old lookup (first search hit, wide backdrops) are not reused.
     const posterCacheKey = msg.mediaId
-      ? `poster:${String(msg.mediaId).toLowerCase().trim()}:${(msg.title || '').toLowerCase().trim()}`
-      : `poster:${(msg.title || '').toLowerCase().trim()}`;
+      ? `poster2:${String(msg.mediaId).toLowerCase().trim()}:${(msg.title || '').toLowerCase().trim()}`
+      : `poster2:${(msg.title || '').toLowerCase().trim()}`;
     getTmdbCache().then(async (cache) => {
       if (posterCacheKey in cache) {
         sendResponse({ posterUrl: cache[posterCacheKey] });
@@ -951,28 +1171,10 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ posterUrl: null });
         return;
       }
-      const q = encodeURIComponent((msg.title || '').replace(/\s*S\d+\s*E\d+.*/i,'').trim());
       try {
-        // Try TV first
-        let posterPath = null;
-        let allOk = true;
-        const tvRes = await tmdbFetch(`/search/tv?query=${q}&page=1`, tmdbApiKey);
-        if (!tvRes.ok) allOk = false;
-        if (tvRes.ok) {
-          const tvData = await tvRes.json();
-          posterPath = tvData.results?.[0]?.backdrop_path || tvData.results?.[0]?.poster_path || null;
-        }
-        // Fallback to movie if no TV result
-        if (!posterPath) {
-          const mvRes = await tmdbFetch(`/search/movie?query=${q}&page=1`, tmdbApiKey);
-          if (!mvRes.ok) allOk = false;
-          if (mvRes.ok) {
-            const mvData = await mvRes.json();
-            posterPath = mvData.results?.[0]?.backdrop_path || mvData.results?.[0]?.poster_path || null;
-          }
-        }
+        const { path: posterPath, allOk } = await tmdbPoster(msg.mediaId, msg.title || '', tmdbApiKey);
         const posterUrl = posterPath
-          ? `https://image.tmdb.org/t/p/w300${posterPath}`
+          ? `https://image.tmdb.org/t/p/w185${posterPath}`
           : null;
         // Cache hits, and misses only when TMDB really answered (not 401/5xx).
         if (posterUrl || allOk) await setTmdbCache(posterCacheKey, posterUrl);
@@ -1035,13 +1237,13 @@ if (msg.type === 'OSUB_LOGIN') {
 
   if (msg.type === 'OSUB_SEARCH_AND_FETCH') {
     (async () => {
-      const { imdbId, season, episode, language } = msg;
+      const { imdbId, season, episode, language, query, year } = msg;
       const sess = await osubGetSession();
-      let result = await osubSearch(imdbId, season, episode, language, sess);
+      let result = await osubSearch(imdbId, season, episode, language, sess, query, year);
 
       // Fallback to English if primary language has no results
       if (!result && language && language !== 'en') {
-        result = await osubSearch(imdbId, season, episode, 'en', sess);
+        result = await osubSearch(imdbId, season, episode, 'en', sess, query, year);
       }
 
       if (!result) { sendResponse({ ok: false, err: 'no_results' }); return; }

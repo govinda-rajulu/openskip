@@ -1,7 +1,34 @@
 # Changelog
 
-## [Unreleased]
+## [1.11.0] - 2026-10-03
+### Privacy
+- Firefox now shows exactly what SkipStream sends: browsing activity, website content and login details (OpenSubtitles) are required; technical data (device name, settings backup, stats) is optional and can be switched off in about:addons, after which none of it is sent
+- PRIVACY.md lists every service and every field sent; the Stats page no longer claims stats are never uploaded
+- Settings has a Credits card with the TMDB notice, the SponsorBlock licence and a privacy policy link
+- Cross-device resume never worked since 1.9.x: every browser had its own sync id. Link browsers with a backup (below); README says so
+
+### Added
+- Backup restores the whole extension: settings, per-site rules, stats and history (merged, newer wins), and if you choose, your keys and logins (encrypted with a passphrase) and your sync identity ("Link devices")
+- After an automatic skip, a "Skipped intro" notice with Undo
+- Popup "Check this page" lists every frame and the videos SkipStream can see
+- Sites with no ids at all (title only): with your TMDB key, an exact title match finds the film or show, so skips and subtitles work there too. Same-name works with nothing to tell them apart are left alone
+- "Find subtitles" searches OpenSubtitles by title when a video has no id (on YouTube it says why it cannot)
+
 ### Fixed
+- Embedded players (movie sites with several sources) were only found if the video appeared within 5 seconds; now any time, also when the player hides the video inside its own component
+- Embedded players saved history with the site's home page as the address and the player's own title ("Player"), so Resume from history opened the home page. They now use the tab's real address and title, and read ids and season/episode from it
+- Titles: only the site name and streaming filler ("Watch", "Online Free", "HD") are removed; a title with its own dash ("Spider-Man - Into the Spider-Verse") is kept whole
+- Addresses such as /movies/603-the-matrix, /embed/tv/1399/1/2 and ?tmdb=603 are understood; a site's own number that is a different work on TMDB is refused
+- A movie page could become an episode because of "Season 1 Episode 1" text in a sidebar; a show page without an episode was looked up as a movie
+- History artwork: a known TMDB id is used directly, an exact title match beats the first search hit, film titles search films first, and portrait posters fit the slot (old cached artwork is fetched again)
+- Automatic skips started up to 2 seconds before the segment; they now wait for its start
+- After YouTube moved to the next video, sponsor segments were looked up 1.5 seconds late
+- Any site's ?v= address was treated as a YouTube video
+- Alt+Z did nothing on macOS
+- Undo during a skip countdown started a new countdown half a second later
+- Import replaced this browser's history and site rules with the backup's; it now merges them
+- Export no longer copies caches (subtitle text, TMDB lookups) into the backup file
+- Chrome build: the 30-second keepalive alarm is gone; Edge on Android is labelled Edge
 - YouTube detection matched any host containing "youtube.com"; it now needs the real host or a subdomain
 - Code scanning clean-up: dead skip-selector list and relay guard removed, changelog version escaped fully, CI can no longer apply SQL to the live Supabase project
 - Skipping stopped working after the first video when a site reused its player (YouTube next, autoplay next episode)

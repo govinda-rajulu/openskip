@@ -1,11 +1,11 @@
 # SkipStream
 
-**Skip intros, recaps, and outros. Resume where you left off on any device.**
+**Skip intros, recaps, and outros. Resume where you left off.**
 
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-Active-blue?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 [![Chrome](https://img.shields.io/badge/Chrome-Manual%20Install-yellow?logo=googlechrome)](../../releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.10.0-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.10.0)
+[![Version](https://img.shields.io/badge/version-1.11.0-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.11.0)
 
 ---
 
@@ -24,7 +24,7 @@
 - **Skips** intros, recaps, and outros - instant skip in auto mode, 3-second countdown with Undo in prompt mode (powered by [IntroDB](https://introdb.app) and AnimeSkip)
 - **Native button clicking** - also clicks the platform's own Skip Intro button on Netflix, Prime Video, Disney+, Hulu, Max, Crunchyroll, Peacock, Paramount+, Apple TV+, and Tubi
 - **Subtitles** - auto-fetches from OpenSubtitles by IMDb ID, with a draggable CC overlay, sync offset, offline .srt/.vtt upload, and language selection
-- **Resumes** playback where you left off, on any device
+- **Resumes** playback where you left off, on every browser you link (Settings, Backup & Restore, Link devices)
 - **Syncs** watch history and settings to your own Supabase project - you own the data
 - **Auto next episode** - advances when near end of video (optional, off by default)
 - **Speed control** - 0.75x / 1x / 1.25x / 1.5x / 2x, persists across pages
@@ -62,7 +62,7 @@ Free account at [opensubtitles.com](https://www.opensubtitles.com/#modal-registe
 ## Privacy
 
 - All credentials are stored locally in your browser
-- Your sync identity is a random UUID generated per browser installation - no account required
+- Your sync identity is a random UUID generated per browser installation - no account required. Browsers share history only after you link them with a backup
 - No telemetry, no ads, no third-party tracking
 
 ---

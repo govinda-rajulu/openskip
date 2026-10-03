@@ -4,6 +4,27 @@ Newest first. Append; never delete. Older lessons live verbatim in
 [archive/skills/](archive/skills/) (MY-WRONG-CALLS-4-5-SEP, FIXED-WORK-AND-WRONG-CALLS,
 SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
 
+## 3 Oct 2026 (release 1.11.0)
+
+1. **Public reads went stale again, both of them.** `/branches/main` returned an August commit
+   and a raw main file was an old copy, while `/pulls/78` had the real merge sha. Pin every read
+   to a commit sha (raw URL with the sha, `/git/commits/<sha>`), never to `main`.
+2. **The assistant's web reader cuts long files and drops indentation.** Exact bytes come from a
+   `git bundle` the owner makes in Cloud Shell and attaches to the chat: full history, PR refs,
+   one file, checked by sha256. Use it for any packet that edits code.
+3. **A cross-PR sweep is cheap and catches what CI cannot.** CI tests each PR alone; the sweep
+   merges them in the planned order and runs every gate plus Mozilla's linter after each step.
+4. **Read the promise, then the code.** README said "resume on any device"; the code gave every
+   install its own id. A feature can be documented, tested and still not work across devices.
+6. **"Works sometimes" was a timer.** Frames gave up after 5 seconds without a video; embedded
+   players often build the video after the user picks a source. Look for timeouts first when a
+   bug depends on how fast the user is.
+7. **Cross-realm compare, again.** New vm-based tests failed on `deepEqual` with identical values
+   (29 Sep lesson 9). Compare JSON for objects made inside a vm context.
+5. **Mozilla counts the user's own server as collection.** Data "handled outside the add-on or the
+   local browser" must be declared, self-hosted or not. Usage stats, settings and device names are
+   `technicalAndInteraction`, which may only be optional, so the code must check it at send time.
+
 ## 29 Sep 2026, afternoon (knowledge migration)
 
 1. **"Merged" in chat is not merged.** After a merge was reported, `/pulls/74` still said

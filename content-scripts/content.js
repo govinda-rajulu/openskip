@@ -211,8 +211,9 @@ let _ssEffPrefs = null;
 
   function getMediaId() {
     const url = location.href;
-    const ytMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
-    if (ytMatch) return `yt/${ytMatch[1]}`;
+    // YouTube ids only on YouTube hosts: any other site's ?v= is not a YouTube video.
+    const ytId = _youtubeVideoId();
+    if (ytId) return `yt/${ytId}`;
     const vmMatch = url.match(/vimeo\.com\/(\d+)/);
     if (vmMatch) return `vm/${vmMatch[1]}`;
     const movieMatch = location.pathname.match(/\/movies?\/(\d+)/);
@@ -234,19 +235,33 @@ let _ssEffPrefs = null;
   // Exact host or a real subdomain of it; never a substring match (CodeQL js/incomplete-url-substring-sanitization).
   function _hostIs(h, d) { return typeof h === 'string' && (h === d || h.endsWith('.' + d)); }
 
+  // Embedded players: browsers send only the parent's origin as the referrer
+  // (no path), so history saved "https://site/" and the page title was the
+  // player's ("Player", ""). The background knows the tab's real address and
+  // title; frames ask once at start and on every save.
+  let _tabInfo = null;
+  function _refreshTabInfo() {
+    if (window === window.top) return Promise.resolve(null);
+    return br.runtime.sendMessage({ type: 'GET_TAB_INFO' }).then(r => {
+      if (r && typeof r.url === 'string' && /^https?:/i.test(r.url)) _tabInfo = { url: r.url, title: String(r.title || '') };
+      return _tabInfo;
+    }).catch(() => _tabInfo);
+  }
+
+  // Address of the page the user is watching (the top page, also for players).
+  function _topHref() {
+    if (window === window.top) return location.href;
+    return (_tabInfo && _tabInfo.url) || document.referrer || location.href;
+  }
+
   function _siteHost() {
-    if (window !== window.top && document.referrer) {
-      try { return new URL(document.referrer).hostname.replace(/^www\./, ''); } catch { /* fall through */ }
+    if (window !== window.top) {
+      try { return new URL(_topHref()).hostname.replace(/^www\./, ''); } catch { /* fall through */ }
     }
     return location.hostname.replace(/^www\./, '');
   }
 
-  function getSiteHostname() {
-    if (window !== window.top && document.referrer) {
-      try { return new URL(document.referrer).hostname.replace(/^www\./, ''); } catch { /* fall through */ }
-    }
-    return location.hostname.replace(/^www\./, '');
-  }
+  function getSiteHostname() { return _siteHost(); }
 
   // YouTube video id from watch / embed / shorts / live URLs on YouTube hosts only.
   function _youtubeVideoId() {
@@ -259,8 +274,7 @@ let _ssEffPrefs = null;
   }
 
 function _pageUrl() {
-  if (window !== window.top && document.referrer) return document.referrer;
-  return location.href;
+  return _topHref();
 }
 
   function getSiteName() {
@@ -315,10 +329,39 @@ function _pageUrl() {
       return (document.title || '').replace(/\s+[-|]\s+YouTube.*$/i, '').trim().slice(0, 120);
     }
 
+    // Embedded player: the top page's title, not the player's.
+    if (window !== window.top && _tabInfo && _tabInfo.title) return _cleanTitle(_tabInfo.title, [getSiteName(), host]);
     // All other sites: og:title is reliable, prefer it
     const og = document.querySelector('meta[property="og:title"]')?.getAttribute('content');
-    const raw = og || document.title || '';
-    return raw.replace(/\s+[-|]\s+\S.{2,}$/, '').trim().slice(0, 120) || raw.slice(0, 120);
+    return _cleanTitle(og || document.title || '', [getSiteName(), host]);
+  }
+
+  // "Watch The Matrix (1999) Online Free HD | 1Shows" -> "The Matrix (1999)".
+  // Only trailing parts that name the site or are streaming filler go; a title
+  // such as "Spider-Man - Into the Spider-Verse" keeps its own dash.
+  const _FILLER_RE = /^(?:watch(?:\s+\w+)?\s+online|online|free|hd|full\s*hd|streaming|stream|watch\s+free|full\s+movie|full\s+episodes?|movies?|tv\s+shows?|series)$/i;
+  function _cleanTitle(raw, siteNames) {
+    const src = String(raw || '').slice(0, 300).replace(/\s+/g, ' ').trim();
+    if (!src) return '';
+    const norm = x => String(x || '').toLowerCase().replace(/^www\./, '').replace(/\.[a-z]{2,}$/, '').replace(/[^a-z0-9]+/g, '');
+    const sites = (siteNames || []).map(norm).filter(Boolean);
+    const isSite = part => {
+      const n = norm(part);
+      if (!n) return true;
+      if (_FILLER_RE.test(part.trim())) return true;
+      return sites.some(x => n === x || (x.length >= 4 && n.includes(x) && n.length <= x.length + 12));
+    };
+    const parts = src.split(/\s+[|\u2013\u2014]\s+|\s+-\s+|\s+::\s+|\s+\u00b7\s+/);
+    while (parts.length > 1 && isSite(parts[parts.length - 1])) parts.pop();
+    while (parts.length > 1 && isSite(parts[0])) parts.shift();
+    let t = parts.join(' - ');
+    t = t.replace(/^\s*watch\s+/i, '')
+         .replace(/\s+(?:online\s+)?(?:for\s+)?free(?:\s+(?:online|hd|on\s+\S+))*\s*$/i, '')
+         .replace(/\s+(?:watch\s+)?online(?:\s+hd)?\s*$/i, '')
+         .replace(/\s+(?:in\s+)?(?:full\s+)?hd(?:\s+quality)?\s*$/i, '')
+         .replace(/\s+full\s+movie\s*$/i, '')
+         .trim();
+    return (t || src).slice(0, 120);
   }
 
   // ── Deterministic user ID (derived in background) ──────────────────────────
@@ -432,6 +475,7 @@ function _pageUrl() {
   async function savePlayback(video, saveTimer) {
     if (!video.duration || video.currentTime < 5) return;
     const mediaId = getMediaId();
+    if (window !== window.top) _refreshTabInfo();   // no await: H12 ordering below stays synchronous
     const pos = Math.round(video.currentTime * 10) / 10;
     const dur = Math.round(video.duration);
     // H12: timer first (synchronous last-call-wins), then the local write.
@@ -452,7 +496,7 @@ function _pageUrl() {
             site_name:   getSiteName(),
             video_title: getVideoTitle(),
             page_url:    _pageUrl(),
-            device_name: prefs.deviceName || (navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Edg/') ? 'Edge' : 'Chrome'),
+            device_name: prefs.deviceName || (navigator.userAgent.includes('Firefox') ? 'Firefox' : /Edg(A|iOS)?\//.test(navigator.userAgent) ? 'Edge' : 'Chrome'),
             updated_at:  new Date().toISOString(),
           },
         });
@@ -489,7 +533,7 @@ function _pageUrl() {
           site_name:   getSiteName(),
           video_title: getVideoTitle(),
           page_url:    _pageUrl(),
-          device_name: prefs.deviceName || (navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Edg/') ? 'Edge' : 'Chrome'),
+          device_name: prefs.deviceName || (navigator.userAgent.includes('Firefox') ? 'Firefox' : /Edg(A|iOS)?\//.test(navigator.userAgent) ? 'Edge' : 'Chrome'),
           updated_at:  new Date().toISOString(),
         },
       }).catch(() => { /* page is unloading */ });
@@ -665,7 +709,7 @@ function _pageUrl() {
   const SE_REGEX = /\bS(\d{1,2})\s*[:·•\-\s]\s*E(\d{1,3})\b/i;
 
   const URL_SE_PATTERNS = [
-    /\/season[s]?[\/-_](\d+)[\/-_]episode[s]?[\/-_](\d+)/i,
+    /\/season[s]?[\/_-](\d+)[\/_-]episode[s]?[\/_-](\d+)/i,
     /season[_-](\d+)[_-]episode[_-](\d+)/i,
     /[-\/_.s]s(\d{1,2})[-_.]?e(\d{1,3})[-\/_.?#]/i,
     SE_REGEX,
@@ -683,24 +727,39 @@ function _pageUrl() {
     return null;
   }
 
-  function parseUrlInfo(info) {
-    const href = location.href;
-    const pathname = location.pathname;
+  function parseUrlInfo(info, hrefIn) {
+    let u;
+    try { u = new URL(hrefIn || location.href); } catch { return; }
+    const href = u.href;
+    const pathname = u.pathname;
     const imdbMatch = href.match(/\b(tt\d{7,8})\b/);
-    if (imdbMatch) info.imdbId = imdbMatch[1];
+    if (imdbMatch && !info.imdbId) info.imdbId = imdbMatch[1];
+    const sp = new URLSearchParams(u.search);
     if (!info.tmdbId) {
-      const tmdbMatch = pathname.match(/\/(tv|show|shows|series|movie|film|watch)\/(\d+)/);
+      // "/movie/603", "/movies/603-the-matrix", "/embed/tv/1399/1/2"; the id must end the segment or be followed by "-".
+      const tmdbMatch = pathname.match(/\/(tv|tvs|show|shows|series|movie|movies|film|films|watch)\/(\d+)(?=[-\/?#]|$)/i);
       if (tmdbMatch) {
         info.tmdbId = parseInt(tmdbMatch[2], 10);
-        if (tmdbMatch[1] === 'movie' || tmdbMatch[1] === 'film') info.tmdbKind = 'movie';
+        if (/^(movies?|films?)$/i.test(tmdbMatch[1])) info.tmdbKind = 'movie';
+        else if (!/^watch$/i.test(tmdbMatch[1])) info.tmdbKind = 'tv';
+      } else {
+        const q = sp.get('tmdb') || sp.get('tmdb_id') || sp.get('tmdbid');
+        if (q && /^\d+$/.test(q)) {
+          info.tmdbId = parseInt(q, 10);
+          const t = (sp.get('type') || '').toLowerCase();
+          if (t === 'movie') info.tmdbKind = 'movie'; else if (t === 'tv' || t === 'series') info.tmdbKind = 'tv';
+        }
       }
     }
-    const seFromUrl = extractSeEpisode(href);
-    if (seFromUrl) {
+    let seFromUrl = extractSeEpisode(href);
+    if (!seFromUrl) {
+      const m = pathname.match(/\/(?:tv|tvs|show|shows|series)\/\d+[^\/]*\/(\d{1,2})\/(\d{1,3})(?:[\/?#]|$)/i);
+      if (m) seFromUrl = { season: parseInt(m[1], 10), episode: parseInt(m[2], 10) };
+    }
+    if (seFromUrl && seFromUrl.season && seFromUrl.episode) {
       if (!info.season)  info.season  = seFromUrl.season;
       if (!info.episode) info.episode = seFromUrl.episode;
     }
-    const sp = new URLSearchParams(location.search);
     if (!info.season)  { const s = sp.get('season') || sp.get('s'); if (s && /^\d+$/.test(s)) info.season  = parseInt(s, 10); }
     if (!info.episode) { const e = sp.get('episode') || sp.get('ep') || sp.get('e'); if (e && /^\d+$/.test(e)) info.episode = parseInt(e, 10); }
     clampSE(info);
@@ -749,7 +808,7 @@ function _pageUrl() {
         }
       }
     });
-    if (!info.season || !info.episode) {
+    if ((!info.season || !info.episode) && info.tmdbKind !== 'movie') {
       const text = document.title + ' ' + (document.body?.textContent?.slice(0, 4000) || '');
       const textPatterns = [
         [/Season\s+(\d+)[,\s·•\-]+Episode\s+(\d+)/i, false],
@@ -774,11 +833,17 @@ function _pageUrl() {
     return slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
   }
 
-  function parsePathTitle(info) {
-    const segments = location.pathname.toLowerCase().split('/').filter(Boolean);
-    const idx = segments.findIndex(s => ['tv', 'series', 'show', 'watch', 'stream', 'episode', 'anime'].includes(s));
+  function parsePathTitle(info, pathIn) {
+    const segments = String(pathIn || location.pathname).toLowerCase().split('/').filter(Boolean);
+    const idx = segments.findIndex(s => ['tv', 'tvs', 'series', 'show', 'shows', 'watch', 'stream', 'episode', 'anime', 'movie', 'movies', 'film', 'films'].includes(s));
     if (idx === -1 || !segments[idx + 1]) return null;
-    const slug = segments[idx + 1];
+    if (/^(movies?|films?)$/.test(segments[idx]) && !info.tmdbKind) info.tmdbKind = 'movie';
+    // "603-the-matrix", "the-matrix-1999", "the-matrix-1999-hd" -> "the-matrix" (+ year)
+    let slug = segments[idx + 1].replace(/\.html?$/, '').replace(/^\d+-(?=[a-z])/, '');
+    const yr = slug.match(/-((?:19|20)\d{2})(?:-[a-z0-9]{1,6})?$/);
+    if (yr) { info.year = parseInt(yr[1], 10); slug = slug.slice(0, yr.index); }
+    slug = slug.replace(/-(?:online|free|hd|full-movie|watch)$/g, '');
+    if (!/[a-z]{2}/.test(slug)) return null;
     const combo = slug.match(/^(.+?)-s(\d+)e(\d+)$/i);
     if (combo) {
       if (!info.season)  info.season  = parseInt(combo[2], 10);
@@ -806,37 +871,61 @@ function _pageUrl() {
 
   const imdbCache = new Map();
 
-  async function tmdbToImdb(tmdbId, kind) {
+  async function tmdbToImdb(tmdbId, kind, title) {
     const k = kind === 'movie' ? 'movie' : 'tv';
     const key = `${k}:${tmdbId}`;
     if (imdbCache.has(key)) return imdbCache.get(key);
     try {
-      const res = await br.runtime.sendMessage({ type: 'TMDB_TO_IMDB', tmdbId, kind: k });
+      const res = await br.runtime.sendMessage({ type: 'TMDB_TO_IMDB', tmdbId, kind: k, title: title || '' });
       if (res?.imdbId) imdbCache.set(key, res.imdbId);
       return res?.imdbId || null;
     } catch { return null; }
   }
 
-  async function resolveShowInfo() {
-    const info = { imdbId: null, tmdbId: null, tmdbKind: null, season: null, episode: null };
-    parseUrlInfo(info);
-    parsePageInfo(info);
+  const _titleIdCache = new Map();
 
-    // iframe fix: also check document.referrer
-    if (window !== window.top && document.referrer) {
-      const ref = document.referrer;
-      if (!info.imdbId) { const m = ref.match(/\b(tt\d{7,8})\b/); if (m) info.imdbId = m[1]; }
-      if (!info.season || !info.episode) {
-        const se = extractSeEpisode(ref);
-        if (se) {
-          if (!info.season)  info.season  = se.season;
-          if (!info.episode) info.episode = se.episode;
+  async function resolveShowInfo() {
+    const info = { imdbId: null, tmdbId: null, tmdbKind: null, season: null, episode: null, year: null, title: null };
+    parseUrlInfo(info);
+    // Embedded player: the page the user is on (its real address, from the
+    // background) carries the ids and S/E far more often than the player URL.
+    let top = null;
+    if (window !== window.top) {
+      await _refreshTabInfo();
+      top = _topHref();
+      if (top && top !== location.href) parseUrlInfo(info, top);
+    }
+    parsePageInfo(info);
+    if (info.tmdbKind === 'movie') { info.season = null; info.episode = null; }
+
+    const pageTitle = getVideoTitle();
+    if (!info.imdbId && info.tmdbId) info.imdbId = await tmdbToImdb(info.tmdbId, info.tmdbKind, pageTitle);
+    if (!info.imdbId) {
+      let path = null;
+      try { path = top ? new URL(top).pathname : null; } catch { /* ok */ }
+      info.title = parsePathTitle(info) || (path && parsePathTitle(info, path)) || null;
+      if (info.tmdbKind === 'movie') { info.season = null; info.episode = null; }
+      // No id anywhere (aggregator sites): ask TMDB for an exact title match.
+      // Never on YouTube, where the title is a video name, not a film.
+      const yt = _hostIs(_siteHost(), 'youtube.com') || !!_youtubeVideoId();
+      const q = info.title || (!yt ? pageTitle : '');
+      if (q && !yt) {
+        const kind = info.season && info.episode ? 'tv' : (info.tmdbKind || '');
+        const key = kind + ':' + q.toLowerCase() + ':' + (info.year || '');
+        if (!_titleIdCache.has(key)) {
+          let r = null;
+          try { r = await br.runtime.sendMessage({ type: 'TMDB_FIND_TITLE', title: q, year: info.year || null, kind }); } catch { r = null; }
+          // Only definitive answers are kept; no key / network trouble stays retryable.
+          if (r && (r.imdbId || r.answered)) _titleIdCache.set(key, r);
+        }
+        const hit = _titleIdCache.get(key);
+        if (hit && hit.imdbId) {
+          info.imdbId = hit.imdbId;
+          info.byTitle = true;
+          if (hit.kind === 'movie') { info.tmdbKind = 'movie'; info.season = null; info.episode = null; }
         }
       }
     }
-
-    if (!info.imdbId && info.tmdbId) info.imdbId = await tmdbToImdb(info.tmdbId, info.tmdbKind);
-    if (!info.imdbId) parsePathTitle(info);
     return info;
   }
 
@@ -944,6 +1033,64 @@ function _pageUrl() {
     }).catch(() => {}));
   }
 
+  // After an automatic skip: a short "Skipped intro, Undo" notice (SponsorBlock's
+  // best pattern, written fresh here). Undo jumps back and that segment is left
+  // alone until it has played past, for this video only.
+  const SKIPPED_ID = 'skipstream-skipped-notice';
+  const SKIPPED_NAMES = { intro: 'intro', recap: 'recap', outro: 'outro', sponsor: 'sponsor', selfpromo: 'self-promo' };
+  let _skippedTimer = null;
+  function showSkippedNotice(segKey, segment, video, prevTime) {
+    clearTimeout(_skippedTimer);
+    const old = document.getElementById(SKIPPED_ID);
+    if (old) old.remove();
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    const container = fsEl || document.body || document.documentElement;
+    if (!container) return;
+    const p = pal();
+    const box = document.createElement('div');
+    box.id = SKIPPED_ID;
+    box.setAttribute('role', 'status');
+    Object.assign(box.style, {
+      all: 'unset', position: fsEl ? 'absolute' : 'fixed', bottom: '68px', right: '3%',
+      zIndex: '2147483647', display: 'flex', alignItems: 'center', gap: '12px',
+      padding: '8px 8px 8px 14px', background: p.bg, color: p.text,
+      border: '1px solid ' + p.edge, borderRadius: '16px',
+      fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif',
+      fontSize: '14px', fontWeight: '600', pointerEvents: 'auto',
+      opacity: '0', transform: 'translate3d(0, 10px, 0)',
+      transition: 'opacity 240ms ease, transform 240ms ease',
+    });
+    const msg = document.createElement('span');
+    msg.textContent = 'Skipped ' + (SKIPPED_NAMES[segKey] || segKey);
+    const undo = document.createElement('button');
+    undo.textContent = 'Undo';
+    Object.assign(undo.style, {
+      all: 'unset', boxSizing: 'border-box', cursor: 'pointer', minHeight: '44px', minWidth: '44px',
+      padding: '0 16px', display: 'grid', placeItems: 'center', background: p.accent,
+      borderRadius: '8px', fontSize: '14px', fontWeight: '600', color: p.onAccent, fontFamily: 'inherit',
+    });
+    const close = () => { clearTimeout(_skippedTimer); if (box.isConnected) box.remove(); };
+    undo.onclick = e => {
+      e.preventDefault(); e.stopPropagation();
+      video._ssUndone = { key: segKey, until: segment.end_sec, media: getMediaId() };
+      try { if (video.isConnected) video.currentTime = prevTime; } catch { /* ok */ }
+      close();
+    };
+    box.appendChild(msg);
+    box.appendChild(undo);
+    container.appendChild(box);
+    requestAnimationFrame(() => { box.style.opacity = '1'; box.style.transform = 'translate3d(0, 0, 0)'; });
+    _skippedTimer = setTimeout(close, 5000);
+  }
+
+  // True while an undone segment should be left alone (same video, not yet past it).
+  function _skipUndone(video, key, now, mediaId) {
+    const u = video._ssUndone;
+    if (!u) return false;
+    if (u.media !== mediaId || now >= u.until) { video._ssUndone = null; return false; }
+    return u.key === key;
+  }
+
   function showSkipCountdown(segKey, segment, video, onDone) {
     // Clear any existing countdown (its pause listener must not fire later)
     clearInterval(_countdownTimer);
@@ -960,6 +1107,7 @@ function _pageUrl() {
       video.currentTime = segment.end_sec;
       video._ssCooldownUntil = Date.now() + 1500;
       recordSkipStat(segment.end_sec - prevTime);
+      showSkippedNotice(segKey, segment, video, prevTime);
       onDone();
       return;
     }
@@ -1026,6 +1174,8 @@ function _pageUrl() {
       e.preventDefault(); e.stopPropagation();
       clearInterval(_countdownTimer);
       toast.remove();
+      // Without this the same segment started a new countdown half a second later.
+      video._ssUndone = { key: segKey, until: segment.end_sec, media: getMediaId() };
       finish();
     };
 
@@ -1696,8 +1846,11 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   async function fetchSubsNow() {
     const video = _subVideo;
     const info = await resolveShowInfo().catch(() => null);
-    if (!info?.imdbId) return { ok: false, reason: 'no_id' };
-    _subLastInfo = info;
+    const yt = !!_youtubeVideoId() || _hostIs(_siteHost(), 'youtube.com');
+    // No id: search OpenSubtitles by the cleaned title (this button only, never automatic).
+    const byName = !info?.imdbId && !yt ? (info?.title || getVideoTitle() || '').trim() : '';
+    if (!info?.imdbId && !byName) return { ok: false, reason: yt ? 'youtube' : 'no_id' };
+    if (info?.imdbId) _subLastInfo = info;
     _subState.loading = true; syncCCBtn();
     if (!_subState.enabled) { _subState.enabled = true; br.storage.local.set({ subtitle_enabled: true }).catch(() => {}); }
     const reqHref = location.href;
@@ -1705,8 +1858,8 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     try {
       result = await br.runtime.sendMessage({
         type: 'OSUB_SEARCH_AND_FETCH',
-        imdbId: info.imdbId, season: info.season || null,
-        episode: info.episode || null, language: _subState.language,
+        imdbId: info?.imdbId || null, query: info?.imdbId ? null : byName, year: info?.year || null,
+        season: info?.season || null, episode: info?.episode || null, language: _subState.language,
       });
     } catch { result = null; }
     _subState.loading = false;
@@ -1759,6 +1912,21 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   // ── Video attachment ───────────────────────────────────────────────────────
 
   const attachedVideos = new WeakSet();
+
+  // Some players keep their <video> inside their own component (an open shadow
+  // root), where document.querySelectorAll cannot see it. onRoot, if given, is
+  // called once per shadow root found so the caller can watch it.
+  function _shadowVideos(root, depth, out, maxDepth, onRoot) {
+    if (depth > maxDepth || out.length >= 20) return out;
+    for (const el of root.querySelectorAll('*')) {
+      const sr = el.shadowRoot;
+      if (!sr) continue;
+      if (onRoot) onRoot(sr);
+      sr.querySelectorAll('video').forEach(v => out.push(v));
+      _shadowVideos(sr, depth + 1, out, maxDepth, onRoot);
+    }
+    return out;
+  }
 
   function isMainPlayer(video) {
     const vw = window.innerWidth  || 800;
@@ -1869,7 +2037,8 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
         fetched = await fetchSegments('yt/' + ytId, 0, 0);
       } else if (info.imdbId && info.season && info.episode) {
         fetched = await fetchSegments(info.imdbId, info.season, info.episode);
-      } else if (info.imdbId && !info.season && !info.episode) {
+      } else if (info.imdbId && !info.season && !info.episode && info.tmdbKind !== 'tv') {
+        // A show page without S/E is not a movie: nothing to look up yet.
         fetched = await fetchSegments(info.imdbId, 0, 0, true);
       } else {
         return;
@@ -1907,6 +2076,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
         const resumeOnce = () => { restorePlayback(video).catch(() => {}); };
         video.addEventListener('loadedmetadata', resumeOnce, { once: true });
         setTimeout(() => { video.removeEventListener('loadedmetadata', resumeOnce); resumeOnce(); }, 2500);
+        resolveSegments();
         [1500, 5000, 12000].forEach(ms => setTimeout(() => { if (!resolved) resolveSegments(); }, ms));
         if (_skipBtnObserver) { _skipBtnObserver.disconnect(); _skipBtnObserver = null; }
         startNativeSkipObserver(video);
@@ -1929,9 +2099,13 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
 
       const active = findActiveSegment(segments, video.currentTime);
       if (active && video._ssCooldownUntil && Date.now() < video._ssCooldownUntil) return;
+      if (active && _skipUndone(video, active.key, video.currentTime, getMediaId())) return;
 
       if (active) {
         const prefKey = PREF_FOR_SEGMENT[active.key];
+        // The 2 s lead is for showing the button; an automatic skip waits for the
+        // real start so no content before a sponsor/intro is lost.
+        if (effectivePrefs[prefKey] && video.currentTime < Number(active.segment.start_sec) - 0.3) return;
         if (active.key !== activeSegmentKey) {
           activeSegmentKey = active.key;
           if (effectivePrefs[prefKey]) {
@@ -1982,7 +2156,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       }
       
       // Alt+Z: undo last skip (go back 15 seconds)
-      if (e.altKey && e.key === 'z') {
+      if (e.altKey && (e.code === 'KeyZ' || String(e.key).toLowerCase() === 'z')) {
         e.preventDefault();
         video.currentTime = Math.max(0, video.currentTime - 15);
       }
@@ -1998,8 +2172,16 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   function initSkipStream() {
     // ── DOM scanning + SPA navigation ─────────────────────────────────────────
 
+    const _watchedShadows = new WeakSet();
     function scanVideos() {
-      document.querySelectorAll('video').forEach(v => attachVideo(v));
+      const light = document.querySelectorAll('video');
+      light.forEach(v => attachVideo(v));
+      if (light.length) return;
+      _shadowVideos(document, 0, [], 6, sr => {
+        if (_watchedShadows.has(sr)) return;
+        _watchedShadows.add(sr);
+        try { _domObserver.observe(sr, { childList: true, subtree: true }); } catch { /* ok */ }
+      }).forEach(v => attachVideo(v));
     }
 
     const debouncedScan = debounce(scanVideos, 400);
@@ -2068,7 +2250,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     }
     if (msg.type === 'GET_SHOW_INFO') {
       resolveShowInfo().then(info => {
-        sendResponse({ imdbId: info.imdbId, season: info.season, episode: info.episode, site: getSiteHostname() });
+        sendResponse({ imdbId: info.imdbId, season: info.season, episode: info.episode, site: getSiteHostname(), title: getVideoTitle() });
       });
       return true;
     }
@@ -2077,6 +2259,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
 
     // ── Boot ───────────────────────────────────────────────────────────────────
     // Boot: load prefs + scan, then async bulk-pull cloud positions into local cache
+    _refreshTabInfo();
     loadPrefs().then(scanVideos);
 
     // Cloud->local background sync: pull all cloud positions into skipstream_cache
@@ -2122,29 +2305,60 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     })();
   } // End initSkipStream()
 
-  // ── Conditional init: skip iframe startup if no video present ────────────────
-
-  if (window === window.top) {
-    // Top-level window: init immediately
-    initSkipStream();
-  } else {
-    // In an iframe: check for video element
-    const existingVideo = document.querySelector('video');
-    if (existingVideo) {
-      // Video present: init now
-      initSkipStream();
-    } else {
-      // No video yet: wait up to 5 seconds
-      const _waitObs = new MutationObserver(() => {
-        if (document.querySelector('video')) {
-          _waitObs.disconnect();
-          clearTimeout(_waitTimeout);
-          initSkipStream();
-        }
-      });
-      _waitObs.observe(document.documentElement, { childList: true, subtree: true });
-      const _waitTimeout = setTimeout(() => { _waitObs.disconnect(); }, 5000);
-    }
+  // ── Conditional init: an iframe starts once it has a video ──────────────────
+  // Embedded players often create their <video> only after you pick a source or
+  // press play. Up to 1.10 a frame gave up after 5 seconds and then never
+  // skipped or answered the popup, so a player "worked sometimes". A frame now
+  // keeps a cheap watch (DOM changes, play events, and a 2 s look inside player
+  // components) until a video appears, then starts once.
+  function _waitForVideo(doc, onFound, timers) {
+    const T = timers || { setTimeout, clearTimeout, setInterval, clearInterval };
+    let done = false, pending = null, poll = null, obs = null;
+    const has = () => !!doc.querySelector('video') || _shadowVideos(doc, 0, [], 4).length > 0;
+    const fire = () => {
+      if (done || !has()) return;
+      done = true;
+      if (obs) obs.disconnect();
+      doc.removeEventListener('play', fire, true);
+      if (pending) T.clearTimeout(pending);
+      if (poll) T.clearInterval(poll);
+      onFound();
+    };
+    obs = new MutationObserver(() => {
+      if (pending || done) return;
+      pending = T.setTimeout(() => { pending = null; fire(); }, 250);
+    });
+    obs.observe(doc.documentElement, { childList: true, subtree: true });
+    doc.addEventListener('play', fire, true);
+    poll = T.setInterval(fire, 2000);
+    fire();
+    return () => done;
   }
+
+  let _ssStarted = false;
+  const _ssStart = () => { if (_ssStarted) return; _ssStarted = true; initSkipStream(); };
+  if (window === window.top) _ssStart();
+  else _waitForVideo(document, _ssStart);
+
+  // "Check this page" in the popup: every frame reports what it sees, even one
+  // still waiting for a video. Reports go to the background (local only).
+  br.runtime.onMessage.addListener((msg) => {
+    if (!msg || msg.type !== 'SS_DIAG_PING') return false;
+    try {
+      const light = Array.from(document.querySelectorAll('video'));
+      const hidden = _shadowVideos(document, 0, [], 6);
+      let blank = 0;
+      document.querySelectorAll('iframe').forEach(f => {
+        const s = f.getAttribute('src');
+        if (!s || s === 'about:blank' || f.hasAttribute('srcdoc')) blank++;
+      });
+      const attached = light.concat(hidden).filter(v => attachedVideos.has(v)).length;
+      br.runtime.sendMessage({ type: 'SS_DIAG_REPORT', report: {
+        frame: (location.hostname || location.protocol) + location.pathname, top: window === window.top,
+        videos: light.length, hidden: hidden.length, blankFrames: blank, attached,
+      } }).catch(() => {});
+    } catch { /* never break the page */ }
+    return false;
+  });
 
 })();

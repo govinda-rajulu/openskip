@@ -4,17 +4,18 @@
 
 **1. Make your changes** - edit files directly on GitHub (press `.` to open github.dev)
 
-**2. Bump the version** - update these 6 files to `X.Y.Z`:
+**2. Bump the version** - update these 7 files to `X.Y.Z` (or run the Version Bump workflow, which does all 7):
 - `manifest.json` - `"version"` field
 - `manifest-chrome.json` - must match exactly
 - `popup.js` - header comment on line 1
+- `popup.css` - header comment on line 1
 - `README.md` - version badge
 - `CHANGELOG.md` - add `## [X.Y.Z]` at the top
 - `updates.json` - bump `version` and download URL to match
 
-**3. Commit all 6 files** in one commit
+**3. Commit all 7 files** in one commit. Lint & Validate fails if `updates.json` does not end with the new version
 
-**4. Push the tag:**
+**4. Push the tag** (this publishes: CI uploads the ZIP to AMO by itself):
 ```
 git tag vX.Y.Z
 git push origin vX.Y.Z
@@ -33,6 +34,6 @@ Or on GitHub: Releases - Draft a new release - create tag `vX.Y.Z`
 
 ## If CI fails
 
-- **Tag version mismatch** - bump all 5 files to match the tag, delete and recreate the tag
+- **Tag version mismatch** - bump all 7 files to match the tag, delete and recreate the tag
 - **Security check** - remove `innerHTML`, `console.log`, or `localStorage` from content scripts
 - **AMO 400** - check `tags` array in `scripts/amo-update.js` - only `privacy` is a valid tag
