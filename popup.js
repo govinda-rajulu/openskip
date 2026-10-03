@@ -266,32 +266,44 @@ async function loadState() {
 
   // Subtitle state
   const subStatus = $('subStatus');
-  if (subStatus) subStatus.textContent = data[KEYS.subSrt] ? 'Subtitle loaded' : 'No subtitle loaded';
+  if (subStatus && data[KEYS.subSrt]) subStatus.textContent = 'Your subtitle file is loaded';
   if ($('subLangSelect') && data[KEYS.subLang]) $('subLangSelect').value = data[KEYS.subLang];
 }
 
 // -- Subtitle handlers --
-const subUploadBtn = $('subUploadBtn');
-const subFileInput = $('subFileInput');
+// No file picker here: Firefox closes the popup the moment a file dialog opens
+// (Mozilla bug 1378527). Your own file goes in through the CC button on the video.
+const SUB_REASONS = {
+  no_player:  'No video player found on this tab. Start the video, then try again.',
+  no_id:      'Could not identify this video, so there is nothing to search for.',
+  no_results: 'OpenSubtitles has no subtitles for this video in your language or English.',
+  navigated:  'The page changed while searching. Try again.',
+  unreadable: 'A subtitle file came back but had no readable lines.',
+};
 
-if (subUploadBtn && subFileInput) {
-  subUploadBtn.addEventListener('click', () => { subFileInput.value = ''; subFileInput.click(); });
-  subFileInput.addEventListener('change', async () => {
-    const file = subFileInput.files?.[0];
-    if (!file) return;
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (!['srt','vtt'].includes(ext)) { alert('Only .srt or .vtt files.'); return; }
-    const text = await file.text();
-    await br.storage.local.set({ [KEYS.subSrt]: text });
-    const s = $('subStatus');
-    if (s) s.textContent = file.name;
-  });
+function subReason(r) {
+  if (!r) return SUB_REASONS.no_player;
+  if (r.ok) return 'Loaded ' + r.count + ' lines' + (r.name ? ' from ' + r.name : '');
+  return SUB_REASONS[r.reason] || ('OpenSubtitles said: ' + String(r.reason || 'no answer').slice(0, 120));
 }
+
+$('subFetchBtn')?.addEventListener('click', async () => {
+  const btn = $('subFetchBtn'); const s = $('subStatus');
+  if (btn) btn.disabled = true;
+  if (s) s.textContent = 'Searching OpenSubtitles...';
+  let r = null;
+  try {
+    const [tab] = await br.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id != null) r = await br.tabs.sendMessage(tab.id, { type: 'SUBS_FETCH_NOW' });
+  } catch (_) { r = null; }
+  if (s) s.textContent = subReason(r);
+  if (btn) btn.disabled = false;
+});
 
 $('subClearBtn')?.addEventListener('click', async () => {
   await br.storage.local.remove(KEYS.subSrt);
   const s = $('subStatus');
-  if (s) s.textContent = 'No subtitle loaded';
+  if (s) s.textContent = 'Subtitles removed. Your own .srt / .vtt: click CC on the video';
 });
 
 $('subLangSelect')?.addEventListener('change', async () => {

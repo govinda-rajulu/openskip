@@ -94,12 +94,6 @@
         </div>
       </div>
 
-      <div class="skip-section" style="--i:1">
-        <h2 class="skip-label">Segments</h2>
-        <div class="stog-list">
-        </div>
-      </div>
-
       <div class="skip-section" style="--i:2">
         <h2 class="skip-label">Playback</h2>
         <div class="stog-list">
@@ -122,14 +116,13 @@
       <div class="skip-section" style="--i:4">
         <h2 class="skip-label">Subtitles</h2>
         <div class="sub-row">
-          <button class="sub-upload-btn" id="subUploadBtn">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 2v8M5 5l3-3 3 3"/><path d="M2 12v2h12v-2"/></svg>
-            Load .srt / .vtt
+          <button class="sub-upload-btn" id="subFetchBtn">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+            Find subtitles for this video
           </button>
-          <button class="sub-clear-btn" id="subClearBtn" title="Clear loaded subtitle" aria-label="Clear loaded subtitle">&times;</button>
+          <button class="sub-clear-btn" id="subClearBtn" title="Remove the loaded subtitles" aria-label="Remove the loaded subtitles">&times;</button>
         </div>
-        <span class="sub-status" id="subStatus">No subtitle loaded</span>
-        <input type="file" id="subFileInput" accept=".srt,.vtt" style="display:none">
+        <span class="sub-status" id="subStatus" aria-live="polite">Your own .srt / .vtt: click CC on the video</span>
         <div class="sub-lang-row">
           <label class="skip-label" for="subLangSelect">Language</label>
           <select id="subLangSelect" class="sub-lang-select">

@@ -58,6 +58,14 @@ const DENY = new Set([
 
 const $ = id => document.getElementById(id);
 
+// One messaging form for both browsers. Firefox's browser.* API is promise-only
+// (no callback argument); Chrome MV3 returns a promise when no callback is given.
+// Resolves undefined instead of throwing when the background is asleep or errors.
+function bgSend(msg) {
+  try { return Promise.resolve(br.runtime.sendMessage(msg)).catch(() => undefined); }
+  catch (_) { return Promise.resolve(undefined); }
+}
+
 // Only these keys may arrive from cloud settings (same list as background.js
 // SYNC_PREF_KEYS). Anything else in a cloud row, e.g. a credential, is ignored.
 const CLOUD_PREF_ALLOW = ['skipEnabled', 'skipMode', 'skipIntro', 'skipRecap', 'skipOutro',
@@ -85,38 +93,10 @@ if (subFontSizeInput) {
     }
     const clamped = Math.min(max, Math.max(min, parsed));
     subFontSizeInput.value = String(clamped);
+    const out = $('subFontSizeValue'); if (out) out.textContent = clamped + 'px';
     br.storage.local.set({ [S.subFontSize]: clamped }).catch(() => {});
   };
   subFontSizeInput.addEventListener('input', persistSubFontSize);
-}
-
-const subPositionInput = $('subPosition');
-const subPositionValue = $('subPositionValue');
-if (subPositionInput) {
-  const persistSubPosition = () => {
-    let min = 2;
-    let max = 60;
-    if (subPositionInput.hasAttribute('min')) {
-      const minValue = Number.parseFloat(subPositionInput.getAttribute('min'));
-      if (Number.isFinite(minValue)) min = minValue;
-    }
-    if (subPositionInput.hasAttribute('max')) {
-      const maxValue = Number.parseFloat(subPositionInput.getAttribute('max'));
-      if (Number.isFinite(maxValue)) max = maxValue;
-    }
-    const parsed = Number.parseFloat(subPositionInput.value);
-    if (!Number.isFinite(parsed)) {
-      subPositionInput.value = '12';
-      if (subPositionValue) subPositionValue.textContent = '12%';
-      br.storage.local.get([S.subDragPos]).then(d => br.storage.local.set({ [S.subDragPos]: { x: (d[S.subDragPos] || {}).x ?? 50, bottom: 12 } })).catch(() => {});
-      return;
-    }
-    const clamped = Math.min(max, Math.max(min, parsed));
-    subPositionInput.value = String(clamped);
-    if (subPositionValue) subPositionValue.textContent = String(clamped) + '%';
-    br.storage.local.get([S.subDragPos]).then(d => br.storage.local.set({ [S.subDragPos]: { x: (d[S.subDragPos] || {}).x ?? 50, bottom: clamped } })).catch(() => {});
-  };
-  subPositionInput.addEventListener('input', persistSubPosition);
 }
 
 function ssSystemMode() {
@@ -409,21 +389,15 @@ async function osubEnsureLogin() {
   const user = (data[S.osobUsername] || '').trim();
   const pass = (data[S.osobPassword] || '').trim();
 
-  const status = await new Promise(resolve => {
-    br.runtime.sendMessage({ type: 'OSUB_STATUS' }, resolve);
-  });
+  const status = await bgSend({ type: 'OSUB_STATUS' });
   if (status?.loggedIn) return status;
   if (!user || !pass) return { loggedIn: false, anonymous: true };
 
-  const login = await new Promise(resolve => {
-    br.runtime.sendMessage({ type: 'OSUB_LOGIN', username: user, password: pass }, resolve);
-  });
+  const login = await bgSend({ type: 'OSUB_LOGIN', username: user, password: pass });
   if (!login || !login.ok) {
     return { loggedIn: false, anonymous: false };
   }
-  return new Promise(resolve => {
-    br.runtime.sendMessage({ type: 'OSUB_STATUS' }, resolve);
-  });
+  return bgSend({ type: 'OSUB_STATUS' });
 }
 
 async function verifyAll() {
@@ -479,12 +453,7 @@ async function loadCredentials() {
   if ($('osobPassword'))       $('osobPassword').value       = data[S.osobPassword]       || '';
   if ($('subLanguage'))        $('subLanguage').value        = data[S.subLanguage]        || 'en';
   if ($('subFontSize'))        $('subFontSize').value        = data[S.subFontSize]        || 18;
-  if ($('subPosition')) {
-    const savedPosition = Number.parseFloat((data[S.subDragPos] || {}).bottom);
-    const value = Number.isFinite(savedPosition) ? savedPosition : 12;
-    $('subPosition').value = String(Math.min(60, Math.max(2, value)));
-    if ($('subPositionValue')) $('subPositionValue').textContent = String(Math.min(60, Math.max(2, value))) + '%';
-  }
+  if ($('subFontSizeValue'))   $('subFontSizeValue').textContent = (parseInt(data[S.subFontSize], 10) || 18) + 'px';
 
   const osubStatus = await osubEnsureLogin();
   const dotOsub = $('dot-osub');
@@ -502,13 +471,9 @@ async function loadCredentials() {
   loadSiteRules(data[S.siteRules] || data['skipstream_site_rules'] || {});
   // Pull cloud settings if Supabase configured and cloud is newer
   try {
-    const userId = await new Promise(res =>
-      br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
-    );
+    const userId = await bgSend({ type: 'GET_USER_ID' }).then(r => r?.userId || null);
     if (userId) {
-      const cloudResult = await new Promise(res =>
-        br.runtime.sendMessage({ type: 'SUPABASE_SETTINGS_GET', userId }, r => res(r))
-      );
+      const cloudResult = await bgSend({ type: 'SUPABASE_SETTINGS_GET', userId });
       if (cloudResult?.data?.prefs) {
         // Only apply cloud prefs if local has no skipMode set (fresh install / new device)
         const hasLocal = !!data[S.skipMode];
@@ -652,10 +617,8 @@ function renderSiteRules() {
       await br.storage.local.set({ [S.siteRules]: siteRules });
       renderSiteRules();
       try {
-        const uid = await new Promise(res =>
-          br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
-        );
-        if (uid) br.runtime.sendMessage({
+        const uid = await bgSend({ type: 'GET_USER_ID' }).then(r => r?.userId || null);
+        if (uid) bgSend({
           type: 'SUPABASE_SETTINGS_UPSERT',
           body: { user_id: uid, site_rules: siteRules }
         });
@@ -683,10 +646,8 @@ if (siteRuleAddBtn) {
     renderSiteRules();
     // Push updated site rules to cloud
     try {
-      const uid = await new Promise(res =>
-        br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
-      );
-      if (uid) br.runtime.sendMessage({
+      const uid = await bgSend({ type: 'GET_USER_ID' }).then(r => r?.userId || null);
+      if (uid) bgSend({
         type: 'SUPABASE_SETTINGS_UPSERT',
         body: { user_id: uid, site_rules: siteRules }
       });
@@ -873,9 +834,7 @@ async function fetchPoster(title, itemEl, mediaId) {
     return;
   }
   try {
-    const result = await new Promise(res =>
-      br.runtime.sendMessage({ type: 'TMDB_SEARCH_POSTER', title, mediaId }, r => res(r))
-    );
+    const result = await bgSend({ type: 'TMDB_SEARCH_POSTER', title, mediaId });
     _posterCache[key] = result?.posterUrl || null;
     if (_posterCache[key]) applyPoster(itemEl, _posterCache[key]);
   } catch { _posterCache[key] = null; }
@@ -916,7 +875,10 @@ function getOembedSite(site) {
 const _oembedCache = {};
 
 async function fetchOembedThumb(pageUrl, platform, itemEl) {
-  if (!pageUrl) return;
+  // Only the bare page address goes to Spotify / SoundCloud: no query string or
+  // fragment (share ids, session tokens, playlist context).
+  pageUrl = String(pageUrl || '').split(/[?#]/)[0];
+  if (!/^https:\/\/(open\.spotify\.com|(www\.|m\.)?soundcloud\.com)\//.test(pageUrl)) return;
   const key = platform + ':' + pageUrl;
   if (key in _oembedCache) {
     if (_oembedCache[key]) applyPoster(itemEl, _oembedCache[key]);
@@ -1104,13 +1066,9 @@ async function loadHistory(data) {
 
   if (url && key) {
     try {
-      const userId = await new Promise(res => {
-        br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null));
-      });
+      const userId = await bgSend({ type: 'GET_USER_ID' }).then(r => r?.userId || null);
       if (userId) {
-        const result = await new Promise(res => {
-          br.runtime.sendMessage({ type: 'SUPABASE_GET_ALL', userId }, r => res(r));
-        });
+        const result = await bgSend({ type: 'SUPABASE_GET_ALL', userId });
         // An empty cloud list is real (history cleared elsewhere): show it as empty.
         if (Array.isArray(result?.data)) {
           _histCloud = result.data.map(row => ({
@@ -1181,16 +1139,14 @@ async function loadHistory(data) {
       let pushed = 0, failed = 0, pushErr = null;
       const syncText = $('syncText');
       try {
-        const userId = await new Promise(res =>
-          br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
-        );
+        const userId = await bgSend({ type: 'GET_USER_ID' }).then(r => r?.userId || null);
         if (userId) {
           const raw = await br.storage.local.get('skipstream_cache');
           const cache = raw['skipstream_cache'] || {};
           const entries = Object.entries(cache);
           // Newer-wins: read the cloud first and only push rows this device changed
           // more recently. A failed read aborts: pushing blind overwrote other devices.
-          const cloud = await new Promise(res => br.runtime.sendMessage({ type: 'SUPABASE_GET_ALL', userId }, res));
+          const cloud = await bgSend({ type: 'SUPABASE_GET_ALL', userId });
           if (!cloud || !Array.isArray(cloud.data)) throw new Error('cloud read failed: ' + (cloud?.err || 'no data'));
           const cloudTs = {};
           for (const row of cloud.data) if (row && row.media_id) cloudTs[row.media_id] = new Date(row.updated_at || 0).getTime() || 0;
@@ -1198,7 +1154,7 @@ async function loadHistory(data) {
             if (!entry.p || !entry.title) continue;
             const localTs = Number(entry.t) || 0;
             if (mediaId in cloudTs && cloudTs[mediaId] >= localTs) continue;
-            const r = await new Promise(res => br.runtime.sendMessage({
+            const r = await bgSend({
               type: 'SUPABASE_UPSERT',
               body: {
                 user_id:      userId,
@@ -1212,7 +1168,7 @@ async function loadHistory(data) {
                 device_name:  'SkipStream Options Sync',
                 ...(localTs ? { updated_at: new Date(Math.min(localTs, Date.now())).toISOString() } : {}),
               }
-            }, res));
+            });
             if (r && r.ok) pushed++; else { failed++; pushErr = r?.err || pushErr; }
           }
           await br.storage.local.set({ skipstream_last_sync: Date.now() });
@@ -1273,6 +1229,41 @@ if (exportBtn) {
 }
 
 // -- Import migration shim: handles schema changes from 1.6.5 and earlier --
+// H18: an imported value must have the type the extension reads, or it is skipped.
+const IMPORT_BOOL = new Set([S.animeSkipEnabled, S.skipIntro, S.skipRecap, S.skipOutro, S.resumePlayback,
+  S.autoNextEpisode, S.subEnabled, S.skipEnabled]);
+const IMPORT_MODES = new Set(['off', 'prompt', 'auto-intro', 'auto-recap', 'auto-outro', 'auto-all']);
+function importValueOk(key, v) {
+  const num = (x, lo, hi) => typeof x === 'number' && Number.isFinite(x) && x >= lo && x <= hi;
+  if (IMPORT_BOOL.has(key)) return typeof v === 'boolean';
+  switch (key) {
+    case S.skipMode:     return IMPORT_MODES.has(v);
+    case S.playbackRate: return num(Number(v), 0.25, 4) && (typeof v === 'number' || typeof v === 'string');
+    case S.subLanguage:  return typeof v === 'string' && /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(v);
+    case S.subFontSize:  return num(Number(v), 10, 48);
+    case S.subSync:      return num(Number(v), -600, 600);
+    case S.subDragPos:   return !!v && typeof v === 'object' && !Array.isArray(v) && num(v.x, 0, 100) && num(v.bottom, 0, 100);
+    case S.deviceName:   return typeof v === 'string' && v.length <= 64;
+    case S.theme:        return v === 'light' || v === 'dark';
+    case S.themeSeed:    return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+    case S.siteRules:
+    case S.cache:
+    case S.stats:        return !!v && typeof v === 'object' && !Array.isArray(v);
+    case S.statsDate:    return typeof v === 'string' && v.length <= 40;
+    default:             return v === null || ['string', 'number', 'boolean'].includes(typeof v);
+  }
+}
+
+function mergeImportedStats(mine, backup) {
+  const n = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0);
+  const out = { ...mine };
+  for (const k of ['skipsTotal', 'timeSavedSec', 'sessionsTotal']) out[k] = Math.max(n(mine[k]), n(backup[k]));
+  const sites = { ...(mine.skipsBySite || {}) };
+  for (const [site, c] of Object.entries(backup.skipsBySite || {})) sites[site] = Math.max(n(sites[site]), n(c));
+  out.skipsBySite = sites;
+  return out;
+}
+
 function migrateImportData(data) {
   // Guard: legacy string fields must actually be strings before being trusted
   // downstream as e.g. HTTP header values. Drops anything malformed instead
@@ -1348,6 +1339,7 @@ if (importBtn && importFile) {
       const IMPORT_ALLOWED = Object.values(S).filter(key => !DENY.has(key));
       const safeData = {};
       const rejected = [];
+      const badValue = [];
       for (const [key, value] of Object.entries(parsed)) {
         if (key === 'schemaVersion' || key === 'exportedAt') continue;
         if (DENY.has(key)) {
@@ -1355,6 +1347,7 @@ if (importBtn && importFile) {
           continue;
         }
         if (!IMPORT_ALLOWED.includes(key)) continue;
+        if (!importValueOk(key, value)) { badValue.push(key); continue; }
         safeData[key] = value;
       }
 
@@ -1379,19 +1372,15 @@ if (importBtn && importFile) {
       const existing = await br.storage.local.get(null);
       const merged = { ...existing, ...safeData };
 
-      // Combine stats additively (skipstream_stats blob)
-      const pStats = safeData[S.stats]   || {};
-      const eStats = existing[S.stats] || {};
-      merged[S.stats] = {
-        skipsTotal:    (pStats.skipsTotal    || 0) + (eStats.skipsTotal    || 0),
-        timeSavedSec:  (pStats.timeSavedSec  || 0) + (eStats.timeSavedSec  || 0),
-        sessionsTotal: (pStats.sessionsTotal || 0) + (eStats.sessionsTotal || 0),
-        skipsToday:    eStats.skipsToday || 0,
-        statsDate:     eStats.statsDate || '',
-      };
+      // Stats: keep the larger of backup and this device, so importing the same
+      // backup twice does not double the numbers, and nothing this device has
+      // (per-site counts, today's time) is dropped.
+      if (safeData[S.stats]) merged[S.stats] = mergeImportedStats(existing[S.stats] || {}, safeData[S.stats]);
+      else if (existing[S.stats]) merged[S.stats] = existing[S.stats];
 
       const restoredCount = Object.keys(safeData).length;
-      const rejectedText = rejected.length ? ` Rejected by DENY: ${rejected.join(', ')}` : '';
+      const rejectedText = (rejected.length ? ` Not restored (credentials): ${rejected.join(', ')}.` : '')
+        + (badValue.length ? ` Skipped (wrong type): ${badValue.join(', ')}.` : '');
       await br.storage.local.set(merged);
       showAlert($('alert-export'), 'ok', `Restored ${restoredCount} setting${restoredCount === 1 ? '' : 's'}.${rejectedText}`);
       importFile.value = '';
@@ -1407,7 +1396,7 @@ if (clearBtn) {
   clearBtn.addEventListener('click', async () => {
     if (!confirm('Clear all SkipStream data? This cannot be undone.')) return;
     await br.storage.local.clear();
-    try { await new Promise(res => br.runtime.sendMessage({ type: 'INVALIDATE_USER_ID' }, res)); } catch (_) {}
+    try { await bgSend({ type: 'INVALIDATE_USER_ID' }); } catch (_) {}
     showAlert($('alert-export'), 'warn', 'All data cleared. Reload the extension to start fresh.');
     loadCredentials();
   });
@@ -1478,9 +1467,7 @@ if (clearCloudHistoryBtn) {
     clearCloudHistoryBtn.disabled = true;
     clearCloudHistoryBtn.textContent = 'Clearing...';
     try {
-      const userId = await new Promise(res =>
-        br.runtime.sendMessage({ type: 'GET_USER_ID' }, r => res(r?.userId || null))
-      );
+      const userId = await bgSend({ type: 'GET_USER_ID' }).then(r => r?.userId || null);
       if (!userId) { showAlert($('alert-cloud'), 'err', 'No user ID — check Supabase credentials.'); return; }
       const creds = await br.storage.local.get([S.supabaseUrl, S.supabaseAnonKey]);
       const sbUrl = (creds[S.supabaseUrl] || '').replace(/\/$/, '');
@@ -1520,7 +1507,7 @@ if (saveOsubBtn) {
     saveOsubBtn.disabled = true;
     setSpinnerLabel(saveOsubBtn, 'Logging in…');
     await br.storage.local.set({ [S.osobUsername]: user, [S.osobPassword]: pass });
-    const res = await new Promise(resolve => br.runtime.sendMessage({ type: 'OSUB_LOGIN', username: user, password: pass }, resolve));
+    const res = await bgSend({ type: 'OSUB_LOGIN', username: user, password: pass });
     saveOsubBtn.disabled = false;
     saveOsubBtn.textContent = 'Save & Login';
     const dotOsub = $('dot-osub');
@@ -1538,7 +1525,7 @@ if (saveOsubBtn) {
 const logoutOsubBtn = $('logoutOsub');
 if (logoutOsubBtn) {
   logoutOsubBtn.addEventListener('click', async () => {
-    await new Promise(resolve => br.runtime.sendMessage({ type: 'OSUB_LOGOUT' }, resolve));
+    await bgSend({ type: 'OSUB_LOGOUT' });
     await br.storage.local.remove([S.osobUsername, S.osobPassword]);
     if ($('osobUsername')) $('osobUsername').value = '';
     if ($('osobPassword')) $('osobPassword').value = '';

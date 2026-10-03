@@ -96,7 +96,14 @@ async function setTmdbCache(key, value) {
 
 const ERROR_LOG_KEY = 'skipstream_error_log';
 
-async function logError(context, error) {
+let _logChain = Promise.resolve();
+function logError(context, error) {
+  // Serialised: two failures at once used to read the same old log and one was lost.
+  _logChain = _logChain.then(() => _logErrorNow(context, error));
+  return _logChain;
+}
+
+async function _logErrorNow(context, error) {
   try {
     const s = await br.storage.local.get(ERROR_LOG_KEY);
     const log = Array.isArray(s[ERROR_LOG_KEY]) ? s[ERROR_LOG_KEY] : [];
@@ -549,13 +556,24 @@ async function checkSupabase(supabaseUrl, supabaseAnonKey) {
 const OSUB_API_KEY   = 'bBSwDAWRcnDjnw12mKLGHHu0SMSAUL34';
 const OSUB_UA        = 'SkipStream v' + (br.runtime?.getManifest?.()?.version || '1.8.0');
 const OSUB_SESS_KEY  = 'osub_session';
-const OSUB_SUB_CACHE = 'osub_sub_cache'; // file_id → srt text, capped 20 entries
+const OSUB_SUB_CACHE = 'osub_sub_cache'; // file_id → srt text, capped 20 entries and OSUB_CACHE_CHARS
+const OSUB_CACHE_CHARS = 2000000;         // about 2 MB of text; storage is shared with history and settings
 
+let _osubReloginTs = 0;
 async function osubGetSession() {
   try {
-    const s = await br.storage.local.get(OSUB_SESS_KEY);
+    const s = await br.storage.local.get([OSUB_SESS_KEY, 'osub_username', 'osub_password']);
     const sess = s[OSUB_SESS_KEY];
     if (sess?.token && sess.expiry > Date.now()) return sess;
+    // Expired (23h) or missing: log in again with the saved account instead of
+    // silently dropping to the 5-a-day anonymous quota. At most once per 10 min.
+    const user = String(s.osub_username || '').trim();
+    const pass = String(s.osub_password || '');
+    if (user && pass && Date.now() - _osubReloginTs > 10 * 60 * 1000) {
+      _osubReloginTs = Date.now();
+      const r = await osubLogin(user, pass);
+      if (r.ok) return (await br.storage.local.get(OSUB_SESS_KEY))[OSUB_SESS_KEY] || null;
+    }
   } catch { /* fall through */ }
   return null;
 }
@@ -615,7 +633,8 @@ async function osubDownload(file_id, sess) {
   try {
     const c = await br.storage.local.get(OSUB_SUB_CACHE);
     const cache = c[OSUB_SUB_CACHE] || {};
-    if (cache[file_id]) return { ok: true, text: cache[file_id] };
+    const hit = cache['f' + file_id] || cache[file_id];   // 'f' prefix keeps insertion order (numeric keys sort first)
+    if (hit) return { ok: true, text: hit };
   } catch { /* miss */ }
 
   const base = `https://${osubHost(sess?.base_url)}/api/v1`;
@@ -646,15 +665,24 @@ async function osubDownload(file_id, sess) {
     if (!dl.ok) return { ok: false, err: `CDN HTTP ${dl.status}` };
     const text = await dl.text();
 
-    // Cache (cap 20)
+    // Cache: at most 20 files and OSUB_CACHE_CHARS in total, oldest out first.
+    // One file bigger than half the budget is used but not cached.
     try {
-      const c = await br.storage.local.get(OSUB_SUB_CACHE);
-      const cache = c[OSUB_SUB_CACHE] || {};
-      const keys = Object.keys(cache);
-      if (keys.length >= OSUB_CACHE_MAX) delete cache[keys[0]];
-      cache[file_id] = text;
-      await br.storage.local.set({ [OSUB_SUB_CACHE]: cache });
-    } catch { /* ok */ }
+      if (text.length <= OSUB_CACHE_CHARS / 2) {
+        const c = await br.storage.local.get(OSUB_SUB_CACHE);
+        const cache = c[OSUB_SUB_CACHE] || {};
+        const ck = 'f' + file_id;
+        delete cache[file_id]; delete cache[ck];
+        let keys = Object.keys(cache);
+        let total = keys.reduce((a, k) => a + String(cache[k] || '').length, 0);
+        while (keys.length && (keys.length >= OSUB_CACHE_MAX || total + text.length > OSUB_CACHE_CHARS)) {
+          total -= String(cache[keys[0]] || '').length;
+          delete cache[keys.shift()];
+        }
+        cache[ck] = text;
+        await br.storage.local.set({ [OSUB_SUB_CACHE]: cache });
+      }
+    } catch (e) { logError('osub_cache', e); }
 
     return { ok: true, text, remaining: data.remaining };
   } catch (e) { logError('osub_download', e); return { ok: false, err: String(e) }; }

@@ -15,10 +15,20 @@
 - A TMDB v3 key broke IMDb lookups, a v4 token broke posters; both key types now work everywhere
 - A missing or rejected TMDB key was cached as "no result" forever, so adding a key later changed nothing
 - Movie pages were looked up as TV shows on TMDB
+- Settings page buttons could do nothing on Firefox: every call to the background now uses the promise form
+- Popup "Load .srt" could never work on Firefox (the popup closes when a file picker opens); replaced by "Find subtitles for this video", which says why when nothing is found. Your own file: click CC on the video
+- The saved OpenSubtitles account stopped being used after 23 hours; it now logs in again by itself
+- Subtitle cache could grow without limit; now about 2 MB, oldest out first, and eviction really is oldest first
+- Two errors logged at the same moment lost one; two skips or saves at the same moment lost one
+- Resume could jump to an older position from the cloud; stale seeks after changing video are dropped
+- A skip click could hit the wrong button when the master switch was off
+- Import accepted values of the wrong type, and replaced your stats instead of keeping the larger numbers
+- Spotify/SoundCloud artwork lookups sent full page URLs with query strings
 
 ### Added
 - Movie end-credits skipping from IntroDB (post-credit scenes are never skipped)
 - Automated tests (node --test tests/*.test.mjs) and a Tests workflow
+- Subtitle text-size slider in Settings (replaces the position slider: drag the subtitles on the video instead)
 
 ## [1.10.0] - 2026-08-04
 ### Fixed
