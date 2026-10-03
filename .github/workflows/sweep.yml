@@ -26,6 +26,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
 
       - name: Build context
         run: |
@@ -46,6 +49,8 @@ jobs:
           AI_MODEL_GEMINI: ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          AI_MODEL_NVIDIA: ${{ vars.AI_MODEL_NVIDIA }}
           ISSUE_NUMBER:      ${{ github.event.issue.number }}
           ISSUE_TITLE:       ${{ github.event.issue.title }}
           COMMENT_BODY:      ${{ github.event.comment.body }}
@@ -54,7 +59,8 @@ jobs:
           python3 << 'PYEOF'
           import sys
           sys.path.insert(0, "scripts")
-          from ai_call import ask, strip_fences
+          from ai_call import ask, strip_fences, looks_json
+          from ai_edits import apply_text, CONTRACT
           import os, json, urllib.request, urllib.error, time
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
           openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
@@ -82,17 +88,13 @@ jobs:
                     CODEBASE:
                     {ctx[:75000]}
                     
-                    Implement the task completely. Respond ONLY with JSON array (no markdown, no explanation):
-                    [{{"filename":"path/to/file","content":"COMPLETE file content","description":"what changed"}}]
-                    
-                    If task is ambiguous or unsafe: [{{"filename":"","content":"","description":"CLARIFY: what you need to know"}}]
-                    If task needs discussion first: [{{"filename":"","content":"","description":"DISCUSS: reason"}}]"""
+                    Implement the task.
+                    {CONTRACT}"""
 
           try:
-              text = ask(prompt)
-              text = strip_fences(text)
-              json.loads(text)
-              open("/tmp/sweep.json","w").write(text)
+              text = ask(prompt, accept=looks_json)
+              fixes = apply_text(text)  # find/replace guard + node --check + full test suite
+              open("/tmp/sweep.json","w").write(json.dumps(fixes))
           except Exception as e:
               open("/tmp/sweep.json","w").write(json.dumps({"error":str(e)}))
           PYEOF

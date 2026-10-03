@@ -23,6 +23,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
 
       - name: Build repo context
         run: |
@@ -48,6 +51,8 @@ jobs:
           AI_MODEL_GEMINI:   ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          AI_MODEL_NVIDIA: ${{ vars.AI_MODEL_NVIDIA }}
           ISSUE_NUMBER:      ${{ github.event.issue.number }}
           ISSUE_TITLE:       ${{ github.event.issue.title }}
           ISSUE_BODY:        ${{ github.event.issue.body }}
@@ -55,7 +60,8 @@ jobs:
           python3 << 'PYEOF'
           import sys
           sys.path.insert(0, "scripts")
-          from ai_call import ask, strip_fences
+          from ai_call import ask, strip_fences, looks_json
+          from ai_edits import apply_text, CONTRACT
           import os, json
 
           issue_num   = os.environ.get("ISSUE_NUMBER", "")
@@ -81,25 +87,12 @@ jobs:
           CURRENT CODEBASE:
           {repo_context[:80000]}
           
-          Respond with ONLY a JSON array (no markdown, no explanation, no code fences):
-          [
-            {{
-              "filename": "path/to/file.js",
-              "content": "COMPLETE file content — not a diff, not a snippet",
-              "description": "what changed and why (max 72 chars)"
-            }}
-          ]
-          
-          Rules:
-          - Only include files that actually change
-          - Write the COMPLETE file content for each changed file
-          - If this cannot be safely automated: [{{"filename":"","content":"","description":"CANNOT_FIX: reason"}}]"""
+          {CONTRACT}"""
 
           try:
-              text = ask(prompt, max_tokens=8192)
-              text = strip_fences(text)
-              json.loads(text)  # validate
-              open("/tmp/ai_fix.json","w").write(text)
+              text = ask(prompt, max_tokens=8192, accept=looks_json)
+              fixes = apply_text(text)  # find/replace guard + node --check + full test suite
+              open("/tmp/ai_fix.json","w").write(json.dumps(fixes))
           except Exception as e:
               json.dump({"error": str(e)}, open("/tmp/ai_fix.json","w"))
           PYEOF
@@ -198,6 +191,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
 
       - name: Parse command
         id: cmd
@@ -233,6 +229,8 @@ jobs:
           AI_MODEL_GEMINI:   ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:     ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY:  ${{ secrets.OPENROUTER_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          AI_MODEL_NVIDIA: ${{ vars.AI_MODEL_NVIDIA }}
           CMD:                ${{ steps.cmd.outputs.command }}
           ARGS:               ${{ steps.cmd.outputs.args }}
           ISSUE_NUMBER:       ${{ github.event.issue.number }}
@@ -243,7 +241,8 @@ jobs:
           python3 << 'PYEOF'
           import sys
           sys.path.insert(0, "scripts")
-          from ai_call import ask, strip_fences
+          from ai_call import ask, strip_fences, looks_json
+          from ai_edits import apply_text, CONTRACT
           import os, json
 
           cmd           = os.environ.get("CMD","")
@@ -267,9 +266,7 @@ jobs:
               CODEBASE:
               {repo_context[:70000]}
               
-              Respond ONLY with JSON array (no markdown):
-              [{{"filename":"path","content":"COMPLETE file content","description":"what changed"}}]
-              If unsafe to automate: [{{"filename":"","content":"","description":"CANNOT_FIX: reason"}}]"""
+              {CONTRACT}"""
               mode = "fix"
               
           elif cmd == "/ai-review":
@@ -307,10 +304,9 @@ jobs:
               CODEBASE:
               {repo_context[:70000]}
               
-              If this is a code change, respond with ONLY a JSON array:
-              [{{"filename":"path","content":"COMPLETE file content","description":"what changed"}}]
               If this is a question/analysis, respond with markdown.
-              If unsafe: [{{"filename":"","content":"","description":"CANNOT_FIX: reason"}}]"""
+              If this is a code change:
+              {CONTRACT}"""
               mode = "task"
 
           else:
@@ -318,12 +314,12 @@ jobs:
               exit(0)
 
           try:
-              text = ask(prompt, max_tokens=8192)
+              text = ask(prompt, max_tokens=8192, accept=looks_json if mode == "fix" else None)
               # Determine if response is JSON (code change) or markdown (explanation)
               stripped = strip_fences(text)
               is_json = stripped.startswith("[") or stripped.startswith("{")
               if is_json:
-                  parsed = json.loads(stripped)
+                  parsed = apply_text(stripped)  # find/replace guard + node --check + full test suite
                   open("/tmp/ai_cmd_result.json","w").write(json.dumps({"type":"fix","data":parsed,"mode":mode}))
               else:
                   open("/tmp/ai_cmd_result.json","w").write(json.dumps({"type":"text","text":text,"mode":mode}))

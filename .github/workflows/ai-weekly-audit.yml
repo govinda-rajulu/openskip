@@ -31,12 +31,14 @@ jobs:
           AI_MODEL_GEMINI: ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          AI_MODEL_NVIDIA: ${{ vars.AI_MODEL_NVIDIA }}
           SCOPE:             ${{ inputs.scope || 'full' }}
         run: |
           python3 << 'PYEOF'
           import sys
           sys.path.insert(0, "scripts")
-          from ai_call import ask, strip_fences
+          from ai_call import ask, strip_fences, looks_json
           import os, json, urllib.request, urllib.error, time
           gemini_key    = os.environ.get("GEMINI_API_KEY","")
           openrouter_key = os.environ.get("OPENROUTER_API_KEY","")
@@ -95,6 +97,7 @@ jobs:
                 "category": "security|performance|compat|architecture|quality",
                 "file": "filename.js",
                 "line_hint": "approximate line or function name",
+                "quote": "ONE line copied character for character from that file that shows the problem",
                 "title": "short title",
                 "description": "what the issue is",
                 "suggestion": "concrete fix",
@@ -105,12 +108,28 @@ jobs:
             "healthy": true
           }}
           
-          Only include real findings. If no issues found, return empty findings array."""
+          Only include real findings. Every finding MUST carry a "quote" copied exactly from the file;
+          findings whose quote is not found in the file are discarded automatically.
+          If no issues found, return empty findings array."""
 
           try:
-              text = ask(prompt)
+              text = ask(prompt, accept=looks_json)
               text = strip_fences(text)
               result = json.loads(text)
+              # Quote gate: a finding survives only if its quote is really in the named file.
+              kept, dropped = [], []
+              for fd in result.get("findings", []) or []:
+                  src = codebase.get(str(fd.get("file", "")), "")
+                  q = str(fd.get("quote", "")).strip()
+                  if src and len(q) >= 12 and q in src:
+                      fd["line_hint"] = "line " + str(src[:src.index(q)].count(chr(10)) + 1) + " (verified quote)"
+                      kept.append(fd)
+                  else:
+                      dropped.append(str(fd.get("title", "?"))[:80])
+              result["findings"] = kept
+              result["dropped_unverified"] = dropped
+              if dropped:
+                  result["summary"] = str(result.get("summary", "")) + " [" + str(len(dropped)) + " finding(s) dropped: quote not found in source]"
               result["status"] = "OK"
               open("/tmp/audit.json","w").write(json.dumps(result))
               print(f"Audit complete: {len(result.get('findings',[]))} findings")
@@ -133,6 +152,7 @@ jobs:
             if (audit.status !== 'OK') { core.notice(`Audit skipped: ${audit.status}`); return; }
 
             const findings = audit.findings || [];
+            if (findings.length === 0) { core.notice(`Audit clean: 0 verified findings (${(audit.dropped_unverified || []).length} unverified dropped). No issue opened.`); return; }
             const highCount = findings.filter(f=>f.severity==='high').length;
 
             // Create a summary issue

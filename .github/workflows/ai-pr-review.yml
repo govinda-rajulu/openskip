@@ -46,6 +46,8 @@ jobs:
           AI_MODEL_GEMINI: ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          AI_MODEL_NVIDIA: ${{ vars.AI_MODEL_NVIDIA }}
           PR_TITLE:          ${{ github.event.pull_request.title }}
           PR_BODY:           ${{ github.event.pull_request.body }}
         run: |
@@ -91,7 +93,7 @@ jobs:
           Be direct and specific. Skip praise for obvious things. Max 400 words."""
 
           try:
-              text = ask(prompt, max_tokens=1000)
+              text = ask(prompt, max_tokens=4000)
               open("/tmp/ai_review.txt","w").write(text)
           except Exception as e:
               open("/tmp/ai_review.txt","w").write(f"ERROR:{e}")
@@ -149,6 +151,8 @@ jobs:
           AI_MODEL_GEMINI: ${{ vars.AI_MODEL_GEMINI }}
           GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          AI_MODEL_NVIDIA: ${{ vars.AI_MODEL_NVIDIA }}
           COMMENT_BODY:      ${{ github.event.comment.body }}
           DIFF_HUNK:         ${{ github.event.comment.diff_hunk }}
           PR_TITLE:          ${{ github.event.pull_request.title }}
@@ -188,7 +192,7 @@ jobs:
           Be concise and specific (max 200 words)."""
 
           try:
-              text = ask(prompt, max_tokens=600)
+              text = ask(prompt, max_tokens=2000)
               open("/tmp/inline_reply.txt","w").write(text)
           except Exception as e:
               open("/tmp/inline_reply.txt","w").write(f"Error: {e}")
