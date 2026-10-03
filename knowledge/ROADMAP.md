@@ -63,9 +63,33 @@ Caps on rounds, minutes and daily model calls.
 - The biggest lever is tests: agents are only as good as the suite that judges them. Every
   lane 3 task adds a test that fails on the old code.
 
+## Next after 1.11.0: device linking and Supabase login (1.12.0)
+
+Owner decision 3 Oct: each user keeps their own keys; one login restores everything.
+- Supabase Auth (email and password or magic link) in the user's own project; rows keyed by
+  `auth.uid()` with row rules, replacing the per-install id. Existing install-id rows are claimed
+  on first login.
+- 1.11.0 already links browsers through a backup (sync identity) and restores keys from an
+  encrypted backup; the login replaces the shared id with `auth.uid()`.
+- One connection code (text or QR) carries the project URL and anon key to a new device.
+- Keys and logins saved in the user's own project behind the login; the export file stays
+  credential-free. Declare `personallyIdentifyingInfo` (email) as optional, asked when login is
+  turned on. Replace the unused `ss_put_creds` RPC.
+- Chrome build: keepalive and EdgA label done in 1.11.0; next, list on Edge Add-ons (free,
+  takes the MV3 zip).
+
 ## Parking lot
 
 Add ideas here with a date. Move one into a lane only when the lane before it is done.
+
+- 3 Oct 2026: "Skip in 3 s, Cancel" countdown; per-segment defaults (credits ask, intro auto).
+- 3 Oct 2026: resume card with a 5 s rewind; next-episode countdown with Cancel.
+- 3 Oct 2026: remember the chosen subtitle and its offset per show.
+- 3 Oct 2026: TMDB logo next to the Credits notice (TMDB attribution rules).
+- 3 Oct 2026: OpenSubtitles search by title when no IMDb id: done in 1.11.0 (popup button only; YouTube excluded). A confirm step showing the match is still open.
+- 3 Oct 2026: if "Check this page" shows blank frames holding players, add match_about_blank.
+- 3 Oct 2026: tidy agent docs (AGENTS.md, CLAUDE.md, GEMINI.md overlap); move SECURITY_AUDIT.md
+  into knowledge/audits; check update_release.py is still used.
 
 - 1 Oct 2026: competing drafts (attack, defend, judge) for risky PRs, after lane 3 has run 10 tasks.
 - 1 Oct 2026: typed verdict step (accept, reject, escalate) in the verdict script.

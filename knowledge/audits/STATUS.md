@@ -11,5 +11,6 @@ messages and tests, not from a re-audit. Re-read the code before relying on a ro
 | CodeQL alerts, PR #71 (packet G) | code-scanning fixes, also removes dead SKIP_SELECTORS (C14); alerts 14, 29, 31, 42 dismissed with reasons |
 | Partly fixed | C12: 2 of the 5 `console.warn` calls remain on main |
 | In the H23 PR (1 Oct), not merged | H23: Firefox data-collection declaration (blocks next AMO upload) |
+| In the 1.11.0 release PR (3 Oct) | H23b (technicalAndInteraction optional and checked), D1 (PRIVACY.md), D2 (release doc file counts), X2 (iframe 5 s cutoff), X3 (import replaced history) |
+| Found 3 Oct, partly fixed | X1: cross-device sync broken since c89ec20; 1.11.0 links browsers via backup, login in 1.12.0 |
 | Deferred, not started | C3, C7, C11, C13, O4, H6, H8, H25 |
-| Unknown, check | D1 (PRIVACY.md), D2 (HOW_TO_RELEASE / AGENTS file counts) |

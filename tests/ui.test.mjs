@@ -45,7 +45,7 @@ test('popup has no file input, no empty Segments block, and a Find subtitles but
 test('every fetch failure reason has words in the popup', () => {
   const code = extractConst(POPUP_JS, 'SUB_REASONS') + extractFunction(POPUP_JS, 'subReason') + ';subReason';
   const subReason = vm.runInContext(code, vm.createContext({ String }));
-  for (const r of ['no_id', 'no_results', 'navigated', 'unreadable']) {
+  for (const r of ['no_id', 'youtube', 'no_results', 'navigated', 'unreadable']) {
     const t = subReason({ ok: false, reason: r });
     assert.ok(t && !t.startsWith('OpenSubtitles said'), r + ' has no text');
   }

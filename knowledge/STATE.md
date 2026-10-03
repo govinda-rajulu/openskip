@@ -2,6 +2,50 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
+## 3 Oct 2026 (release 1.11.0 packet)
+
+- **Sweep** (`os-sweep-20261003`, owner Cloud Shell, RESULT OK): main `fe91918b` (tree `38b74d02`);
+  #71, #72, #73, #77 merge cleanly in that order; tests 41, 45, 59, 73, 73; Mozilla addons-linter
+  10.6.0: 0 errors, 0 warnings on main and on the merged tree. Trees: after #73 `e7154a14`,
+  after #77 `cd547d32`.
+- **Release PR** (`packet/release-1.11.0-20261003`, one big update by owner request) builds on
+  tree `cd547d32` only: H23b (`technicalAndInteraction` optional, checked before every send of
+  stats, settings and device name); PRIVACY.md rewrite (D1); Credits card (TMDB, SponsorBlock);
+  backup v2 (settings, rules, stats, history merged; optional encrypted keys and logins;
+  optional sync identity = "Link devices"); iframe detection without the 5 s cutoff, plus
+  shadow-root players; "Skipped X, Undo" notice; popup "Check this page"; Chrome keepalive
+  removed; D2; CodeQL `cpSync`; version 1.11.0 in all 7 files plus updates.json. Tests 97
+  (24 new; 20 fail on the old tree, 4 are guards).
+- **Second review round, same PR** (owner asked for every logic before running anything):
+  embedded players now use the tab's real address and title (`GET_TAB_INFO`; browsers send only
+  the parent origin as referrer, so history saved the home page and the title "Player");
+  `_cleanTitle` (site name and filler only); URL ids for `/movies/603-x`, `/embed/tv/1399/1/2`,
+  `?tmdb=`; `[\/-_]` range bug in the S/E pattern; movie pages ignore sidebar S/E; show pages
+  without S/E are not looked up as movies; TMDB id checked against the page title; exact-title
+  TMDB match when no id (`TMDB_FIND_TITLE`, ambiguous names refused); posters by TMDB id first,
+  exact-name search, films first for film titles, portrait w185, cache key `poster2:`;
+  "Find subtitles" by title (popup only, never YouTube); auto-skip waits for the real start;
+  next YouTube video resolves at once; `?v=` on other sites is not YouTube; Alt+Z on macOS.
+  Tests 118 (21 new in identify.test.mjs, all 21 fail on the first packet's tree).
+- **Device test of #79 (owner, 3 Oct 16:00)**: first run was the old build (1.10 popup text);
+  check the version in about:debugging first. On 1.11.0: CC button, history title and poster
+  on 1Shows OK; YouTube subtitles reason OK; backup export/import with keys OK. Found:
+  "Find subtitles" gave NetworkError (download link on www.opensubtitles.com, blocked by
+  connect-src since before 1.10: fixed with *.opensubtitles.com); backup card had no short
+  steps (added). Open: Undo notice not seen on YouTube; Check this page listed only the top page.
+  Added for the retest: Check this page now shows per player what was identified, skips found,
+  mode, last skip (notice shown / undone) and subtitles; shadow walk throttled to 2 s.
+- **Found 3 Oct: cross-device sync did not work since 19 Jul** (c89ec20, in 1.10.0): each install
+  has its own random `skipstream_install_id`, every RPC filters by it. 1.11.0 lets the owner
+  link browsers with a backup; the Supabase login in 1.12.0 is the full fix.
+- **Found 3 Oct: embedded players were dropped after 5 s** (`_waitObs` timeout): a frame whose
+  video appeared later never started. Owner symptom: 1Shows/viduki "works sometimes".
+- **Owner steps, in order**: device test #73; merge #71, #72, #73, #77; run the release packet;
+  merge its PR; push tag `v1.11.0` (this publishes to AMO via amo-submit.yml); AMO listing.
+- **Owner decisions 3 Oct**: every user brings their own API keys (no shared SkipStream keys);
+  login to the user's own Supabase should restore keys, settings and history on every device.
+  TV: no TV browser with extensions is worth supporting; HDMI or a mini PC with desktop Firefox.
+
 ## 1 Oct 2026, afternoon (end of the combined session)
 
 - **main** `91f8b752` (PR76: roadmap and agent tooling). #71, #72, #73 still open.

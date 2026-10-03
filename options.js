@@ -1197,20 +1197,164 @@ async function loadHistory(data) {
   }
 }
 
+// -- Backup v2 (3 Oct 2026) --
+// One file restores the whole extension on another browser or after a reinstall:
+// settings, per-site rules, stats and local history (merged, newer wins). On
+// request it also carries the sync identity, which links this browser's history
+// to the one you restore on, and your API keys and logins, encrypted with a
+// passphrase (AES-GCM, key from PBKDF2-SHA-256 with 600,000 rounds). Without the
+// passphrase they cannot be read. Caches, sessions, queues and the error log
+// are never exported. Version 1 files (1.10 and older) still import.
+function backupKit(subtle, randomBytes) {
+  const SETTINGS = ['skipEnabled', 'skipMode', 'skipIntro', 'skipRecap', 'skipOutro', 'resumePlayback',
+    'autoNextEpisode', 'playbackSpeed', 'animeSkipEnabled', 'skipstream_site_rules', 'deviceName',
+    'subtitle_language', 'subtitle_font_size', 'subtitle_enabled', 'subtitle_sync', 'subtitle_drag_pos',
+    'skipstream_theme', 'skipstream_seed_color'];
+  const STATS = ['skipstream_stats', 'statsSkipsToday', 'statsDate', 'statsTotalSkips', 'statsTotalTimeSaved', 'statsSessions'];
+  const SECRETS = ['supabaseUrl', 'supabaseAnonKey', 'introdbApiKey', 'tmdbApiKey', 'animeSkipClientId',
+    'animeSkipAuthToken', 'osub_username', 'osub_password'];
+  const ITER = 600000;
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const HISTORY_MAX = 100;
+  const enc = new TextEncoder();
+  const b64 = u8 => { let s = ''; for (const x of u8) s += String.fromCharCode(x); return btoa(s); };
+  const unb64 = s => Uint8Array.from(atob(String(s)), ch => ch.charCodeAt(0));
+  const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+
+  async function keyFor(pass, salt, iter, use) {
+    const base = await subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+    return subtle.deriveKey({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' },
+      base, { name: 'AES-GCM', length: 256 }, false, [use]);
+  }
+  async function seal(obj, pass) {
+    const salt = randomBytes(16), iv = randomBytes(12);
+    const key = await keyFor(pass, salt, ITER, 'encrypt');
+    const data = new Uint8Array(await subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(obj))));
+    return { alg: 'AES-GCM', kdf: 'PBKDF2-SHA-256', iter: ITER, salt: b64(salt), iv: b64(iv), data: b64(data) };
+  }
+  async function unseal(box, pass) {
+    if (!isObj(box) || box.alg !== 'AES-GCM' || !Number.isInteger(box.iter) || box.iter < 100000 || box.iter > 5000000) throw new Error('bad_secrets');
+    const key = await keyFor(pass, unb64(box.salt), box.iter, 'decrypt');
+    let plain;
+    try { plain = await subtle.decrypt({ name: 'AES-GCM', iv: unb64(box.iv) }, key, unb64(box.data)); }
+    catch { throw new Error('wrong_passphrase'); }
+    const obj = JSON.parse(new TextDecoder().decode(plain));
+    if (!isObj(obj)) throw new Error('bad_secrets');
+    return obj;
+  }
+
+  function mergeHistory(mine, theirs) {
+    const out = { ...(isObj(mine) ? mine : {}) };
+    let taken = 0;
+    for (const [id, e] of Object.entries(isObj(theirs) ? theirs : {})) {
+      if (!isObj(e) || typeof e.p !== 'number' || !Number.isFinite(e.p)) continue;
+      if (!out[id] || Number(e.t || 0) > Number(out[id].t || 0)) { out[id] = e; taken++; }
+    }
+    const keys = Object.keys(out);
+    if (keys.length > HISTORY_MAX) {
+      keys.sort((x, y) => Number(out[y].t || 0) - Number(out[x].t || 0)).slice(HISTORY_MAX).forEach(k => delete out[k]);
+    }
+    return { merged: out, taken };
+  }
+
+  async function buildBackup(all, { passphrase = '', includeIdentity = false, appVersion = '', now = '' } = {}) {
+    const out = { format: 'skipstream-backup', schemaVersion: 2, appVersion, exportedAt: now,
+      settings: {}, stats: {}, history: isObj(all.skipstream_cache) ? all.skipstream_cache : {} };
+    for (const k of SETTINGS) if (k in all) out.settings[k] = all[k];
+    for (const k of STATS) if (k in all) out.stats[k] = all[k];
+    if (includeIdentity && UUID.test(String(all.skipstream_install_id || ''))) out.identity = { installId: all.skipstream_install_id };
+    if (passphrase) {
+      const sec = {};
+      for (const k of SECRETS) if (typeof all[k] === 'string' && all[k]) sec[k] = all[k];
+      if (Object.keys(sec).length) out.secrets = await seal(sec, passphrase);
+    }
+    return out;
+  }
+
+  // Returns what to write; throws need_passphrase / wrong_passphrase / bad_file and then nothing is written.
+  async function readBackup(file, existing, { passphrase = '', valueOk, mergeStats, migrate, legacyKeys } = {}) {
+    if (!isObj(file)) throw new Error('bad_file');
+    const set = {}, skipped = [];
+    const report = { settings: 0, history: 0, secrets: 0 };
+    let installId = null;
+    const take = (k, v) => { if (valueOk(k, v)) { set[k] = v; return true; } skipped.push(k); return false; };
+    const statsInto = (src) => {
+      for (const k of STATS) {
+        if (!(k in src)) continue;
+        const v = src[k];
+        if (k === 'skipstream_stats') { if (isObj(v)) set[k] = mergeStats(isObj(existing[k]) ? existing[k] : {}, v); else skipped.push(k); }
+        else if (typeof v === 'number' && Number.isFinite(v) && typeof existing[k] === 'number') set[k] = Math.max(existing[k], v);
+        else take(k, v);
+      }
+    };
+    const rulesInto = (v) => {
+      if (!isObj(v)) { skipped.push('skipstream_site_rules'); return; }
+      set.skipstream_site_rules = { ...(isObj(existing.skipstream_site_rules) ? existing.skipstream_site_rules : {}), ...v };
+      report.settings++;
+    };
+    const historyInto = (v) => {
+      if (!isObj(v)) return;
+      const { merged, taken } = mergeHistory(existing.skipstream_cache, v);
+      set.skipstream_cache = merged; report.history = taken;
+    };
+
+    if (file.format === 'skipstream-backup') {
+      if (file.schemaVersion !== 2) throw new Error('bad_file');
+      if (file.secrets && !passphrase) throw new Error('need_passphrase');
+      for (const [k, v] of Object.entries(isObj(file.settings) ? file.settings : {})) {
+        if (!SETTINGS.includes(k)) continue;
+        if (k === 'skipstream_site_rules') rulesInto(v);
+        else if (take(k, v)) report.settings++;
+      }
+      statsInto(isObj(file.stats) ? file.stats : {});
+      historyInto(file.history);
+      if (file.secrets) {
+        const sec = await unseal(file.secrets, passphrase);
+        for (const k of SECRETS) {
+          if (typeof sec[k] === 'string' && sec[k] && sec[k].length <= 4096) { set[k] = sec[k]; report.secrets++; }
+        }
+      }
+      if (isObj(file.identity) && UUID.test(String(file.identity.installId || ''))) installId = file.identity.installId;
+      return { set, installId, report, skipped };
+    }
+
+    // Version 1 (flat keys). Credentials were never in these files.
+    const data = migrate({ ...file });
+    for (const [k, v] of Object.entries(data)) {
+      if (!legacyKeys.includes(k)) continue;
+      if (k === 'skipstream_cache') historyInto(v);
+      else if (k === 'skipstream_site_rules') rulesInto(v);
+      else if (STATS.includes(k)) statsInto({ [k]: v });
+      else if (take(k, v)) report.settings++;
+    }
+    return { set, installId, report, skipped };
+  }
+
+  return { buildBackup, readBackup, mergeHistory, SETTINGS, STATS, SECRETS };
+}
+
+const BACKUP = backupKit(crypto.subtle, n => crypto.getRandomValues(new Uint8Array(n)));
+
 // -- Export --
 const exportBtn = $('exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', async () => {
-    if (!confirm('This file contains your saved settings only. Keep it private. Continue?')) return;
+    const withSecrets = !!$('backupSecrets')?.checked;
+    const pass = $('backupPass')?.value || '';
+    if (withSecrets && pass.length < 8) {
+      showAlert($('alert-export'), 'err', 'Type a passphrase of at least 8 characters to include keys and logins.');
+      return;
+    }
+    const note = withSecrets
+      ? 'This file holds your keys and logins, locked with your passphrase. Without the passphrase they cannot be restored. Continue?'
+      : 'This file holds your settings and history, without keys or logins. Continue?';
+    if (!confirm(note)) return;
     try {
       const all = await br.storage.local.get(null);
-      const data = {};
-      for (const [key, value] of Object.entries(all)) {
-        if (DENY.has(key) || key === 'schemaVersion' || key === 'exportedAt') continue;
-        data[key] = value;
-      }
-      data.schemaVersion = 1;
-      data.exportedAt = new Date().toISOString();
+      const data = await BACKUP.buildBackup(all, {
+        passphrase: withSecrets ? pass : '', includeIdentity: !!$('backupIdentity')?.checked,
+        appVersion: br.runtime.getManifest?.()?.version || '', now: new Date().toISOString(),
+      });
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const objUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1220,11 +1364,10 @@ if (exportBtn) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
-      showAlert($('alert-export'), 'ok', 'Download triggered - check your Downloads folder.');
+      showAlert($('alert-export'), 'ok', 'Backup saved to your Downloads folder.');
     } catch (e) {
       showAlert($('alert-export'), 'err', 'Export failed: ' + e.message);
     }
-    setTimeout(() => hideAlert($('alert-export')), 3000);
   });
 }
 
@@ -1316,6 +1459,12 @@ function migrateImportData(data) {
 }
 
 // -- Import --
+const IMPORT_ERRORS = {
+  need_passphrase: 'This backup holds keys and logins. Type its passphrase above, then import again. Nothing was changed.',
+  wrong_passphrase: 'Wrong passphrase. Nothing was changed.',
+  bad_secrets: 'The keys section of this backup is damaged. Nothing was changed.',
+  bad_file: 'Not a SkipStream backup file. Nothing was changed.',
+};
 const importBtn  = $('importBtn');
 const importFile = $('importFile');
 if (importBtn && importFile) {
@@ -1324,68 +1473,31 @@ if (importBtn && importFile) {
     const file = importFile.files[0];
     if (!file) return;
     try {
-      const text = await file.text();
-      let parsed = JSON.parse(text);
-
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        showAlert($('alert-export'), 'err', 'Import failed: not a valid backup file.');
-        importFile.value = '';
-        return;
-      }
-
-      // Run migration shim before merging
-      parsed = migrateImportData(parsed);
-
-      const IMPORT_ALLOWED = Object.values(S).filter(key => !DENY.has(key));
-      const safeData = {};
-      const rejected = [];
-      const badValue = [];
-      for (const [key, value] of Object.entries(parsed)) {
-        if (key === 'schemaVersion' || key === 'exportedAt') continue;
-        if (DENY.has(key)) {
-          rejected.push(key);
-          continue;
-        }
-        if (!IMPORT_ALLOWED.includes(key)) continue;
-        if (!importValueOk(key, value)) { badValue.push(key); continue; }
-        safeData[key] = value;
-      }
-
-      // Type validation
-      if (safeData.skipstream_site_rules && typeof safeData.skipstream_site_rules !== 'object') {
-        delete safeData.skipstream_site_rules;
-      }
-      if (safeData.skipstream_cache && typeof safeData.skipstream_cache !== 'object') {
-        delete safeData.skipstream_cache;
-      }
-      if (safeData.skipstream_stats && typeof safeData.skipstream_stats !== 'object') {
-        delete safeData.skipstream_stats;
-      }
-
-      // Size guard
-      if (JSON.stringify(safeData).length > 1048576) {
-        showAlert($('alert-export'), 'err', 'Import too large (max 1MB).');
-        importFile.value = '';
-        return;
-      }
-
+      if (file.size > 5 * 1048576) throw new Error('bad_file');
+      let parsed;
+      try { parsed = JSON.parse(await file.text()); } catch { throw new Error('bad_file'); }
       const existing = await br.storage.local.get(null);
-      const merged = { ...existing, ...safeData };
-
-      // Stats: keep the larger of backup and this device, so importing the same
-      // backup twice does not double the numbers, and nothing this device has
-      // (per-site counts, today's time) is dropped.
-      if (safeData[S.stats]) merged[S.stats] = mergeImportedStats(existing[S.stats] || {}, safeData[S.stats]);
-      else if (existing[S.stats]) merged[S.stats] = existing[S.stats];
-
-      const restoredCount = Object.keys(safeData).length;
-      const rejectedText = (rejected.length ? ` Not restored (credentials): ${rejected.join(', ')}.` : '')
-        + (badValue.length ? ` Skipped (wrong type): ${badValue.join(', ')}.` : '');
-      await br.storage.local.set(merged);
-      showAlert($('alert-export'), 'ok', `Restored ${restoredCount} setting${restoredCount === 1 ? '' : 's'}.${rejectedText}`);
+      const res = await BACKUP.readBackup(parsed, existing, {
+        passphrase: $('backupPass')?.value || '', valueOk: importValueOk, mergeStats: mergeImportedStats,
+        migrate: migrateImportData, legacyKeys: Object.values(S).filter(key => !DENY.has(key)),
+      });
+      await br.storage.local.set(res.set);
+      let link = '';
+      if (res.installId) {
+        const r = await bgSend({ type: 'ADOPT_INSTALL_ID', installId: res.installId });
+        if (r && r.ok) link = r.same ? ' Already linked to that device.' : ' This browser now shares history with the backup\'s browser' + (r.moved ? ' (' + r.moved + ' cloud entries moved over).' : '.');
+        else link = ' Devices were NOT linked: this browser\'s cloud history could not be copied. Check the connection and import again.';
+      }
+      const n = res.report;
+      const parts = [n.settings + ' settings', n.history + ' history entries'];
+      if (n.secrets) parts.push(n.secrets + ' keys and logins');
+      const skipped = res.skipped.length ? ' Skipped (wrong type): ' + res.skipped.join(', ') + '.' : '';
+      showAlert($('alert-export'), 'ok', 'Restored ' + parts.join(', ') + '.' + skipped + link + ' Refreshing this page...');
       importFile.value = '';
+      setTimeout(() => location.reload(), 4000);
     } catch (e) {
-      showAlert($('alert-export'), 'err', 'Import failed: ' + e.message);
+      showAlert($('alert-export'), 'err', IMPORT_ERRORS[e.message] || ('Import failed: ' + e.message));
+      importFile.value = '';
     }
   });
 }

@@ -200,6 +200,7 @@
           <label class="field-label" for="tmdbApiKey">API Key (v3)</label>
           <input type="password" id="tmdbApiKey" placeholder="Your TMDB v3 API key" autocomplete="off" spellcheck="false">
           <p class="help">Free key at <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">themoviedb.org/settings/api</a>.</p>
+          <p class="help">This product uses TMDB and the TMDB APIs but is not endorsed, certified or otherwise approved by TMDB.</p>
         </div>
         <div class="btn-row">
           <button class="btn-primary" id="saveTmdb">Save &amp; Verify</button>
@@ -373,7 +374,7 @@
   <!-- ── Stats panel ────────────────────────────────────────────── -->
   <section id="panel-stats" class="panel">
     <h1 class="page-title">Statistics</h1>
-    <p class="page-sub">Tracked locally and never uploaded to any server.</p>
+    <p class="page-sub">Kept on this device. With cloud sync on, also saved to your own Supabase project, unless you switched off technical data for SkipStream in about:addons.</p>
 
     <div class="card">
       <div class="card-header">
@@ -418,10 +419,40 @@
         </div>
         <div class="card-title-wrap">
           <h2 class="card-title">Backup &amp; Restore</h2>
-          <div class="card-subtitle">Export settings and history as JSON. API keys are never included.</div>
+          <div class="card-subtitle">One file restores everything on another browser or after a reinstall.</div>
         </div>
       </div>
       <div class="card-body">
+        <ol class="help" style="margin:0 0 12px;padding-left:18px">
+          <li><strong>Save:</strong> pick what to include, type a passphrase if keys are on, press Export All.</li>
+          <li><strong>Restore:</strong> on the other browser, type the same passphrase, press Import Backup, pick the file.</li>
+          <li>The page reloads with everything back. Nothing is deleted on either browser.</li>
+        </ol>
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-name">Include keys and logins</div>
+            <div class="toggle-desc">Supabase, TMDB, IntroDB, Anime Skip and OpenSubtitles, locked with the passphrase below</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="backupSecrets" aria-label="Include keys and logins">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-name">Link devices</div>
+            <div class="toggle-desc">The browser you restore on shares cloud history with this one</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="backupIdentity" aria-label="Link devices">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="field" style="margin-top:14px">
+          <label class="field-label" for="backupPass">Backup passphrase</label>
+          <input type="password" id="backupPass" placeholder="At least 8 characters" autocomplete="new-password" spellcheck="false">
+          <p class="help">Only for keys and logins. Never stored: lose it and the keys in that file are gone.</p>
+        </div>
         <div class="btn-row">
           <button class="btn-primary" id="exportBtn">Export All</button>
           <button class="btn-ghost" id="importBtn">Import Backup</button>
@@ -451,6 +482,21 @@
           <button class="btn-primary" id="saveAdvanced">Save</button>
         </div>
         <div class="alert" id="alert-device"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-wrap">
+          <h2 class="card-title">Credits</h2>
+          <div class="card-subtitle">Data sources SkipStream uses</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="help">This product uses TMDB and the TMDB APIs but is not endorsed, certified or otherwise approved by TMDB. Posters and show data: <a href="https://www.themoviedb.org" target="_blank" rel="noopener">themoviedb.org</a>.</p>
+        <p class="help">YouTube sponsor segments: <a href="https://sponsor.ajay.app" target="_blank" rel="noopener">SponsorBlock</a>, data licensed <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a>.</p>
+        <p class="help">Skip times: <a href="https://introdb.app" target="_blank" rel="noopener">IntroDB</a> and <a href="https://anime-skip.com" target="_blank" rel="noopener">Anime Skip</a>. Subtitles: <a href="https://www.opensubtitles.com" target="_blank" rel="noopener">OpenSubtitles</a>.</p>
+        <p class="help"><a href="https://github.com/govinda-rajulu/openskip/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy policy</a></p>
       </div>
     </div>
 

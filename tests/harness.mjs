@@ -10,10 +10,11 @@ export const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 // Any-shaped stub: every property exists, every call resolves to {}.
 // Calls to *.addListener(fn) are recorded under their dotted path.
-export function makeBrowser(listeners, storage = {}) {
+export function makeBrowser(listeners, storage = {}, overrides = {}) {
   const mk = (p) => new Proxy(function () {}, {
     get(_t, k) {
       if (k === 'then') return undefined;
+      if ((p + '.' + String(k)) in overrides) return overrides[p + '.' + String(k)];
       if (p === 'browser.runtime' && k === 'id') return 'skipstream@test';
       if (p === 'browser.storage.local' && k === 'get') return async (keys) => {
         const ks = keys == null ? Object.keys(storage) : [].concat(keys);
@@ -38,7 +39,7 @@ export function fakeResponse(status, body) {
 }
 
 // Loads background.js; fetchImpl(url, opts) returns a fakeResponse.
-export function loadBackground({ fetchImpl, storage = {}, ctxExtra = {} } = {}) {
+export function loadBackground({ fetchImpl, storage = {}, ctxExtra = {}, overrides = {} } = {}) {
   const listeners = {};
   const calls = [];
   const ctx = {
@@ -49,7 +50,7 @@ export function loadBackground({ fetchImpl, storage = {}, ctxExtra = {} } = {}) 
   Object.assign(ctx, ctxExtra);
   ctx.self = { addEventListener: () => {} };
   ctx.globalThis = ctx;
-  ctx.browser = makeBrowser(listeners, storage);
+  ctx.browser = makeBrowser(listeners, storage, overrides);
   vm.createContext(ctx);
   vm.runInContext(read('background.js'), ctx, { filename: 'background.js' });
   const onMessage = listeners['browser.runtime.onMessage.addListener']?.[0];

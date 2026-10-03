@@ -1,4 +1,4 @@
-/* SkipStream - popup v1.10.0 */
+/* SkipStream - popup v1.11.0 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
@@ -275,7 +275,8 @@ async function loadState() {
 // (Mozilla bug 1378527). Your own file goes in through the CC button on the video.
 const SUB_REASONS = {
   no_player:  'No video player found on this tab. Start the video, then try again.',
-  no_id:      'Could not identify this video, so there is nothing to search for.',
+  no_id:      'Could not identify this video. A TMDB key in Options lets SkipStream match titles, or load your own file with the CC button on the video.',
+  youtube:    'YouTube videos are not films or episodes, so OpenSubtitles has nothing to match. Load your own file with the CC button on the video.',
   no_results: 'OpenSubtitles has no subtitles for this video in your language or English.',
   navigated:  'The page changed while searching. Try again.',
   unreadable: 'A subtitle file came back but had no readable lines.',
@@ -297,6 +298,39 @@ $('subFetchBtn')?.addEventListener('click', async () => {
     if (tab?.id != null) r = await br.tabs.sendMessage(tab.id, { type: 'SUBS_FETCH_NOW' });
   } catch (_) { r = null; }
   if (s) s.textContent = subReason(r);
+  if (btn) btn.disabled = false;
+});
+
+// "Check this page": every frame reports what it sees (background runPageCheck).
+function diagText(r) {
+  if (!r || !r.ok) return 'Could not check this page. Reload it and try again.';
+  const f = Array.isArray(r.frames) ? r.frames : [];
+  if (!f.length) return 'SkipStream is not running on this page. Browser pages and the add-ons store are off limits; on other sites, reload the page.';
+  const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+  const lines = f.map(x => (x.top ? 'Page ' : 'Frame ') + x.frame + ': ' + plural(x.videos, 'video')
+    + (x.hidden ? ', ' + x.hidden + ' inside a player' : '')
+    + (x.blankFrames ? ', ' + plural(x.blankFrames, 'blank frame') : '')
+    + (x.attached ? ', in use' : '')
+    + (x.attached && x.ident ? '\n  what: ' + x.ident : '')
+    + (x.attached && x.segs ? '\n  skips found: ' + x.segs : '')
+    + (x.attached && x.auto ? '\n  mode: ' + x.auto : '')
+    + (x.attached && x.last ? '\n  last skip: ' + x.last : '')
+    + (x.attached && x.subs ? '\n  subtitles: ' + x.subs : ''));
+  const head = f.some(x => x.attached) ? 'SkipStream is watching a video here.'
+    : 'No video in use yet. Press play first (on movie sites pick a source), then check again while it plays.';
+  return head + '\n' + lines.join('\n');
+}
+
+$('diagBtn')?.addEventListener('click', async () => {
+  const btn = $('diagBtn'); const s = $('diagStatus');
+  if (btn) btn.disabled = true;
+  if (s) s.textContent = 'Checking every frame...';
+  let r = null;
+  try {
+    const [tab] = await br.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id != null) r = await br.runtime.sendMessage({ type: 'SS_DIAG_RUN', tabId: tab.id });
+  } catch (_) { r = null; }
+  if (s) s.textContent = diagText(r);
   if (btn) btn.disabled = false;
 });
 
