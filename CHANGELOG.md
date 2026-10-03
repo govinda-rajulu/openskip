@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.12.0] - 2026-10-03
+### Added
+- Popup "Site report": what every frame of the page holds (players such as JW Player or Video.js, stream type, video size and length, subtitle tracks, frames, ids), including frames SkipStream does not run in. Shown in the popup, copied only when you press Copy; addresses are cut to host and path
+- YouTube: every SponsorBlock kind (sponsor, self-promotion, reminders, previews, non-music, filler, highlight), each set to Auto, Ask or Off in Settings > Per-Site Rules. Sponsors and self-promotion keep following the Intros switch until you set them
+- "Mute" segments are muted instead of skipped; a video's highlight is offered as "Jump to highlight" in the first minute
+- Skips shown on the timeline: inside YouTube's progress bar, and as a thin strip along the video on other sites while the mouse moves (Settings switch)
+- SkipDB as a second source of intro, recap, credits and preview times when IntroDB has none (no key; ODbL, credited in Settings)
+- Subtitle colour, font, background and outline in Settings; the sync offset (right-click CC) is remembered per film or show
+- Fresh look: the popup has Status, Playback and Tools tabs, big stat tiles and cards; Settings uses the system font, rounder cards and fits phones without sideways scrolling; 44 px touch targets and visible focus rings everywhere
+- On-video messages (skip button, countdown, Skipped/Undo, resume) share one position above the player controls, respect the phone's safe area, never run off small screens, and stop animating when the system asks for less motion
+- Easter eggs: click the version badge five times; try the Konami code; a short note at 100, 500, 1000 and more skips
+
+### Fixed
+- Anime Skip never returned times: the query asked for a field the API does not have, and sections had no end. Sections now end where the next starts, and "Credits" counts as the outro
+- A highlight offer could hold back a sponsor skip that started during it
+- README and testing notes said skipping needs an IntroDB key (it has not since 1.11) and that nothing is sent anywhere; both now match PRIVACY.md
+- Popup footer: links to GitHub, the privacy policy and bug reports
+
 ## [1.11.0] - 2026-10-03
 ### Privacy
 - Firefox now shows exactly what SkipStream sends: browsing activity, website content and login details (OpenSubtitles) are required; technical data (device name, settings backup, stats) is optional and can be switched off in about:addons, after which none of it is sent

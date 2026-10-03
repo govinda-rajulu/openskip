@@ -37,6 +37,13 @@ const S = {
   cache:              'skipstream_cache',
   theme:              'skipstream_theme',
   themeSeed:          'skipstream_seed_color',
+  subColor:           'subtitle_color',
+  subBg:              'subtitle_bg',
+  subFont:            'subtitle_font',
+  subOutline:         'subtitle_outline',
+  subOffsets:         'subtitle_offsets',
+  sbModes:            'sbModes',
+  showTimeline:       'showTimeline',
 };
 
 const DENY = new Set([
@@ -70,7 +77,8 @@ function bgSend(msg) {
 // SYNC_PREF_KEYS). Anything else in a cloud row, e.g. a credential, is ignored.
 const CLOUD_PREF_ALLOW = ['skipEnabled', 'skipMode', 'skipIntro', 'skipRecap', 'skipOutro',
   'resumePlayback', 'autoNextEpisode', 'playbackSpeed',
-  'subtitle_language', 'subtitle_font_size', 'subtitle_enabled'];
+  'subtitle_language', 'subtitle_font_size', 'subtitle_enabled',
+  'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'sbModes', 'showTimeline'];
 
 const subFontSizeInput = $('subFontSize');
 if (subFontSizeInput) {
@@ -98,6 +106,41 @@ if (subFontSizeInput) {
   };
   subFontSizeInput.addEventListener('input', persistSubFontSize);
 }
+
+// -- Subtitle look, YouTube segment modes, timeline (1.12) --
+const SB_MODE_VALUES = new Set(['auto', 'ask', 'off']);
+function cleanSbModes(v) {
+  const out = {};
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    for (const k of ['sponsor', 'selfpromo', 'interaction', 'preview', 'music_offtopic', 'filler', 'intro', 'outro']) if (SB_MODE_VALUES.has(v[k])) out[k] = v[k];
+  }
+  return out;
+}
+br.storage.local.get([S.subColor, S.subBg, S.subFont, S.subOutline, S.sbModes, S.showTimeline]).then(d => {
+  if ($('subColor')) $('subColor').value = /^#[0-9a-f]{6}$/i.test(d[S.subColor] || '') ? d[S.subColor] : '#ffffff';
+  if ($('subFont')) $('subFont').value = ['sans', 'serif', 'mono'].includes(d[S.subFont]) ? d[S.subFont] : 'sans';
+  const bg = Number.isFinite(Number(d[S.subBg])) && d[S.subBg] !== undefined ? Number(d[S.subBg]) : 38;
+  if ($('subBg')) $('subBg').value = String(bg);
+  if ($('subBgValue')) $('subBgValue').textContent = bg + '%';
+  if ($('subOutline')) $('subOutline').checked = d[S.subOutline] !== false;
+  if ($('showTimeline')) $('showTimeline').checked = d[S.showTimeline] !== false;
+  const modes = cleanSbModes(d[S.sbModes]);
+  document.querySelectorAll('select[data-sb]').forEach(sel => { sel.value = modes[sel.dataset.sb] || ''; });
+}).catch(() => {});
+$('subColor')?.addEventListener('change', e => br.storage.local.set({ [S.subColor]: e.target.value }).catch(() => {}));
+$('subFont')?.addEventListener('change', e => br.storage.local.set({ [S.subFont]: e.target.value }).catch(() => {}));
+$('subBg')?.addEventListener('input', e => {
+  const v = Math.max(0, Math.min(90, Number.parseInt(e.target.value, 10) || 0));
+  if ($('subBgValue')) $('subBgValue').textContent = v + '%';
+  br.storage.local.set({ [S.subBg]: v }).catch(() => {});
+});
+$('subOutline')?.addEventListener('change', e => br.storage.local.set({ [S.subOutline]: !!e.target.checked }).catch(() => {}));
+$('showTimeline')?.addEventListener('change', e => br.storage.local.set({ [S.showTimeline]: !!e.target.checked }).catch(() => {}));
+document.querySelectorAll('select[data-sb]').forEach(sel => sel.addEventListener('change', async () => {
+  const cur = cleanSbModes((await br.storage.local.get(S.sbModes))[S.sbModes]);
+  if (sel.value) cur[sel.dataset.sb] = sel.value; else delete cur[sel.dataset.sb];
+  br.storage.local.set({ [S.sbModes]: cur }).catch(() => {});
+}));
 
 function ssSystemMode() {
   try { return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; }
@@ -1209,7 +1252,8 @@ function backupKit(subtle, randomBytes) {
   const SETTINGS = ['skipEnabled', 'skipMode', 'skipIntro', 'skipRecap', 'skipOutro', 'resumePlayback',
     'autoNextEpisode', 'playbackSpeed', 'animeSkipEnabled', 'skipstream_site_rules', 'deviceName',
     'subtitle_language', 'subtitle_font_size', 'subtitle_enabled', 'subtitle_sync', 'subtitle_drag_pos',
-    'skipstream_theme', 'skipstream_seed_color'];
+    'skipstream_theme', 'skipstream_seed_color',
+    'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_offsets', 'sbModes', 'showTimeline'];
   const STATS = ['skipstream_stats', 'statsSkipsToday', 'statsDate', 'statsTotalSkips', 'statsTotalTimeSaved', 'statsSessions'];
   const SECRETS = ['supabaseUrl', 'supabaseAnonKey', 'introdbApiKey', 'tmdbApiKey', 'animeSkipClientId',
     'animeSkipAuthToken', 'osub_username', 'osub_password'];
@@ -1374,7 +1418,7 @@ if (exportBtn) {
 // -- Import migration shim: handles schema changes from 1.6.5 and earlier --
 // H18: an imported value must have the type the extension reads, or it is skipped.
 const IMPORT_BOOL = new Set([S.animeSkipEnabled, S.skipIntro, S.skipRecap, S.skipOutro, S.resumePlayback,
-  S.autoNextEpisode, S.subEnabled, S.skipEnabled]);
+  S.autoNextEpisode, S.subEnabled, S.skipEnabled, S.subOutline, S.showTimeline]);
 const IMPORT_MODES = new Set(['off', 'prompt', 'auto-intro', 'auto-recap', 'auto-outro', 'auto-all']);
 function importValueOk(key, v) {
   const num = (x, lo, hi) => typeof x === 'number' && Number.isFinite(x) && x >= lo && x <= hi;
@@ -1389,6 +1433,11 @@ function importValueOk(key, v) {
     case S.deviceName:   return typeof v === 'string' && v.length <= 64;
     case S.theme:        return v === 'light' || v === 'dark';
     case S.themeSeed:    return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+    case S.subColor:     return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+    case S.subBg:        return num(Number(v), 0, 90) && typeof v === 'number';
+    case S.subFont:      return v === 'sans' || v === 'serif' || v === 'mono';
+    case S.sbModes:      return !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 12 && Object.values(v).every(x => SB_MODE_VALUES.has(x));
+    case S.subOffsets:   return !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 200 && Object.entries(v).every(([k, x]) => /^tt\d{7,8}$/.test(k) && num(Number(x), -600, 600));
     case S.siteRules:
     case S.cache:
     case S.stats:        return !!v && typeof v === 'object' && !Array.isArray(v);

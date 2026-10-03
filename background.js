@@ -510,7 +510,7 @@ async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, an
         items {
           seasonNumber
           number
-          timestamps { at duration type { name } }
+          timestamps { at type { name } }
         }
       }
     }`;
@@ -524,16 +524,79 @@ async function providerAnimeSkip(imdbId, season, episode, { animeSkipEnabled, an
     const ep = episodes.find(e => e.number === episode || e.number === String(episode));
     if (!ep?.timestamps?.length) return null;
 
-    const segments = {};
-    for (const ts of ep.timestamps) {
-      const type = (ts.type?.name || '').toLowerCase();
-      const end  = ts.at + (ts.duration || 90);
-      if ((type.includes('intro') || type === 'op')  && !segments.intro)  segments.intro  = { start_sec: ts.at, end_sec: end };
-      if (type.includes('recap')                      && !segments.recap)  segments.recap  = { start_sec: ts.at, end_sec: end };
-      if ((type.includes('outro') || type === 'ed')   && !segments.outro)  segments.outro  = { start_sec: ts.at, end_sec: end };
-    }
-    return Object.keys(segments).length ? segments : null;
+    return animeSkipSegments(ep.timestamps);
   } catch { return null; }
+}
+
+// Anime Skip timestamps mark where a section STARTS; it ends where the next one
+// starts (the last one runs to the end, given here as +600 s, cut by the player).
+// Up to 1.11 the query asked for a "duration" field the API does not have.
+const ANIMESKIP_KEY = [
+  [/^(new |mixed )?intro$|^op$|opening/, 'intro'], [/recap/, 'recap'],
+  [/^(new |mixed )?credits$|^ed$|outro|ending/, 'outro'], [/preview/, 'preview'], [/filler/, 'filler'],
+];
+function animeSkipSegments(timestamps) {
+  const ts = (Array.isArray(timestamps) ? timestamps : [])
+    .filter(t => t && Number.isFinite(Number(t.at)))
+    .map(t => ({ at: Number(t.at), type: String(t.type?.name || '').toLowerCase().trim() }))
+    .sort((a, b) => a.at - b.at);
+  const segments = {};
+  for (let i = 0; i < ts.length; i++) {
+    const hit = ANIMESKIP_KEY.find(([re]) => re.test(ts[i].type));
+    if (!hit || segments[hit[1]]) continue;
+    let end = ts[i].at + 600;
+    for (let j = i + 1; j < ts.length; j++) { if (ts[j].at > ts[i].at) { end = ts[j].at; break; } }
+    segments[hit[1]] = { start_sec: ts[i].at, end_sec: end };
+  }
+  return Object.keys(segments).length ? segments : null;
+}
+
+// SkipDB (api.skipdb.tv, ODbL 1.0): public intro/recap/outro/preview by IMDb id.
+// Used where IntroDB has nothing; IntroDB wins when both answer.
+async function providerSkipDB(imdbId, season, episode, isMovie) {
+  if (!/^tt\d{7,8}$/.test(String(imdbId || ''))) return null;
+  try {
+    const params = new URLSearchParams({ imdb_id: imdbId });
+    if (!isMovie) { params.set('season', String(season)); params.set('episode', String(episode)); }
+    const r = await fetchWithRetry(`https://api.skipdb.tv/api/segments?${params}`);
+    if (!r.ok) return null;
+    return skipDbSegments(await r.json());
+  } catch { return null; }
+}
+function skipDbSegments(data) {
+  const src = data && typeof data === 'object' ? data.segments : null;
+  if (!src || typeof src !== 'object') return null;
+  const out = {};
+  for (const k of ['intro', 'recap', 'outro', 'preview']) {
+    const v = src[k];
+    if (!v || typeof v !== 'object') continue;
+    if (v.match === 'out-of-range') continue;
+    const a = Number(v.start_ms) / 1000, b = Number(v.end_ms) / 1000;
+    if (Number.isFinite(a) && Number.isFinite(b) && b > a) out[k] = { start_sec: a, end_sec: b, confidence: Number(v.confidence) || null };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+const SB_CATEGORIES = ['sponsor', 'selfpromo', 'interaction', 'intro', 'outro', 'preview', 'music_offtopic', 'filler', 'poi_highlight', 'exclusive_access'];
+const SB_ACTIONS = ['skip', 'mute', 'poi', 'full'];
+
+// SponsorBlock rows -> { category: [ {start_sec, end_sec, action, votes} ] }.
+// poi_highlight is a single moment ("jump to the good part"); a "full" row labels
+// the whole video and is kept as { full: 'sponsor' } with no times.
+function sponsorBlockSegments(rows) {
+  const segments = {};
+  for (const seg of Array.isArray(rows) ? rows : []) {
+    const key = String(seg && seg.category || '');
+    if (!SB_CATEGORIES.includes(key) || !Array.isArray(seg.segment)) continue;
+    const action = SB_ACTIONS.includes(seg.actionType) ? seg.actionType : 'skip';
+    if (action === 'full') { segments.full = key; continue; }
+    const start = Number(seg.segment[0]), end = Number(seg.segment[1]);
+    if (!Number.isFinite(start)) continue;
+    if (action === 'poi' || key === 'poi_highlight') { segments.poi_highlight = [{ start_sec: start, end_sec: start, action: 'poi' }]; continue; }
+    if (!Number.isFinite(end) || end <= start) continue;
+    (segments[key] ||= []).push({ start_sec: start, end_sec: end, action, votes: Number(seg.votes) || 0 });
+  }
+  return Object.keys(segments).length ? segments : null;
 }
 
 async function providerSponsorBlock(videoId) {
@@ -547,7 +610,7 @@ async function providerSponsorBlock(videoId) {
     const prefix = hex.slice(0, 4);
 
     const r = await fetchWithRetry(
-      `https://sponsor.ajay.app/api/skipSegments/${prefix}?categories=["sponsor","intro","outro","selfpromo"]`
+      `https://sponsor.ajay.app/api/skipSegments/${prefix}?categories=${encodeURIComponent(JSON.stringify(SB_CATEGORIES))}&actionTypes=${encodeURIComponent(JSON.stringify(SB_ACTIONS))}`
     );
     if (!r.ok) return null;
     const results = await r.json();
@@ -556,26 +619,19 @@ async function providerSponsorBlock(videoId) {
     const match = results.find(v => v.videoID === videoId);
     if (!match || !match.segments?.length) return null;
 
-    // Convert to SkipStream format - collect ALL segments as arrays
-    const segments = {};
-    for (const seg of match.segments) {
-      const [start, end] = seg.segment;
-      const key = seg.category; // sponsor, intro, outro, selfpromo
-      if (!segments[key]) segments[key] = [];
-      segments[key].push({ start_sec: start, end_sec: end });
-    }
-    return Object.keys(segments).length ? segments : null;
+    return sponsorBlockSegments(match.segments);
   } catch { return null; }
 }
 
 async function fetchSegmentsMulti(imdbId, season, episode, isMovie) {
   const config = await getConfig();
-  const [introdb, animeskip] = await Promise.all([
+  const [introdb, animeskip, skipdb] = await Promise.all([
     providerIntroDB(imdbId, season, episode, config, isMovie),
     isMovie ? null : providerAnimeSkip(imdbId, season, episode, config),
+    providerSkipDB(imdbId, season, episode, isMovie),
   ]);
-  if (!introdb && !animeskip) return null;
-  const merged = Object.assign({}, animeskip || {}, introdb || {});
+  if (!introdb && !animeskip && !skipdb) return null;
+  const merged = Object.assign({}, animeskip || {}, skipdb || {}, introdb || {});
   return Object.keys(merged).length ? merged : null;
 }
 
@@ -593,7 +649,8 @@ function osubHost(h) {
 // SYNC_PREF_KEYS is also the allowlist options.js applies when pulling.
 const SYNC_PREF_KEYS = ['skipEnabled', 'skipMode', 'skipIntro', 'skipRecap', 'skipOutro',
   'resumePlayback', 'autoNextEpisode', 'playbackSpeed',
-  'subtitle_language', 'subtitle_font_size', 'subtitle_enabled'];
+  'subtitle_language', 'subtitle_font_size', 'subtitle_enabled',
+  'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'sbModes', 'showTimeline'];
 
 function pickSyncPrefs(obj) {
   const out = {};
@@ -664,7 +721,7 @@ async function checkSupabase(supabaseUrl, supabaseAnonKey) {
 // ── OpenSubtitles ─────────────────────────────────────────────────────────────
 
 const OSUB_API_KEY   = 'bBSwDAWRcnDjnw12mKLGHHu0SMSAUL34';
-const OSUB_UA        = 'SkipStream v' + (br.runtime?.getManifest?.()?.version || '1.8.0');
+const OSUB_UA        = 'SkipStream v' + (br.runtime?.getManifest?.()?.version || 'dev');
 const OSUB_SESS_KEY  = 'osub_session';
 const OSUB_SUB_CACHE = 'osub_sub_cache'; // file_id → srt text, capped 20 entries and OSUB_CACHE_CHARS
 const OSUB_CACHE_CHARS = 2000000;         // about 2 MB of text; storage is shared with history and settings
@@ -894,6 +951,20 @@ async function runPageCheck(tabId) {
   return { ok: true, frames: out.slice(0, 40) };
 }
 
+// ── "Site report" (popup) ─────────────────────────────────────────────────────
+// Runs content-scripts/probe.js once in every frame of the tab, including blank
+// and srcdoc frames, and returns what each one sees. Nothing leaves the browser.
+async function runSiteReport(tabId) {
+  try {
+    if (globalThis.chrome?.scripting?.executeScript && !globalThis.browser?.tabs?.executeScript) {
+      const res = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ['content-scripts/probe.js'] });
+      return { ok: true, frames: (res || []).map(r => r && r.result).filter(Boolean).slice(0, 40) };
+    }
+    const res = await br.tabs.executeScript(tabId, { file: '/content-scripts/probe.js', allFrames: true, matchAboutBlank: true, runAt: 'document_idle' });
+    return { ok: true, frames: (res || []).filter(x => x && typeof x === 'object').slice(0, 40) };
+  } catch (e) { return { ok: false, err: String(e && e.message || e).slice(0, 120) }; }
+}
+
 // ── Message router ────────────────────────────────────────────────────────────
 
 br.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -902,6 +973,12 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (msg.type === 'ADOPT_INSTALL_ID') {
     adoptInstallId(msg.installId).then(sendResponse, e => sendResponse({ ok: false, err: String(e) }));
+    return true;
+  }
+
+  if (msg.type === 'SS_SITE_REPORT') {
+    if (!Number.isInteger(msg.tabId)) { sendResponse({ ok: false, err: 'no_tab' }); return; }
+    runSiteReport(msg.tabId).then(sendResponse, () => sendResponse({ ok: false, err: 'failed' }));
     return true;
   }
 

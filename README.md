@@ -5,7 +5,7 @@
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox%20Add--ons-Active-blue?logo=firefox)](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 [![Chrome](https://img.shields.io/badge/Chrome-Manual%20Install-yellow?logo=googlechrome)](../../releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.11.0-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.11.0)
+[![Version](https://img.shields.io/badge/version-1.12.0-green.svg)](https://github.com/govinda-rajulu/openskip/releases/tag/v1.12.0)
 
 ---
 
@@ -14,113 +14,54 @@
 **Firefox:** [addons.mozilla.org/en-US/firefox/addon/skipstream](https://addons.mozilla.org/en-US/firefox/addon/skipstream/)
 
 **Chrome/Edge (manual):**
-1. [Download the latest ZIP](../../releases/latest)
-2. Go to `chrome://extensions` → enable Developer mode → Load unpacked
+1. [Download the latest Chrome ZIP](../../releases/latest)
+2. `chrome://extensions` (or `edge://extensions`), turn on Developer mode, Load unpacked
+
+**Android:** Firefox for Android (add-ons menu). **TV:** no TV browser runs extensions well; use a laptop or mini PC over HDMI.
 
 ---
 
 ## What it does
 
-- **Skips** intros, recaps, and outros - instant skip in auto mode, 3-second countdown with Undo in prompt mode (powered by [IntroDB](https://introdb.app) and AnimeSkip)
-- **Native button clicking** - also clicks the platform's own Skip Intro button on Netflix, Prime Video, Disney+, Hulu, Max, Crunchyroll, Peacock, Paramount+, Apple TV+, and Tubi
-- **Subtitles** - auto-fetches from OpenSubtitles by IMDb ID, with a draggable CC overlay, sync offset, offline .srt/.vtt upload, and language selection
-- **Resumes** playback where you left off, on every browser you link (Settings, Backup & Restore, Link devices)
-- **Syncs** watch history and settings to your own Supabase project - you own the data
-- **Auto next episode** - advances when near end of video (optional, off by default)
-- **Speed control** - 0.75x / 1x / 1.25x / 1.5x / 2x, persists across pages
-- **Per-site rules** - override skip mode for specific domains in Settings
-- **Watch stats** - segments skipped, time saved, session count tracked locally
-- **Dismisses "Are you still watching?"** overlays automatically
-- **Dark/light theme toggle** in the popup - persists across sessions, works with any accent color
-- **Full backup/restore** - export all history, stats, credentials, and settings as JSON; import merges history
-- **Dynamic theming** - pick any accent color, the whole UI regenerates an OKLCH palette to match
-- **Works on any site** with a standard HTML5 video element
-
----
+- **Skips** intros, recaps, credits and previews: instantly, or with a 3-second countdown and Undo. Times from [IntroDB](https://introdb.app), [SkipDB](https://skipdb.tv) and [Anime Skip](https://anime-skip.com); also clicks the site's own Skip button (Netflix, Prime Video, Disney+, Hulu, Max, Crunchyroll and more)
+- **YouTube:** every [SponsorBlock](https://sponsor.ajay.app) kind (sponsors, self-promo, reminders, filler, non-music, highlight), each set to Auto, Ask or Off; marks on the progress bar
+- **Resumes** where you left off, also inside embedded players on movie sites
+- **Subtitles** from OpenSubtitles (by id, or by title from the popup) or your own .srt/.vtt: drag to move, right-click CC to fix timing (kept per show), colour, font and background in Settings
+- **History** with posters, **stats**, **per-site rules**, **speed** control, **auto next episode**, "Are you still watching?" dismissed for you
+- **Backup** of everything in one file (keys optional, encrypted with your passphrase) and **Link devices**
+- **Popup tools:** "Check this page" and "Site report" show what SkipStream sees, for bug reports
+- **Theme:** light or dark, any accent colour (OKLCH palette)
 
 ## Setup
 
-Click the **settings icon** in the popup to open Settings. All five service credentials (IntroDB, Supabase, TMDB, AnimeSkip, OpenSubtitles) live on the single **Services** page, alongside live status for each.
+Nothing is required: skipping, SponsorBlock and resume work out of the box. Settings (gear in the popup) adds, each optional:
 
-### Skip segments (IntroDB) - required for skipping
-Get a free key at [introdb.app](https://introdb.app). Without it, the extension works as a resume-only tool.
+| Service | What it adds | Get it |
+|---|---|---|
+| TMDB key | posters, ids for sites that only show titles | [themoviedb.org](https://www.themoviedb.org/settings/api) |
+| Supabase project | history and settings in your own cloud; run `supabase_setup.sql` once | [supabase.com](https://supabase.com) |
+| OpenSubtitles account | 200 subtitle downloads a day instead of 5 | [opensubtitles.com](https://www.opensubtitles.com) |
+| Anime Skip client id | anime times | [anime-skip.com](https://anime-skip.com/account/api-clients) |
 
-### Cloud sync (Supabase) - optional
-Create a free project at [supabase.com](https://supabase.com), run the SQL from `supabase_setup.sql` in your project's SQL editor, then paste your Project URL and anon key into Settings.
-
-### TMDB - optional
-Free key at [themoviedb.org](https://www.themoviedb.org/settings/api). Converts TMDB IDs to IMDb IDs for more accurate skip lookups, especially on Plex.
-
-### AnimeSkip - optional
-Free Client ID at [anime-skip.com](https://anime-skip.com). Fallback skip-segment source for anime.
-
-### Subtitles (OpenSubtitles) - optional
-Free account at [opensubtitles.com](https://www.opensubtitles.com/#modal-register). Anonymous use gets 5 downloads/day; logging in raises that to 200/day. Subtitle language is set in the popup.
-
----
+Every user brings their own keys; SkipStream ships none of yours.
 
 ## Privacy
 
-- All credentials are stored locally in your browser
-- Your sync identity is a random UUID generated per browser installation - no account required. Browsers share history only after you link them with a backup
-- No telemetry, no ads, no third-party tracking
+Full list of what is sent where: [PRIVACY.md](PRIVACY.md). In short: keys stay in your browser, history goes only to your own Supabase if you set one up, and technical data (device name, settings backup, stats) can be switched off in Firefox's add-on settings. No ads, no tracking.
 
----
-
-## File Structure
+## Files
 
 ```
-manifest.json              - Firefox MV2 manifest (authoritative version source)
-manifest-chrome.json       - Chrome MV3 manifest (must match manifest.json version)
-updates.json               - Version manifest (informational, not wired to auto-update)
-background.js              - Background script (MV2) / service worker (MV3): all API calls, retry logic, offline queue
-content-scripts/
-  content.js               - Injected into all frames: skip detection via timeupdate, resume, speed, site rules
-popup.html / popup.js      - Popup: history, skip settings, stats, speed, sync, theme toggle
-theme-engine.js            - OKLCH palette generator, injects color vars into both pages
-options.html / options.js  - Settings: credentials, per-site rules, import/export, cloud restore
-scripts/
-  amo-update.js            - CI: uploads signed ZIP to AMO and updates listing metadata
-update_release.py          - CI helper: writes updates.json with new version
-icons/                     - icon-16/32/48/128.png
-supabase_setup.sql         - One-time DB schema - run in Supabase SQL editor
-CHANGELOG.md               - Version history
-AGENTS.md                  - AI agent reference for coding agents
-docs/                      - Additional documentation
-.github/workflows/         - CI/CD pipelines
+manifest.json / manifest-chrome.json   Firefox MV2 / Chrome MV3 (same version)
+background.js                          all network calls, providers, sync, page tools
+content-scripts/content.js             finds the video, skips, resumes, subtitles, toasts
+content-scripts/probe.js               "Site report" (runs only when you press it)
+popup.* / options.* / theme-engine.js  popup, Settings, shared theme
+tests/                                 node --test tests/*.test.mjs (no dependencies)
+knowledge/                             state, lessons, roadmap, audits, handbook
+supabase_setup.sql                     one-time database setup for your own project
 ```
 
----
+## For contributors
 
-## How it works
-
-1. Content script detects any `<video>` element on the page
-2. Identifies the show/episode from the URL, page metadata, or JSON-LD
-3. Fetches skip segment timestamps from IntroDB (falling back to AnimeSkip); also clicks the platform's native Skip Intro button
-4. Listens for video timeupdate events - in auto mode skips instantly; in prompt mode shows a 3-second countdown toast with Undo
-5. If configured, fetches subtitles from OpenSubtitles by IMDb ID and overlays them on the video
-6. Saves playback position locally every 2.5s and syncs to Supabase; queues saves when offline
-7. On next load, restores your position from local cache or cloud, whichever is newer
-8. Stats (skips, time saved, sessions) accumulated locally and backed up to Supabase `user_settings`
-
----
-
-## AI Agents
-
-This repo has 5 AI-powered agents (OpenRouter Llama 3.3 / Gemini fallback) that work directly from GitHub issues and PRs:
-
-| Trigger | Agent | What it does |
-|---------|-------|-------------|
-| Issue title starts with `sweep: ` | Sweep | Full feature implementation, opens PR |
-| Add `ai-fix` label to issue | AI Fix | Bug fix, opens PR automatically |
-| Comment `/ai-review` on PR | AI Review | Code review + architecture check |
-| Comment `/ai-task <task>` on issue | AI Task | Arbitrary code or analysis task |
-| Comment `/ai-explain` on issue | AI Explain | Explains code inline |
-
-See [AGENTS.md](AGENTS.md) for full details and [docs/](docs/) for CI/CD documentation.
-
----
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [HOW_TO_RELEASE.md](HOW_TO_RELEASE.md).
+Plain JavaScript, no build step, no dependencies. Rules for people and agents: [AGENTS.md](AGENTS.md), [CONTRIBUTING.md](CONTRIBUTING.md), release steps: [HOW_TO_RELEASE.md](HOW_TO_RELEASE.md), current state: [knowledge/STATE.md](knowledge/STATE.md). The GitHub agents (`sweep:`, `ai-fix`, `/ai-review`, `/ai-task`, `/ai-explain`) are described in AGENTS.md.

@@ -4,13 +4,15 @@ Written 1 Oct 2026. One lane in flight at a time. New ideas go to the parking lo
 bottom with a date; they do not start work by themselves. Tool verdicts and agent rules:
 [handbook/AGENT-TOOLING.md](handbook/AGENT-TOOLING.md). STATE.md and the code win over this file.
 
-## Now: finish what is open (weekend of 3 and 4 Oct 2026)
+## Now: 1.12.0 (packet 3 Oct 2026), then the AMO listing
 
-Nothing below lands first: every agent lane touches workflows that #72 rewrites.
-
-- Owner: device test of #73, then merge #71 (G), #72 (F), #73 (H). AMO listing the same weekend.
-- After the merges the UI polish packet stays next (see STATE.md). It needs the owner's eyes,
-  so it is not an agent job.
+- Done 3 Oct: #71, #72, #73, #77 merged; 1.11.0 released (#79, tag v1.11.0, AMO upload OK).
+- 1.12.0 PR: site report, all SponsorBlock categories with modes, mute and highlight, timeline
+  marks, AnimeSkip section ends, SkipDB, subtitle look and per-show sync offset.
+- Owner: device test the 1.12.0 ZIP (checklist in the PR), merge, tag. AMO listing: screenshots,
+  privacy policy link (PRIVACY.md on GitHub). Edge Add-ons: free, takes the Chrome ZIP.
+- Use "Site report" on 1Shows and other sites; paste it into the chat. Player or site fixes come
+  from those reports, one site at a time.
 
 ## Lane 1: settings, no code (owner, in the browser, after the merges)
 
@@ -48,7 +50,7 @@ Plan: a gh-aw workflow with the Gemini engine; owner-only `agent-go` label; per-
 (only the files the spec names, whole); a loop of at most 5 rounds with the test suite as
 backpressure; #72's edit contract kept; a path guard that fails on `.github/**`; CI dispatched
 explicitly on the PR head; one PR per issue; `AGENTS_PAUSED` honoured. Jules is the zero-setup
-fallback for small issues. Retire `agent_team/crew_master.py` (local Ollama, cannot run in CI).
+fallback for small issues. `agent_team/crew_master.py` retired to knowledge/archive/unused in 1.12.0.
 
 ## Lane 4: morning report and brakes
 
@@ -63,7 +65,7 @@ Caps on rounds, minutes and daily model calls.
 - The biggest lever is tests: agents are only as good as the suite that judges them. Every
   lane 3 task adds a test that fails on the old code.
 
-## Next after 1.11.0: device linking and Supabase login (1.12.0)
+## Next: Supabase login (1.13.0, needs SQL in the user's own project and its own test cycle)
 
 Owner decision 3 Oct: each user keeps their own keys; one login restores everything.
 - Supabase Auth (email and password or magic link) in the user's own project; rows keyed by
@@ -82,14 +84,26 @@ Owner decision 3 Oct: each user keeps their own keys; one login restores everyth
 
 Add ideas here with a date. Move one into a lane only when the lane before it is done.
 
-- 3 Oct 2026: "Skip in 3 s, Cancel" countdown; per-segment defaults (credits ask, intro auto).
+- 3 Oct 2026: "Skip in 3 s, Cancel" countdown: exists as Prompt mode. Per-segment modes: done in
+  1.12.0 for YouTube; IntroDB kinds still follow the Intros/Recaps/Outros switches.
 - 3 Oct 2026: resume card with a 5 s rewind; next-episode countdown with Cancel.
-- 3 Oct 2026: remember the chosen subtitle and its offset per show.
+- 3 Oct 2026: remember the subtitle offset per show: done in 1.12.0. The chosen file is still global.
 - 3 Oct 2026: TMDB logo next to the Credits notice (TMDB attribution rules).
+- 3 Oct 2026: AniSkip (api.aniskip.com, MAL ids) as a second anime source; needs IMDb or TMDB to MAL.
+- 3 Oct 2026: submit segments (IntroDB key, SponsorBlock), with a review step.
+- 3 Oct 2026: "Check this page" on 1Shows listed only the main page while the player played
+  (1.11.0 device test). Site report (1.12.0) reads every frame directly; use it to find out why.
+- 3 Oct 2026: 1Shows showed three subtitle lines; one is ours (dark box), two are the site's own.
 - 3 Oct 2026: OpenSubtitles search by title when no IMDb id: done in 1.11.0 (popup button only; YouTube excluded). A confirm step showing the match is still open.
 - 3 Oct 2026: if "Check this page" shows blank frames holding players, add match_about_blank.
-- 3 Oct 2026: tidy agent docs (AGENTS.md, CLAUDE.md, GEMINI.md overlap); move SECURITY_AUDIT.md
-  into knowledge/audits; check update_release.py is still used.
+- 3 Oct 2026: agent docs overlap (AGENTS.md, CLAUDE.md, GEMINI.md): CI and scripts/agent.sh read
+  CLAUDE.md and GEMINI.md, so merge them only together with those workflows. SECURITY_AUDIT.md
+  and update_release.py: done (moved in 1.12.0).
+- 3 Oct 2026: Alt+S style keyboard commands do not exist on Firefox for Android; keep every
+  action reachable by touch.
+- 3 Oct 2026: declare `personallyIdentifyingInfo` (email) as optional when the Supabase login lands.
+- 3 Oct 2026: a bundled font (e.g. Inter, OFL) only if system fonts look wrong somewhere; the
+  1.12 refresh uses the system stack to stay small and offline.
 
 - 1 Oct 2026: competing drafts (attack, defend, judge) for risky PRs, after lane 3 has run 10 tasks.
 - 1 Oct 2026: typed verdict step (accept, reject, escalate) in the verdict script.

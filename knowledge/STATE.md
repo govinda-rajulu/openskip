@@ -2,6 +2,42 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
+## Start here (3 Oct 2026, end of the long session)
+
+- **Released:** 1.11.0 (tag `v1.11.0`, main tree `b1c6801a`, AMO upload OK 3 Oct 12:08 UTC).
+- **In flight:** 1.12.0 PR from packet `os-120` (branch `packet/release-1.12.0-20261003`).
+  Owner: device test the ZIP, merge, push tag `v1.12.0` (that publishes to AMO).
+- **Owner, outside code:** AMO listing (screenshots, privacy link = PRIVACY.md on GitHub);
+  Edge Add-ons listing (free, takes the Chrome ZIP).
+- **Next code:** Supabase login (1.13.0, ROADMAP). Site fixes come from "Site report" pastes.
+- **How we work:** one packet per change set, rehearsed in the assistant's sandbox, run by the
+  owner in Cloud Shell, PR, device test, merge, tag. Reads pinned to commit shas (LESSONS).
+
+## What 1.12.0 contains
+
+- Site report (`content-scripts/probe.js`, `tabs.executeScript` allFrames + matchAboutBlank;
+  Chrome `scripting`). All SponsorBlock categories and action types, per-category `sbModes`,
+  mute, highlight, timeline marks (`showTimeline`). Anime Skip ends fixed (query had a made-up
+  `duration`; still unverified live). SkipDB fallback (ODbL). Subtitle look and per-show offset.
+- UI refresh: popup tabs Status / Playback / Tools, stat tiles, segmented tabs, cards, footer
+  links (GitHub, Privacy, Report a problem); Settings: system font stack, rounder cards, wrap on
+  phones, 44 px touch targets, focus rings, reduced motion. Checked by headless screenshots at
+  320 to 1280 px, light and dark.
+- On-video toasts share one placement (`TOAST_BOTTOM` with safe area, `TOAST_RADIUS`,
+  `_toastFit`: never wider than the screen, no motion when reduced motion is on).
+- Easter eggs: 5 clicks on the version badge (tips and stats), Konami code on popup and
+  Settings (colour party, accent restored), milestone note at 100/500/1000/5000/10000 skips.
+- 5S: README and TESTING.md rewritten to match the code (no IntroDB key needed, privacy is not
+  "no telemetry"); SECURITY_AUDIT.md moved to knowledge/audits; unused `update_release.py` and
+  `agent_team/crew_master.py` moved to knowledge/archive/unused. Branch cleanup: merged remote
+  branches deleted by the packet (list in its report); release tags kept.
+
+## Open (not code yet)
+
+- Check this page on 1Shows listed only the main page while the player played; use Site report.
+- 1Shows showed three subtitle lines, one ours; confirm with CC on/off.
+- Anime Skip needs a live test with a client id. SkipDB answers are not yet seen live.
+
 ## 3 Oct 2026 (release 1.11.0 packet)
 
 - **Sweep** (`os-sweep-20261003`, owner Cloud Shell, RESULT OK): main `fe91918b` (tree `38b74d02`);

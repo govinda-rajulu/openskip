@@ -116,3 +116,33 @@
   });
   window.applyThemeFromSeed = applyThemeFromSeed;
 })();
+
+// Easter egg: the Konami code (up up down down left right left right B A) on the
+// popup or Settings throws a 3-second colour party, then puts your accent back.
+(function () {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return;
+  const SEQ = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+  let at = 0;
+  const hex = (h) => {
+    const f = (n) => { const k = (n + h / 30) % 12; const c = 0.6 * Math.min(0.5, 1 - 0.5); const v = 0.5 - c * Math.max(-1, Math.min(k - 3, 9 - k, 1)); return Math.round(v * 255).toString(16).padStart(2, '0'); };
+    return '#' + f(0) + f(8) + f(4);
+  };
+  document.addEventListener('keydown', (e) => {
+    const k = e.key && e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    at = k === SEQ[at] ? at + 1 : (k === SEQ[0] ? 1 : 0);
+    if (at < SEQ.length) return;
+    at = 0;
+    if (!window.applyThemeFromSeed || !document.body || document.body.classList.contains('ss-party')) return;
+    const theme = document.body.classList.contains('theme-light') ? 'light' : 'dark';
+    const br = globalThis.browser && globalThis.browser.runtime && globalThis.browser.runtime.id ? globalThis.browser : globalThis.chrome;
+    const back = (seed) => { document.body.classList.remove('ss-party'); window.applyThemeFromSeed(seed || '#57A860', theme); };
+    document.body.classList.add('ss-party');
+    let i = 0;
+    const timer = setInterval(() => {
+      window.applyThemeFromSeed(hex((i * 30) % 360), theme);
+      if (++i < 12) return;
+      clearInterval(timer);
+      try { br.storage.local.get('skipstream_seed_color').then(d => back(d.skipstream_seed_color), () => back()); } catch (_) { back(); }
+    }, 250);
+  });
+})();

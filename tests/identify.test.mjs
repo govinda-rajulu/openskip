@@ -180,7 +180,7 @@ test('subtitles: no id -> OpenSubtitles title search, YouTube says why', async (
 
 // ── Skipping ──────────────────────────────────────────────────────────────────
 test('skip: automatic skip waits for the real start (no 2 s of content lost)', () => {
-  assert.match(CONTENT, /if \(effectivePrefs\[prefKey\] && video\.currentTime < Number\(active\.segment\.start_sec\) - 0\.3\) return;/);
+  assert.match(CONTENT, /if \(mode === 'auto' && video\.currentTime < Number\(active\.segment\.start_sec\) - 0\.3\) return;/);
 });
 
 test('skip: next YouTube video looks segments up at once, not 1.5 s later', () => {
@@ -242,7 +242,7 @@ test('page check: each player frame says what it found, the skip mode and the la
 
 test('page check: skips record whether the notice was shown and undone', () => {
   assert.match(CONTENT, /_diag\.last = \{ key: segKey, at: Date\.now\(\), auto: true, notice: false, undone: false \};\n\s*showSkippedNotice/);
-  assert.match(CONTENT, /container\.appendChild\(box\);\n\s*if \(_diag\.last\) _diag\.last\.notice = true;/);
+  assert.match(CONTENT, /container\.appendChild\(_toastFit\(box\)\);\n\s*if \(_diag\.last\) _diag\.last\.notice = true;/);
   assert.match(CONTENT, /if \(_diag\.last\) _diag\.last\.undone = true;/);
 });
 
