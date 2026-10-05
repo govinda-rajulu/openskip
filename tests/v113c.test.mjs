@@ -123,3 +123,21 @@ test('sources page: 10 sources, each with a link, logos only from the icon servi
   assert.equal(/<img[^>]* src="https?:/.test(OPTIONS_HTML), false, 'no remote image loads when Settings opens');
   assert.match(OPTIONS_HTML, /not endorsed, certified or otherwise approved by TMDB/);
 });
+
+// Settings and the popup load as whole files. Up to os-133 nothing ran options.js
+// end to end: one line read `manifest` before its `const`, and the whole page died.
+test('options.js and popup.js run to the end without throwing (whole file, fake DOM)', () => {
+  const anyP = (p) => new Proxy(function () {}, { get(_t, k) { if (k === 'then') return undefined; if (k === Symbol.iterator) return function* () {}; if (k === 'length') return 0; if (k === Symbol.toPrimitive) return () => ''; return anyP(p + '.' + String(k)); }, apply() { return anyP(p + '()'); }, construct() { return anyP(p + ' new'); } });
+  for (const f of ['options.js', 'popup.js']) {
+    const ctx = { console: { log() {}, warn() {}, error() {} }, URL, URLSearchParams, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
+      location: { hash: '', href: 'moz-extension://x/' + f }, document: anyP('document'), history: anyP('history'), navigator: anyP('navigator'),
+      matchMedia: () => anyP('mm'), getComputedStyle: () => anyP('cs'), addEventListener() {}, Blob: class {}, FileReader: class {},
+      MutationObserver: class { observe() {} }, crypto: globalThis.crypto, TextEncoder, TextDecoder, Intl, Date, Math, JSON,
+      requestAnimationFrame() {}, alert() {}, confirm: () => false, prompt: () => null, fetch: async () => ({ ok: false, status: 404, json: async () => ({}), text: async () => "" }) };
+    ctx.window = ctx; ctx.globalThis = ctx; ctx.self = ctx;
+    ctx.browser = makeBrowser({}, {}, { 'browser.runtime.getManifest': () => ({ version: '1.13.0' }) });
+    vm.createContext(ctx);
+    vm.runInContext(read('theme-engine.js'), ctx, { filename: 'theme-engine.js' });
+    assert.doesNotThrow(() => vm.runInContext(read(f), ctx, { filename: f }), f);
+  }
+});

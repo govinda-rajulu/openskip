@@ -151,3 +151,5 @@ SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
   while every player frame aborted start-up. Fake browser timers in tests must check `this`.
 - 5 Oct round 2: a source's API version can disappear. TheIntroDB v1 stopped answering and the
   tests (fake fetch) stayed green. Check each source live once per release with a known title.
+- 5 Oct os-133: Settings died on load (`manifest` read before its `const`, TDZ). No test ran
+  options.js end to end. Now a test runs options.js and popup.js as whole files.

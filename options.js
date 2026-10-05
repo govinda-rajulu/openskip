@@ -233,7 +233,6 @@ br.storage.onChanged.addListener((changes, area) => {
   picker.addEventListener('input', () => put(picker.value));
   document.querySelectorAll('.opt-color-dot').forEach(dot => dot.addEventListener('click', () => { picker.value = dot.dataset.color; put(dot.dataset.color); }));
 })();
-if ($('aboutVer')) $('aboutVer').textContent = 'v' + manifest.version;
 
 // -- Supabase one-time setup helper --
 // The anon key cannot create tables (Supabase allows that only to the project
@@ -307,6 +306,7 @@ function setSpinnerLabel(el, text) {
 const manifest = br.runtime.getManifest();
 const sidebarVerEl = $('sidebarVer');
 if (sidebarVerEl) sidebarVerEl.textContent = 'v' + manifest.version;
+if ($('aboutVer')) $('aboutVer').textContent = 'v' + manifest.version;   // Sources & help > About
 
 // -- Sidebar nav --
 const navItems = document.querySelectorAll('.nav-item[data-panel]');
