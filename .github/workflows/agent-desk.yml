@@ -1,0 +1,70 @@
+name: Agent desk
+
+# Free model seats find problems and cross-examine each other; a script keeps only
+# quotes that are really in the file. Advisory only: it writes issues, never code.
+# Contract: knowledge/agents/README.md. Off-switch: repository variable AGENTS_PAUSED=true.
+on:
+  schedule:
+    - cron: '0 6 * * 1'    # Monday: one hunt, topic rotates by week
+    - cron: '0 6 1 * *'    # 1st of the month: exam and live source check
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'hunt, exam, seed (backlog to issues) or sources (live check, no model)'
+        required: true
+        default: 'hunt'
+        type: choice
+        options: [hunt, exam, seed, sources]
+      topic:
+        description: 'Hunt topic (auto = this week''s rotation)'
+        required: false
+        default: 'auto'
+        type: choice
+        options: [auto, SECURITY-HUNT, BUG-HUNT, PERF-HUNT, DOCS-DRIFT, DEAD-CODE]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-desk
+  cancel-in-progress: false
+
+jobs:
+  desk:
+    if: |
+      vars.AGENTS_PAUSED != 'true' &&
+      (github.event_name == 'schedule' || github.actor == github.repository_owner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Run the desk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DESK_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          AI_MODEL_OPENROUTER: ${{ vars.AI_MODEL_OPENROUTER }}
+          AI_MODEL_GEMINI: ${{ vars.AI_MODEL_GEMINI }}
+          AI_MODEL_NVIDIA: ${{ vars.AI_MODEL_NVIDIA }}
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          IN_MODE: ${{ inputs.mode }}
+          IN_TOPIC: ${{ inputs.topic }}
+        run: |
+          MODE="$IN_MODE"; TOPIC="${IN_TOPIC:-auto}"
+          if [ "$EVENT" = "schedule" ]; then
+            if [ "$SCHEDULE" = "0 6 1 * *" ]; then MODE=exam; else MODE=hunt; TOPIC=auto; fi
+          fi
+          python3 scripts/agent_desk.py "$MODE" --topic "$TOPIC" --publish | tee "$RUNNER_TEMP/desk.md"
+          if [ "$EVENT" = "schedule" ] && [ "$MODE" = "exam" ]; then
+            python3 scripts/agent_desk.py sources --publish | tee -a "$RUNNER_TEMP/desk.md"
+          fi
+          cat "$RUNNER_TEMP/desk.md" >> "$GITHUB_STEP_SUMMARY"

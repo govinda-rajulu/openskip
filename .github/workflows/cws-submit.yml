@@ -1,9 +1,9 @@
 name: Submit to Chrome Web Store
 
+# Manual only (os-147, 5 Oct 2026): no Chrome Web Store account exists, so a run
+# after every release only skipped with a green check. Run it by hand once the
+# CWS secrets are set. The Chrome ZIP is still attached to every GitHub release.
 on:
-  workflow_run:
-    workflows: ["Build & Release"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       dry_run:

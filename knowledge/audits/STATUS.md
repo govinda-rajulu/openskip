@@ -1,8 +1,21 @@
-# Audit status, 29 Sep 2026
+# Audit status (rows below dated 29 Sep 2026; see the 5 Oct update first)
 
 Sources: [AUDIT-1-2026-09-29.md](AUDIT-1-2026-09-29.md) (C, B, O, P, S, W, D findings) and
 [AUDIT-2-2026-09-29.md](AUDIT-2-2026-09-29.md) (H1 to H27). Status comes from packet commit
 messages and tests, not from a re-audit. Re-read the code before relying on a row.
+
+## Update, 5 Oct 2026 (os-147, read from main 6419b6e0 and its tests)
+
+- #71, #72, #73, #77 merged 3 Oct; H23 (data-collection declaration) shipped in 1.11.0; the
+  Supabase login moved to 1.14.0. The rows "In PR #73", "CodeQL alerts, PR #71" and "In the
+  H23 PR" below are therefore merged.
+- **W3 and W6 were marked fixed but were partly open**: store-version-check's guard ended one
+  step only, and version-bump still read ANTHROPIC_API_KEY with gemini-2.0-flash. Both
+  workflows are retired in os-147. **W2**: release.yml no longer writes updates.json (os-147).
+- **H6** fixed in 1.13.1 (generic Next/Skip clicks only over the video).
+- **C7** probably closed by X2 (1.11.0); verify (BACKLOG T08).
+- Still open, now agent-desk backlog tasks: C3 (T05), C11 (T01), C12 (T06), C13 (T02),
+  O4 (T04), H8 (T03), H25 (T07), H27 (T16, re-check).
 
 | Status | Findings |
 |---|---|

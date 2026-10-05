@@ -17,6 +17,7 @@ Moved into the repo on 29 Sep 2026 because chat sessions are deleted daily.
 - [audits/](audits/): the two 29 Sep 2026 audits, verbatim apart from removed sandbox paths.
 - [handbook/](handbook/): the owner's general engineering handbook (verification, gates,
   repo writes, CI diagnosis, scope, handovers). Same files in patch-factory.
+- [agents/](agents/): the agent desk: contract, skills, settled list, backlog (os-147).
 - [sessions/](sessions/): one summary per working session (what happened, decisions, wrong
   calls). Not chat logs.
 - [archive/handovers/](archive/handovers/): hand-over notes between chats, verbatim, historical.

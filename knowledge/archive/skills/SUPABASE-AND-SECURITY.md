@@ -23,7 +23,7 @@ Verified 15 Aug: options.js:1431 posts `{ p_user_id: userId }`, the SQL declares
 
 ### The duplicate-row root cause, solved
 
-`ss_put_playback` upserts on `(user_id, media_id)`, correctly. The duplicates came from `getMediaId()` producing **different ids per frame** for one film: the top page `www.1shows.org/movies/157336-interstellar` failed the old `/\/movie\/(\d+)/` regex (path says *movies*) and fell through to `hostname + pathname`, while the player frame `play.xpass.top/e/movie/157336` matched and returned `movie/157336`. `0527017` fixed the regex to `movies?` plus a wider tv alternation. **Old rows are not rewritten**, so expect one stale duplicate per previously watched title until a Clear Cloud History.
+`ss_put_playback` upserts on `(user_id, media_id)`, correctly. The duplicates came from `getMediaId()` producing **different ids per frame** for one film: the top page `www.streamsite.org/movies/157336-interstellar` failed the old `/\/movie\/(\d+)/` regex (path says *movies*) and fell through to `hostname + pathname`, while the player frame `play.playerhost.top/e/movie/157336` matched and returned `movie/157336`. `0527017` fixed the regex to `movies?` plus a wider tv alternation. **Old rows are not rewritten**, so expect one stale duplicate per previously watched title until a Clear Cloud History.
 
 A series id is still show-level (`tv/66732`), so all episodes share one resume row. Pre-existing behaviour, not a regression; fixing it needs season and episode in the id, which is the History rework.
 

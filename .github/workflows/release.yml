@@ -140,39 +140,8 @@ jobs:
           echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
           echo "✅ Chrome ZIP built: $(du -h $ZIP_NAME | cut -f1)"
 
-      - name: Update updates.json and commit
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          python3 - << 'PYEOF'
-          import json, os
-          version = os.environ['VERSION']
-          repo = os.environ['GITHUB_REPOSITORY']
-          data = json.load(open('updates.json'))
-          entry = {
-              "version": version,
-              "update_link": f"https://github.com/{repo}/releases/download/v{version}/skipstream-{version}-firefox.zip",
-              "update_info_url": f"https://github.com/{repo}/releases/tag/v{version}"
-          }
-          updates = data['addons']['skipstream@extension']['updates']
-          existing = [i for i, u in enumerate(updates) if u['version'] == version]
-          if existing:
-              updates[existing[0]] = entry
-          else:
-              updates.append(entry)
-          data['addons']['skipstream@extension']['updates'] = updates[-10:]
-          json.dump(data, open('updates.json', 'w'), indent=2)
-          print(f'updates.json updated to v{version}')
-          PYEOF
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add updates.json
-          git diff --staged --quiet || git commit -m "chore: update updates.json for v${VERSION} [skip ci]"
-          if ! git push origin HEAD:main; then
-            echo "::warning::updates.json push to main was rejected (main is protected). AMO builds do not use updates.json."
-          fi
-
+      # updates.json is bumped in the release PR (Lint & Validate requires it). The
+      # workflow no longer pushes it to main, which is protected (audit W2, os-147).
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

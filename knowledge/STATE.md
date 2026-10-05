@@ -2,6 +2,33 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
+## Start here (5 Oct 2026, night, packet os-147: two PRs)
+
+- **main** `6419b6e0` (tree `019b6be8`), 1.13.0 public on AMO (reviewed 5 Oct 09:21 UTC).
+  AMO listing has 0 screenshots.
+- **os-147 opens two PRs, no merge:**
+  - `packet/agents-5s-20261005`: 5S of the agent tooling and the agent desk. Retired to
+    knowledge/archive/unused: version-bump.yml, store-version-check.yml, ai-weekly-audit.yml,
+    scripts/agent.sh. cws-submit is manual only. release.yml no longer pushes updates.json
+    (Lint & Validate still requires it, so release PRs bump it). AGENTS.md is the one rules
+    file; CLAUDE.md and GEMINI.md point to it. AGENTS_PAUSED on every agent job. OpenRouter
+    picks a live free model when its id is unset or retired. New: agent desk
+    (knowledge/agents/, scripts/agent_desk.py, .github/workflows/agent-desk.yml, exam fixtures).
+  - `packet/release-1.13.1-20261005`: 1.13.1. No unlicensed site names; H6 clicks only over
+    the video; device names never empty; YouTube film uploads can find subtitles.
+- **Owner checks on 5 Oct:** phone and laptop history do not sync: the SQL showed phone id
+  `299e4c45` and laptop id `451091af`, never linked (8 install ids in total). Link them with a
+  backup (Settings > Backup > Link devices) until 1.14. Netflix and Prime Video: not testable
+  (no subscription). Branch protection: only "Lint & Validate" required, strict off, admins
+  not enforced (BACKLOG T13). Edge Add-ons: Partner Center registration blocked by
+  Microsoft's trust check, ref 715-123225 (BACKLOG T10).
+- **Owner next:** read and merge both PRs (any order; the packet ran both together), device
+  test 1.13.1, tag `v1.13.1`. Then Actions > Agent desk: `seed` once, then `exam`.
+- **Next code:** whatever the desk and BACKLOG.md rank first; then 1.14 login (T11).
+- **Names:** on 5 Oct 2026 the owner had every unlicensed streaming site name replaced by
+  neutral placeholders in all files, knowledge/ included (so archive files are verbatim apart
+  from that). Git history keeps the old text.
+
 ## Start here (5 Oct 2026 evening, packets os-141 to os-146, 1.13.0 released)
 
 - **Released:** 1.13.0. PR #81 merged by os-141 after every PR check passed (CodeQL included), tag `v1.13.0`. The tag
@@ -40,7 +67,7 @@ Newest checkpoint first. Each section is a dated snapshot; verify live before ac
 - **Owner decides:** own OpenSubtitles API key field (only if quota errors); drop free-streaming
   site names from getSiteName(); a headless browser CI job; Edge Add-ons listing.
 - **Checked live 5 Oct:** TheIntroDB v3 (v1 is gone) for tmdb 603 and imdb tt0903747; SkipDB and IntroDB.
-  **Unverified live:** Anime Skip, AniSkip answers. 1Shows triple subtitles.
+  **Unverified live:** Anime Skip, AniSkip answers. StreamSite triple subtitles.
 - **Device round 2 (5 Oct):** 7 of 8 passed; the OpenSubtitles count was not confirmed. Found: player
   frames did not finish start-up (timer this-binding, since 1.11) and TheIntroDB v1 gone. Both fixed
   in os-133 with the 5S Settings, Sources page and per-kind source merge. Round 3 is in the PR.
@@ -68,8 +95,8 @@ Newest checkpoint first. Each section is a dated snapshot; verify live before ac
   edges and preview, site report token masking.
 - Cross-device history needs both browsers linked (Settings > Backup > Link devices) until the
   Supabase login (1.14). Each cloud row keeps only the device that played it last.
-- Site report on 1Shows (5 Oct): the player is Vidstack + video.js 8.12 + hls.js 1.7.3 in
-  viduki.net, with 30 of the site's own subtitle tracks (all off). Check this page needs play first.
+- Site report on StreamSite (5 Oct): the player is Vidstack + video.js 8.12 + hls.js 1.7.3 in
+  playerhost.net, with 30 of the site's own subtitle tracks (all off). Check this page needs play first.
 - Round 1, part 2 (same packet, now os-132): OpenSubtitles downloads without the account first
   (HTTP 406 = quota, no longer retried); Netflix and Prime Video subtitle styles (local fonts
   only); CC button switch, 5 s auto-hide in full screen, drag on a normal page; Check this page
@@ -110,8 +137,8 @@ Newest checkpoint first. Each section is a dated snapshot; verify live before ac
 
 ## Open (not code yet)
 
-- Check this page on 1Shows listed only the main page while the player played; use Site report.
-- 1Shows showed three subtitle lines, one ours; confirm with CC on/off.
+- Check this page on StreamSite listed only the main page while the player played; use Site report.
+- StreamSite showed three subtitle lines, one ours; confirm with CC on/off.
 - Anime Skip needs a live test with a client id. SkipDB answers are not yet seen live.
 
 ## 3 Oct 2026 (release 1.11.0 packet)
@@ -141,7 +168,7 @@ Newest checkpoint first. Each section is a dated snapshot; verify live before ac
   Tests 118 (21 new in identify.test.mjs, all 21 fail on the first packet's tree).
 - **Device test of #79 (owner, 3 Oct 16:00)**: first run was the old build (1.10 popup text);
   check the version in about:debugging first. On 1.11.0: CC button, history title and poster
-  on 1Shows OK; YouTube subtitles reason OK; backup export/import with keys OK. Found:
+  on StreamSite OK; YouTube subtitles reason OK; backup export/import with keys OK. Found:
   "Find subtitles" gave NetworkError (download link on www.opensubtitles.com, blocked by
   connect-src since before 1.10: fixed with *.opensubtitles.com); backup card had no short
   steps (added). Open: Undo notice not seen on YouTube; Check this page listed only the top page.
@@ -151,7 +178,7 @@ Newest checkpoint first. Each section is a dated snapshot; verify live before ac
   has its own random `skipstream_install_id`, every RPC filters by it. 1.11.0 lets the owner
   link browsers with a backup; the Supabase login in 1.12.0 is the full fix.
 - **Found 3 Oct: embedded players were dropped after 5 s** (`_waitObs` timeout): a frame whose
-  video appeared later never started. Owner symptom: 1Shows/viduki "works sometimes".
+  video appeared later never started. Owner symptom: StreamSite/playerhost "works sometimes".
 - **Owner steps, in order**: device test #73; merge #71, #72, #73, #77; run the release packet;
   merge its PR; push tag `v1.11.0` (this publishes to AMO via amo-submit.yml); AMO listing.
 - **Owner decisions 3 Oct**: every user brings their own API keys (no shared SkipStream keys);

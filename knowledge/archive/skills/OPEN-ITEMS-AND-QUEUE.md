@@ -48,7 +48,7 @@ Test: YouTube video, click CC with no subs, pick a CRLF .srt.
 - CRLF parse vs a real file (8 synthetic cases passed, no upload has ever landed).
 - Whether Firefox Dev Edition honours `xpinstall.signatures.required` on his build.
 - PR 62 (CC button picker) has never run in a browser.
-- 2x speed not applying on 1shows (works on YouTube/JioHotstar).
+- 2x speed not applying on streamsite (works on YouTube/JioHotstar).
 
 ## Known open bugs
 
