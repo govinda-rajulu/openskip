@@ -5,7 +5,7 @@ import { read, loadBackground, fakeResponse } from './harness.mjs';
 const SUPA = { supabaseUrl: 'https://abcdefghijklmnop.supabase.co', supabaseAnonKey: 'anon-test-key' };
 const LOCAL = { ...SUPA, skipMode: 'auto-intro', skipIntro: true, skipRecap: false, skipOutro: false, skipEnabled: true,
   playbackSpeed: 1.25, skipstream_theme: 'dark', skipstream_stats: { skipsTotal: 41 },
-  skipstream_site_rules: { 'hianime.to': 'auto-all' }, skipstream_install_id: 'secret-install' };
+  skipstream_site_rules: { 'animeportal.to': 'auto-all' }, skipstream_install_id: 'secret-install' };
 
 const settingsCalls = (bg) => bg.calls.filter(c => c.url.endsWith('/rpc/ss_put_settings')).map(c => JSON.parse(c.opts.body));
 

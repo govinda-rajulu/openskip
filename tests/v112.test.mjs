@@ -126,7 +126,7 @@ test('settings: new keys are backed up, synced and checked on import', () => {
 // ── Site report ───────────────────────────────────────────────────────────────
 test('site report: Firefox runs the probe in every frame, blank frames too, and returns each frame', async () => {
   let opts = null;
-  const bg = loadBackground({ overrides: { 'browser.tabs.executeScript': async (tabId, o) => { opts = o; return [{ frame: '1shows.bz/movies/603', top: true }, { frame: 'viduki.net/1/movie/603', top: false }, null]; } } });
+  const bg = loadBackground({ overrides: { 'browser.tabs.executeScript': async (tabId, o) => { opts = o; return [{ frame: 'streamsite.bz/movies/603', top: true }, { frame: 'playerhost.net/1/movie/603', top: false }, null]; } } });
   const r = await bg.send({ type: 'SS_SITE_REPORT', tabId: 7 });
   assert.equal(r.ok, true);
   assert.equal(r.frames.length, 2);
@@ -136,10 +136,10 @@ test('site report: Firefox runs the probe in every frame, blank frames too, and 
 
 test('site report: the probe runs on a bare page and returns a plain report', () => {
   const doc = { title: 'The Matrix', referrer: '', querySelector: () => null, querySelectorAll: () => [] };
-  const ctx = vm.createContext({ document: doc, location: { href: 'https://www.viduki.net/1/movie/603?token=SECRET' }, URL, String, Number, Math, Array, Set });
+  const ctx = vm.createContext({ document: doc, location: { href: 'https://www.playerhost.net/1/movie/603?token=SECRET' }, URL, String, Number, Math, Array, Set });
   ctx.window = ctx; ctx.window.top = ctx;
   const r = j(vm.runInContext(read('content-scripts/probe.js'), ctx));
-  assert.equal(r.frame, 'www.viduki.net/1/movie/603', 'query string (tokens) cut off');
+  assert.equal(r.frame, 'www.playerhost.net/1/movie/603', 'query string (tokens) cut off');
   assert.equal(r.top, true);
   assert.deepEqual([r.players, r.videos, r.iframes], [[], [], []]);
 });
@@ -147,11 +147,11 @@ test('site report: the probe runs on a bare page and returns a plain report', ()
 test('site report: the popup turns frames into readable lines', () => {
   const siteReportText = vm.runInNewContext('(' + extractFunction(read('popup.js'), 'siteReportText') + ')', { Array });
   const t = siteReportText({ ok: true, frames: [
-    { frame: 'www.1shows.bz/movies/603-the-matrix', top: true, skipstream: true, players: [], libs: [], videos: [], iframes: [{ src: 'vidsrc.example/embed/movie/603', size: '1280x720', sandbox: '' }], ids: [] },
-    { frame: 'vidsrc.example/embed/movie/603', top: false, skipstream: false, referrer: 'www.1shows.bz/', players: ['JW Player'], libs: ['hls.js (cdn.example)'],
+    { frame: 'www.streamsite.bz/movies/603-the-matrix', top: true, skipstream: true, players: [], libs: [], videos: [], iframes: [{ src: 'embedhost.example/embed/movie/603', size: '1280x720', sandbox: '' }], ids: [] },
+    { frame: 'embedhost.example/embed/movie/603', top: false, skipstream: false, referrer: 'www.streamsite.bz/', players: ['JW Player'], libs: ['hls.js (cdn.example)'],
       videos: [{ size: '1280x720', kind: 'stream (HLS/DASH via script)', source: 'blob (stream built in the page)', duration: 8160, playing: true, tracks: ['subtitles:en English showing'] }], iframes: [], ids: ['tmdb 603'] },
   ] }, 'v1.12.0');
-  for (const want of ['SkipStream v1.12.0 site report, 2 frames', 'iframe vidsrc.example/embed/movie/603 1280x720', 'FRAME vidsrc.example/embed/movie/603  [SkipStream not running here]',
+  for (const want of ['SkipStream v1.12.0 site report, 2 frames', 'iframe embedhost.example/embed/movie/603 1280x720', 'FRAME embedhost.example/embed/movie/603  [SkipStream not running here]',
     'players: JW Player', 'scripts: hls.js (cdn.example)', 'video 1280x720, stream (HLS/DASH via script)', 'subtitle tracks: subtitles:en English showing', 'ids: tmdb 603'])
     assert.ok(t.includes(want), want + '\n---\n' + t);
 });

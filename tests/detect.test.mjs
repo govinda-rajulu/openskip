@@ -78,11 +78,11 @@ test('page check: the popup gets one report per frame', async () => {
   const bg = loadBackground({ storage: {} });
   const run = bg.send({ type: 'SS_DIAG_RUN', tabId: 1 });
   await new Promise(r => setTimeout(r, 50));
-  await bg.send({ type: 'SS_DIAG_REPORT', report: { frame: 'www.1shows.bz/movies/603', top: true, videos: 0, blankFrames: 1 } });
-  await bg.send({ type: 'SS_DIAG_REPORT', report: { frame: 'www.viduki.net/1/movie/603', top: false, videos: 1, attached: 1 } });
+  await bg.send({ type: 'SS_DIAG_REPORT', report: { frame: 'www.streamsite.bz/movies/603', top: true, videos: 0, blankFrames: 1 } });
+  await bg.send({ type: 'SS_DIAG_REPORT', report: { frame: 'www.playerhost.net/1/movie/603', top: false, videos: 1, attached: 1 } });
   const r = await run;
   assert.equal(r.ok, true);
-  assert.equal(JSON.stringify(r.frames.map(f => [f.frame, f.videos, f.attached])), JSON.stringify([['www.1shows.bz/movies/603', 0, 0], ['www.viduki.net/1/movie/603', 1, 1]]));
+  assert.equal(JSON.stringify(r.frames.map(f => [f.frame, f.videos, f.attached])), JSON.stringify([['www.streamsite.bz/movies/603', 0, 0], ['www.playerhost.net/1/movie/603', 1, 1]]));
 });
 
 test('chrome: no 30-second keepalive alarm is created any more', () => {

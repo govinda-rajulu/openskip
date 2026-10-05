@@ -1011,7 +1011,7 @@ function canonHost(h) {
     x = y;
   }
 }
-// Same rule as content.js _siteFamily: 1shows.cx and 1shows.to are one site.
+// Same rule as content.js _siteFamily: streamsite.cx and streamsite.to are one site.
 function siteFamily(h) {
   const x = canonHost(h);
   const parts = x.split('.').filter(Boolean);
@@ -1403,7 +1403,7 @@ async function loadHistory(data) {
   const filterEl = $('historyFilter');
   if (filterEl) {
     // One entry per site, also when the site moved to a new address: the label is
-    // the newest address's name (siteFamily groups 1shows.cx and 1shows.to).
+    // the newest address's name (siteFamily groups streamsite.cx and streamsite.to).
     const byFam = new Map();
     for (const i of (getHistoryItems() || [])) {
       const h = canonHost(i.site || i.siteName), f = siteFamily(h);
@@ -1492,7 +1492,7 @@ async function loadHistory(data) {
                 site_name:    entry.site_name || entry.site || '',
                 video_title:  entry.title || '',
                 page_url:     entry.url   || '',
-                device_name:  'SkipStream Options Sync',
+                device_name:  myDeviceName(),
                 ...(localTs ? { updated_at: new Date(Math.min(localTs, Date.now())).toISOString() } : {}),
               }
             });

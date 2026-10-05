@@ -10,7 +10,7 @@ const j = (x) => JSON.parse(JSON.stringify(x));
 // ── Titles ────────────────────────────────────────────────────────────────────
 test('titles: site names and streaming filler go, real dashes stay', () => {
   const { _cleanTitle } = contentFns(['_cleanTitle'], ['_FILLER_RE']);
-  assert.equal(_cleanTitle('Watch The Matrix (1999) Online Free HD | 1Shows', ['1Shows', '1shows.bz']), 'The Matrix (1999)');
+  assert.equal(_cleanTitle('Watch The Matrix (1999) Online Free HD | StreamSite', ['StreamSite', 'streamsite.bz']), 'The Matrix (1999)');
   assert.equal(_cleanTitle('Spider-Man - Into the Spider-Verse | Netflix', ['Netflix', 'netflix.com']), 'Spider-Man - Into the Spider-Verse');
   assert.equal(_cleanTitle('Dark - S01E02 - Lies - Netflix', ['Netflix', 'netflix.com']), 'Dark - S01E02 - Lies');
   assert.equal(_cleanTitle('Breaking Bad | Watch Online | MySite', ['Mysite', 'mysite.to']), 'Breaking Bad');
@@ -32,9 +32,9 @@ const blank = () => ({ imdbId: null, tmdbId: null, tmdbKind: null, season: null,
 
 test('ids: aggregator and embed addresses give TMDB id, kind and S/E', () => {
   const cases = [
-    ['https://1shows.bz/movies/603-the-matrix', { tmdbId: 603, tmdbKind: 'movie' }],
-    ['https://www.viduki.net/1/movie/603', { tmdbId: 603, tmdbKind: 'movie' }],
-    ['https://vidsrc.xyz/embed/tv/1399/1/2', { tmdbId: 1399, tmdbKind: 'tv', season: 1, episode: 2 }],
+    ['https://streamsite.bz/movies/603-the-matrix', { tmdbId: 603, tmdbKind: 'movie' }],
+    ['https://www.playerhost.net/1/movie/603', { tmdbId: 603, tmdbKind: 'movie' }],
+    ['https://embedhost.example/embed/tv/1399/1/2', { tmdbId: 1399, tmdbKind: 'tv', season: 1, episode: 2 }],
     ['https://player.example/embed?tmdb=603&type=movie', { tmdbId: 603, tmdbKind: 'movie' }],
     ['https://site.example/tv/1399-game-of-thrones/season-2/episode-5', { tmdbId: 1399, tmdbKind: 'tv', season: 2, episode: 5 }],
   ];
@@ -49,7 +49,7 @@ test('ids: aggregator and embed addresses give TMDB id, kind and S/E', () => {
 test('ids: a player frame can read the top page address it is given', () => {
   const { parseUrlInfo } = urlFns('https://player.example/e/abc123');
   const info = blank();
-  parseUrlInfo(info, 'https://1shows.bz/tv/1399-got/1/9');
+  parseUrlInfo(info, 'https://streamsite.bz/tv/1399-got/1/9');
   assert.deepEqual([info.tmdbId, info.season, info.episode], [1399, 1, 9]);
 });
 
@@ -59,12 +59,12 @@ test('ids: the season/episode pattern no longer treats "/-_" as a range', () => 
 });
 
 test('ids: slugs give a clean title and year', () => {
-  const { parsePathTitle } = urlFns('https://1shows.bz/movies/603-the-matrix-1999');
+  const { parsePathTitle } = urlFns('https://streamsite.bz/movies/603-the-matrix-1999');
   const info = blank();
   assert.equal(parsePathTitle(info), 'The Matrix');
   assert.equal(info.year, 1999);
   assert.equal(info.tmdbKind, 'movie');
-  const p2 = urlFns('https://www.viduki.net/1/movie/603');
+  const p2 = urlFns('https://www.playerhost.net/1/movie/603');
   assert.equal(p2.parsePathTitle(blank()), null, 'a bare number is not a title');
 });
 
@@ -89,8 +89,8 @@ test('ids: a movie page never becomes an episode from sidebar text', () => {
 test('players: history keeps the real page address from the tab', async () => {
   const bg = loadBackground();
   const onMessage = bg.listeners['browser.runtime.onMessage.addListener'][0];
-  const r = await new Promise(res => onMessage({ type: 'GET_TAB_INFO' }, { tab: { id: 3, url: 'https://1shows.bz/movies/603-the-matrix', title: 'The Matrix | 1Shows' }, frameId: 7 }, res));
-  assert.deepEqual(j(r), { url: 'https://1shows.bz/movies/603-the-matrix', title: 'The Matrix | 1Shows' });
+  const r = await new Promise(res => onMessage({ type: 'GET_TAB_INFO' }, { tab: { id: 3, url: 'https://streamsite.bz/movies/603-the-matrix', title: 'The Matrix | StreamSite' }, frameId: 7 }, res));
+  assert.deepEqual(j(r), { url: 'https://streamsite.bz/movies/603-the-matrix', title: 'The Matrix | StreamSite' });
   const top = CONTENT.slice(CONTENT.indexOf('function _topHref'), CONTENT.indexOf('function _siteHost'));
   assert.match(top, /_tabInfo && _tabInfo\.url\) \|\| document\.referrer/);
   assert.match(CONTENT, /function _pageUrl\(\) \{\s*return _topHref\(\);/);
@@ -106,7 +106,7 @@ function tmdbBg(routes, storage = { tmdbApiKey: 'k' }) {
 
 test('tmdb: cleanMediaTitle', () => {
   const { ctx } = loadBackground();
-  assert.deepEqual(j(ctx.cleanMediaTitle('Watch The Matrix (1999) Online Free | 1Shows')), { q: 'The Matrix', year: 1999, tv: false });
+  assert.deepEqual(j(ctx.cleanMediaTitle('Watch The Matrix (1999) Online Free | StreamSite')), { q: 'The Matrix', year: 1999, tv: false });
   assert.deepEqual(j(ctx.cleanMediaTitle('Dark - S01E02 - Lies')), { q: 'Dark', year: null, tv: true });
   assert.equal(ctx.cleanMediaTitle('Blade Runner 2049').q, 'Blade Runner 2049');
   assert.equal(ctx.cleanMediaTitle('1917').q, '1917');
@@ -158,7 +158,7 @@ test('posters: exact name beats the first search hit; a film title searches film
     [/search\/movie/, { results: [{ id: 1, title: 'Matrix Resurrections', poster_path: '/wrong.jpg' }, { id: 603, title: 'The Matrix', poster_path: '/right.jpg' }] }],
     [/search\/tv/, { results: [{ id: 9, name: 'The Matrix', poster_path: '/tv.jpg' }] }],
   ]);
-  const r = await bg.send({ type: 'TMDB_SEARCH_POSTER', title: 'Watch The Matrix (1999) Online Free', mediaId: '1shows.bz/x' });
+  const r = await bg.send({ type: 'TMDB_SEARCH_POSTER', title: 'Watch The Matrix (1999) Online Free', mediaId: 'streamsite.bz/x' });
   assert.equal(r.posterUrl, 'https://image.tmdb.org/t/p/w185/right.jpg');
   assert.match(bg.calls[0].url, /search\/movie\?query=The%20Matrix&page=1&year=1999/);
   assert.match(BG, /poster2:/, 'old cached artwork is not reused');
@@ -229,7 +229,7 @@ test('page check: each player frame says what it found, the skip mode and the la
   const bg = loadBackground({ storage: {} });
   const run = bg.send({ type: 'SS_DIAG_RUN', tabId: 1 });
   await new Promise(r => setTimeout(r, 50));
-  await bg.send({ type: 'SS_DIAG_REPORT', report: { frame: 'www.viduki.net/1/movie/603', top: false, videos: 1, attached: 1,
+  await bg.send({ type: 'SS_DIAG_REPORT', report: { frame: 'www.playerhost.net/1/movie/603', top: false, videos: 1, attached: 1,
     ident: 'tt0133093 (movie)', segs: 'outro', subs: 'OpenSubtitles, 1200 lines', last: 'outro 3 s ago, automatic, notice shown', auto: 'auto: outros' } });
   const r = await run;
   const vm = await import('node:vm');

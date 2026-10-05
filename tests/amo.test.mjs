@@ -69,8 +69,12 @@ https.request = (o, cb) => {
   return { code: r.status, out: r.stdout + r.stderr, calls };
 }
 
+// The version in these fakes is read from manifest.json, so a release bump needs no test edit.
+const V = JSON.parse(readFileSync('manifest.json', 'utf8')).version;
+const VRE = V.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 test('listing only: notes of the current version, listing text, icon; nothing uploaded', () => {
-  const { code, out, calls } = fakeRun({ LISTING_ONLY: '1' }, { current_version: { id: 6543062, version: '1.13.0' }, icon_url: 'https://addons.mozilla.org/static-server/img/addon-icons/default-64.png' });
+  const { code, out, calls } = fakeRun({ LISTING_ONLY: '1' }, { current_version: { id: 6543062, version: V }, icon_url: 'https://addons.mozilla.org/static-server/img/addon-icons/default-64.png' });
   assert.equal(code, 0, out);
   const w = calls.filter((c) => c.m !== 'GET').map((c) => c.m + ' ' + c.p + ' ' + c.ct);
   assert.deepEqual(w, [
@@ -79,18 +83,20 @@ test('listing only: notes of the current version, listing text, icon; nothing up
     'PATCH /api/v5/addons/addon/skipstream/ multipart/form-data',
   ]);
   const notes = JSON.parse(calls.find((c) => c.p.includes('/versions/6543062/')).body).release_notes['en-US'];
-  assert.ok(notes.length <= 3000 && notes.endsWith('releases/tag/v1.13.0'));
+  assert.ok(notes.length <= 3000, 'fits AMO');
+  const full = amo.extractChangelogNotes(V);
+  assert.ok(full.length > 3000 ? notes.endsWith('releases/tag/v' + V) : notes === amo.fitNotes(full, V), 'long notes end with the link; short notes are sent whole');
   const icon = calls[calls.length - 1].body;
   assert.match(icon, /name="icon"; filename="icon-128\.png"\r\nContent-Type: image\/png/);
   assert.ok(icon.includes('PNG'), 'the PNG bytes are sent');
 });
 
 test('listing only: refuses when AMO shows another version; an icon already set is left alone', () => {
-  const a = fakeRun({ LISTING_ONLY: '1' }, { current_version: { id: 1, version: '1.12.0' }, icon_url: 'https://addons.mozilla.org/user-media/addon_icons/3018/3018048-64.png' });
+  const a = fakeRun({ LISTING_ONLY: '1' }, { current_version: { id: 1, version: '0.0.1' }, icon_url: 'https://addons.mozilla.org/user-media/addon_icons/3018/3018048-64.png' });
   assert.equal(a.code, 1);
-  assert.match(a.out, /AMO current version is 1\.12\.0, expected 1\.13\.0/);
+  assert.match(a.out, new RegExp('AMO current version is 0\\.0\\.1, expected ' + VRE));
   assert.equal(a.calls.filter((c) => c.m !== 'GET').length, 0);
-  const b = fakeRun({ LISTING_ONLY: '1' }, { current_version: { id: 6543062, version: '1.13.0' }, icon_url: 'https://addons.mozilla.org/user-media/addon_icons/3018/3018048-64.png' });
+  const b = fakeRun({ LISTING_ONLY: '1' }, { current_version: { id: 6543062, version: V }, icon_url: 'https://addons.mozilla.org/user-media/addon_icons/3018/3018048-64.png' });
   assert.equal(b.code, 0, b.out);
   assert.match(b.out, /icon already set/);
   assert.equal(b.calls.filter((c) => c.ct === 'multipart/form-data').length, 0);
