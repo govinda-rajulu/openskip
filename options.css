@@ -1148,3 +1148,9 @@ ol.help li{ margin: 2px 0; }
 }
 body.ss-party .brand-logo{ animation: ssSpin 1.2s cubic-bezier(.22,1,.36,1) infinite; }
 @keyframes ssSpin{ to{ transform: rotate(360deg); } }
+
+/* 1.13: Supabase one-time setup helper */
+[hidden]{ display: none !important; }
+.sb-setup{ margin-top: 12px; padding: 12px 14px; border: 1px solid var(--card-border); border-radius: 14px; background: var(--surface); }
+.sb-setup ol.help{ padding-left: 20px; }
+a.btn-primary, a.btn-ghost{ display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }

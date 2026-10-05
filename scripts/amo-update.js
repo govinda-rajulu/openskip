@@ -9,6 +9,10 @@
  *   4. Creates new version on the listing (gracefully skips HTTP 409 duplicates)
  *   5. PATCHes listing metadata: summary, description, categories, homepage, tags
  *
+ * API v5 takes categories as a flat list of slugs. The old v4 object form
+ * ({ firefox: [...] }) makes the PATCH fail, and then the listing keeps its old
+ * text. `node scripts/amo-update.js --print-listing` prints the body offline.
+ *
  * Required env vars (set as GitHub Actions secrets):
  *   AMO_API_KEY     - from https://addons.mozilla.org/en-US/developers/addon/api/key/
  *   AMO_API_SECRET  - from the same page
@@ -32,31 +36,36 @@ const API_SECRET = process.env.AMO_API_SECRET;
 const ADDON_SLUG = process.env.AMO_ADDON_SLUG || 'skipstream';
 const DRY_RUN    = process.env.DRY_RUN === '1';
 
-if (!API_KEY || !API_SECRET) {
-  process.stderr.write('❌  AMO_API_KEY and AMO_API_SECRET must be set.\n');
-  process.exit(1);
+let ZIP_PATH, VERSION, RELEASE_NOTES;
+
+// Runs only when the script is started (not when a test loads it).
+function setup() {
+  if (!API_KEY || !API_SECRET) {
+    process.stderr.write('❌  AMO_API_KEY and AMO_API_SECRET must be set.\n');
+    process.exit(1);
+  }
+
+  // Find ZIP
+  ZIP_PATH = process.env.ZIP_PATH;
+  if (!ZIP_PATH) {
+    const zips = fs.readdirSync('.').filter(f => f.startsWith('skipstream-') && f.endsWith('-firefox.zip'));
+    if (!zips.length) { process.stderr.write('❌  No skipstream-*-firefox.zip found in cwd\n'); process.exit(1); }
+    ZIP_PATH = zips.sort().pop();
+  }
+  if (!fs.existsSync(ZIP_PATH)) { process.stderr.write(`❌  ZIP not found: ${ZIP_PATH}\n`); process.exit(1); }
+
+  // Version from manifest.json
+  const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+  VERSION  = manifest.version;
+
+  // Release notes
+  RELEASE_NOTES = process.env.RELEASE_NOTES || extractChangelogNotes(VERSION);
+
+  process.stdout.write(`\n🚀  SkipStream AMO Update - v${VERSION}\n`);
+  process.stdout.write(`    ZIP:  ${ZIP_PATH}\n`);
+  process.stdout.write(`    Slug: ${ADDON_SLUG}\n`);
+  if (DRY_RUN) process.stdout.write('    DRY_RUN=1 - mutating calls will be skipped\n\n');
 }
-
-// Find ZIP
-let ZIP_PATH = process.env.ZIP_PATH;
-if (!ZIP_PATH) {
-  const zips = fs.readdirSync('.').filter(f => f.startsWith('skipstream-') && f.endsWith('-firefox.zip'));
-  if (!zips.length) { process.stderr.write('❌  No skipstream-*-firefox.zip found in cwd\n'); process.exit(1); }
-  ZIP_PATH = zips.sort().pop();
-}
-if (!fs.existsSync(ZIP_PATH)) { process.stderr.write(`❌  ZIP not found: ${ZIP_PATH}\n`); process.exit(1); }
-
-// Version from manifest.json
-const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
-const VERSION  = manifest.version;
-
-// Release notes
-const RELEASE_NOTES = process.env.RELEASE_NOTES || extractChangelogNotes(VERSION);
-
-process.stdout.write(`\n🚀  SkipStream AMO Update - v${VERSION}\n`);
-process.stdout.write(`    ZIP:  ${ZIP_PATH}\n`);
-process.stdout.write(`    Slug: ${ADDON_SLUG}\n`);
-if (DRY_RUN) process.stdout.write('    DRY_RUN=1 - mutating calls will be skipped\n\n');
 
 // ── JWT ───────────────────────────────────────────────────────────────────────
 
@@ -294,18 +303,7 @@ async function main() {
   // ── Step 4: PATCH listing metadata ───────────────────────────────────────
   process.stdout.write('\n📝  Step 4/4 - Updating listing metadata…\n');
 
-  const listingBody = {
-    name:             { 'en-US': 'SkipStream' },
-    summary:          { 'en-US': 'Automatically skip intros, recaps, and outros - and resume playback across all your devices.' },
-    description:      { 'en-US': buildDescription() },
-    homepage:         { 'en-US': 'https://github.com/govinda-rajulu/openskip' },
-    support_url:      { 'en-US': 'https://github.com/govinda-rajulu/openskip/issues' },
-    categories:       { firefox: ['photos-music-videos'] },
-    tags:             ['privacy'],
-    is_experimental:  false,
-    requires_payment: false,
-    default_locale:   'en-US',
-  };
+  const listingBody = buildListing();
 
   if (DRY_RUN) {
     process.stdout.write(`    [dry-run] PATCH body:\n${JSON.stringify(listingBody, null, 2)}\n`);
@@ -318,8 +316,10 @@ async function main() {
     if (patchRes.status === 200) {
       process.stdout.write('    ✅  Listing metadata updated\n');
     } else {
-      // Metadata update is non-critical - version already uploaded. Warn but don't fail.
+      // Metadata update is non-critical - version already uploaded. Warn but don't fail,
+      // and make the warning visible on the run page (it was missed before 1.13).
       process.stderr.write(`    ⚠  PATCH returned HTTP ${patchRes.status} - metadata update skipped:\n${JSON.stringify(patchRes.data, null, 2)}\n`);
+      process.stdout.write(`::warning title=AMO listing not updated::PATCH returned HTTP ${patchRes.status}. The listing keeps its old text.\n`);
     }
   }
 
@@ -327,41 +327,65 @@ async function main() {
   process.stdout.write(`    View: https://addons.mozilla.org/en-US/firefox/addon/${ADDON_SLUG}/\n\n`);
 }
 
-// ── Listing description ───────────────────────────────────────────────────────
+// ── Listing text ──────────────────────────────────────────────────────────────
+// Written in ASD-STE100 style (knowledge/handbook/WRITING.md): short sentences,
+// active voice, one term for one thing. Every claim must match the code and
+// PRIVACY.md. AMO limits the summary to 250 characters.
+
+const SUMMARY = 'Skips intros, recaps and credits on streaming sites. Continues each video where you stopped. You can sync your history to your own Supabase project.';
+
+function buildListing() {
+  return {
+    name:             { 'en-US': 'SkipStream' },
+    summary:          { 'en-US': SUMMARY },
+    description:      { 'en-US': buildDescription() },
+    homepage:         { 'en-US': 'https://github.com/govinda-rajulu/openskip' },
+    support_url:      { 'en-US': 'https://github.com/govinda-rajulu/openskip/issues' },
+    categories:       ['photos-music-videos'],
+    tags:             ['privacy'],
+    is_experimental:  false,
+    requires_payment: false,
+    default_locale:   'en-US',
+  };
+}
 
 function buildDescription() {
-  return `Skip intros, recaps, and outros on any streaming site. Resume exactly where you left off on any device.
+  return `SkipStream skips intros, recaps and end credits on streaming sites. It also continues each video from the point where you stopped.
 
-What it does
+What SkipStream does
 
-• Skips intros, recaps, and outros - 3s countdown toast with Undo (powered by IntroDB and AnimeSkip)
-• Clicks the platform's own Skip Intro button - Netflix, Prime Video, Disney+, Hulu, Max, Crunchyroll, Peacock, Paramount+, Apple TV+, Tubi
-• Subtitles - auto-fetched from OpenSubtitles by IMDb ID, draggable CC overlay with sync offset, offline .srt/.vtt upload, multiple languages
-• Resumes playback from where you stopped - locally cached and synced to your own Supabase project
-• Auto next episode - advances near end of video (optional, off by default)
-• Speed control - 0.75x / 1x / 1.25x / 1.5x / 2x, persists across pages
-• Per-site rules - different skip mode for specific domains
-• Watch stats - segments skipped, time saved, session count
-• Dismisses "Are you still watching?" overlays automatically
-• Manual sync button - push local playback positions to your Supabase project on demand
-• Full backup and restore - export all history, stats, credentials, preferences as JSON
-• Dark and light theme toggle in the popup - persists across sessions
-• Works on any site with an HTML5 video player
+• It skips intros, recaps, credits and previews. You can skip at once, or after a 3-second countdown with an Undo button.
+• It gets skip times from IntroDB, TheIntroDB, SkipDB, AniSkip and Anime Skip. Some sites have their own Skip button. SkipStream can push that button for you (Netflix, Prime Video, Disney+, Hulu, Max, Crunchyroll, Peacock, Paramount+, Apple TV+ and Tubi).
+• On YouTube, it skips sponsor segments from SponsorBlock. You set each segment type to Auto, Ask or Off. It shows the segments on the progress bar.
+• It continues each video from your last position. A time in the address (for example ?t=90) has priority.
+• It shows subtitles from OpenSubtitles or from your own .srt or .vtt file. You can set the colour, font, background, edge and size.
+• It keeps a history with posters, stats and per-site rules. It has speed control and an optional "auto next episode".
+• It makes one backup file of your settings and history. Keys are in the file only if you select this. Then your passphrase encrypts them.
+• Two tools in the popup help with bug reports: "Check this page" and "Site report".
 
 Setup
 
-Click the settings icon in the popup.
-
-• IntroDB key (free at introdb.app) - required for skip segments
-• Supabase URL + anon key (free at supabase.com) - optional, enables cross-device sync and cloud backup
-• TMDB key (free at themoviedb.org) - optional, improves show detection on Plex and similar
-• AnimeSkip Client ID (free at anime-skip.com) - optional, anime intro and outro support
+You do not need an account or a key for skips, SponsorBlock and resume. Each of these is optional:
+• TMDB key (themoviedb.org): posters, and ids for sites that show only a title.
+• Supabase project (supabase.com): history and settings in your own cloud. Settings shows you how to run the setup script one time.
+• OpenSubtitles account: more subtitle downloads each day.
+• Anime Skip client id (anime-skip.com): more anime skip times.
 
 Privacy
 
-All credentials are stored locally on your device. Playback sync goes directly to your own Supabase project. No telemetry, no ads, no tracking, no accounts required.
+SkipStream has no server. It sends nothing to its developer. It sends data only to the services in the privacy policy, and only for the reasons given there. Your keys stay in your browser. Your history goes to your own Supabase project only if you set one up. You can switch off technical data (device name, settings backup and stats) in the Firefox add-on settings.
 
-Source: github.com/govinda-rajulu/openskip`;
+Privacy policy: github.com/govinda-rajulu/openskip/blob/main/PRIVACY.md
+Source code: github.com/govinda-rajulu/openskip`;
 }
 
-main().catch(err => { process.stderr.write(`❌  Fatal: ${err}\n`); process.exit(1); });
+if (require.main === module) {
+  if (process.argv.includes('--print-listing')) {
+    process.stdout.write(JSON.stringify(buildListing(), null, 2) + '\n');
+  } else {
+    setup();
+    main().catch(err => { process.stderr.write(`❌  Fatal: ${err}\n`); process.exit(1); });
+  }
+}
+
+module.exports = { buildListing, buildDescription, SUMMARY, extractChangelogNotes };

@@ -41,9 +41,11 @@ const S = {
   subBg:              'subtitle_bg',
   subFont:            'subtitle_font',
   subOutline:         'subtitle_outline',
+  subEdge:            'subtitle_edge',
   subOffsets:         'subtitle_offsets',
   sbModes:            'sbModes',
   showTimeline:       'showTimeline',
+  skipNotice:         'skipNotice',
 };
 
 const DENY = new Set([
@@ -78,7 +80,8 @@ function bgSend(msg) {
 const CLOUD_PREF_ALLOW = ['skipEnabled', 'skipMode', 'skipIntro', 'skipRecap', 'skipOutro',
   'resumePlayback', 'autoNextEpisode', 'playbackSpeed',
   'subtitle_language', 'subtitle_font_size', 'subtitle_enabled',
-  'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'sbModes', 'showTimeline'];
+  'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_edge', 'sbModes', 'showTimeline', 'skipNotice'];
+const SUB_EDGE_VALUES = new Set(['outline', 'shadow', 'raised', 'none']);
 
 const subFontSizeInput = $('subFontSize');
 if (subFontSizeInput) {
@@ -116,7 +119,9 @@ function cleanSbModes(v) {
   }
   return out;
 }
-br.storage.local.get([S.subColor, S.subBg, S.subFont, S.subOutline, S.sbModes, S.showTimeline]).then(d => {
+br.storage.local.get([S.subColor, S.subBg, S.subFont, S.subOutline, S.subEdge, S.sbModes, S.showTimeline, S.skipNotice]).then(d => {
+  if ($('subEdge')) $('subEdge').value = SUB_EDGE_VALUES.has(d[S.subEdge]) ? d[S.subEdge] : (d[S.subOutline] === false ? 'none' : 'outline');
+  if ($('skipNotice')) $('skipNotice').checked = d[S.skipNotice] === true;
   if ($('subColor')) $('subColor').value = /^#[0-9a-f]{6}$/i.test(d[S.subColor] || '') ? d[S.subColor] : '#ffffff';
   if ($('subFont')) $('subFont').value = ['sans', 'serif', 'mono'].includes(d[S.subFont]) ? d[S.subFont] : 'sans';
   const bg = Number.isFinite(Number(d[S.subBg])) && d[S.subBg] !== undefined ? Number(d[S.subBg]) : 38;
@@ -135,7 +140,48 @@ $('subBg')?.addEventListener('input', e => {
   br.storage.local.set({ [S.subBg]: v }).catch(() => {});
 });
 $('subOutline')?.addEventListener('change', e => br.storage.local.set({ [S.subOutline]: !!e.target.checked }).catch(() => {}));
+// subtitle_outline is kept in step for devices still on 1.12 (synced prefs).
+$('subEdge')?.addEventListener('change', e => {
+  const v = SUB_EDGE_VALUES.has(e.target.value) ? e.target.value : 'outline';
+  br.storage.local.set({ [S.subEdge]: v, [S.subOutline]: v !== 'none' }).catch(() => {});
+});
 $('showTimeline')?.addEventListener('change', e => br.storage.local.set({ [S.showTimeline]: !!e.target.checked }).catch(() => {}));
+$('skipNotice')?.addEventListener('change', e => br.storage.local.set({ [S.skipNotice]: !!e.target.checked }).catch(() => {}));
+
+// -- Supabase one-time setup helper --
+// The anon key cannot create tables (Supabase allows that only to the project
+// owner), so the user runs supabase_setup.sql once. This opens the project's SQL
+// editor with the script filled in (?content=), offers a copy, and checks again.
+function supabaseRef(url) {
+  try { const h = new URL(url).hostname.toLowerCase(); return h.endsWith('.supabase.co') ? h.split('.')[0] : null; } catch { return null; }
+}
+async function setupSql() {
+  try { const r = await fetch(br.runtime.getURL('supabase_setup.sql')); return r.ok ? await r.text() : ''; } catch { return ''; }
+}
+async function showSbSetup(url) {
+  const box = $('sbSetup'); if (!box) return;
+  box.hidden = false;
+  const ref = supabaseRef(url);
+  const sql = await setupSql();
+  const link = $('sbOpenSql');
+  if (link) {
+    const base = ref ? 'https://supabase.com/dashboard/project/' + ref + '/sql/new' : 'https://supabase.com/dashboard';
+    const enc = sql ? encodeURIComponent(sql) : '';
+    link.href = ref && enc && enc.length < 60000 ? base + '?content=' + enc : base;
+  }
+}
+function hideSbSetup() { const box = $('sbSetup'); if (box) box.hidden = true; }
+$('sbCopySql')?.addEventListener('click', async () => {
+  const st = $('sbSetupStatus'); const sql = await setupSql();
+  try { await navigator.clipboard.writeText(sql); if (st) st.textContent = 'Script copied. Paste it into a new query in the Supabase SQL editor and press Run.'; }
+  catch (_) { if (st) st.textContent = 'Copy did not work here. Open supabase_setup.sql from the SkipStream GitHub page instead.'; }
+});
+$('sbRecheck')?.addEventListener('click', async () => {
+  const st = $('sbSetupStatus'); if (st) st.textContent = 'Checking...';
+  const d = await br.storage.local.get([S.supabaseUrl, S.supabaseAnonKey]);
+  const ok = await verifySupabase(d[S.supabaseUrl], d[S.supabaseAnonKey]);
+  if (st) st.textContent = ok ? 'Done. Cloud sync is on.' : 'Not found yet. Make sure Run finished without errors in Supabase, then check again.';
+});
 document.querySelectorAll('select[data-sb]').forEach(sel => sel.addEventListener('change', async () => {
   const cur = cleanSbModes((await br.storage.local.get(S.sbModes))[S.sbModes]);
   if (sel.value) cur[sel.dataset.sb] = sel.value; else delete cur[sel.dataset.sb];
@@ -269,6 +315,14 @@ async function verifyIntrodb(key) {
 }
 
 // -- Verify: Supabase --
+// Supabase keys (1.13): legacy anon keys are JWTs and go in apikey and as Bearer.
+// New publishable keys (sb_publishable_...) are not JWTs. Supabase says: send
+// them in apikey only, never as a Bearer token.
+function sbAuth(key) {
+  const k = String(key || '').trim();
+  return /^[\w-]+\.[\w-]+\.[\w-]+$/.test(k) && !k.startsWith('sb_') ? { apikey: k, Authorization: 'Bearer ' + k } : { apikey: k };
+}
+
 async function verifySupabase(url, key) {
   const dotMain = $('dot-supabase');
   const msgMain = $('msg-supabase');
@@ -293,8 +347,7 @@ async function verifySupabase(url, key) {
     const r = await fetch(base + '/rest/v1/rpc/ss_verify_setup', {
       method: 'POST',
       headers: {
-        'apikey': key,
-        'Authorization': 'Bearer ' + key,
+        ...sbAuth(key),
         'Content-Type': 'application/json'
       },
       body: '{}'
@@ -306,15 +359,17 @@ async function verifySupabase(url, key) {
       setNavDot('supabase', 'ok');
       if (alertEl) hideAlert(alertEl);
       [sqlEl, sqlEl2].forEach(el => { if (el) el.className = 'alert'; });
+      hideSbSetup();
       return true;
     }
 
     if (r.status === 404 || r.status === 406) {
-      const sqlMsg = 'Table not found. Run supabase_setup.sql in your Supabase SQL Editor, then click Save & Verify again.';
-      setDot(dotMain, 'warn', 'Connected but table missing', msgMain);
+      const sqlMsg = 'Connected, but the SkipStream tables are not in your project yet. Run the setup script once (below).';
+      setDot(dotMain, 'warn', 'Connected, setup script not run yet', msgMain);
       setDot(dotCard, 'warn');
       setNavDot('supabase', 'warn');
       [sqlEl, sqlEl2].forEach(el => { if (el) showAlert(el, 'warn', sqlMsg); });
+      showSbSetup(base);
       return false;
     }
 
@@ -819,13 +874,28 @@ function _ssTs(item) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// One site, one name (1.13): "www.", "m." and "mobile." hosts are the same site,
+// and a page saved under both is one history entry.
+function canonHost(h) {
+  let x = String(h || '').toLowerCase().trim();
+  for (;;) {
+    const y = x.replace(/^(?:www\d?|m|mobile|mbasic|touch)\./, '');
+    if (y === x || !y.includes('.')) return x;
+    x = y;
+  }
+}
+function canonMediaKey(id) {
+  const m = /^([a-z0-9-]+(?:\.[a-z0-9-]+)+)(\/.*)?$/i.exec(String(id || ''));
+  return m ? canonHost(m[1]) + (m[2] || '') : String(id || '');
+}
+
 function getHistoryItems() {
   if (historySource === 'local') return _histLocal;
   if (historySource === 'cloud') return _histCloud;
 
   const merged = new Map();
   for (const item of [..._histLocal, ..._histCloud]) {
-    const key = item.mediaId || item.url || item.title || '';
+    const key = canonMediaKey(item.mediaId) || item.url || item.title || '';
     if (!key) {
       merged.set(`${Math.random()}:${Math.random()}`, item);
       continue;
@@ -956,7 +1026,7 @@ function renderHistory(items) {
   const filter = ($('historyFilter') || {}).value || '';
   const filtered = items.filter(item => {
     const title = (item.title || item.videoTitle || '').toLowerCase();
-    const site = (item.site || item.siteName || '').toLowerCase().replace(/^www\./, '');
+    const site = canonHost(item.site || item.siteName);
     return (!search || title.includes(search.toLowerCase()))
       && (!filter || site === filter.toLowerCase());
   });
@@ -971,9 +1041,9 @@ function renderHistory(items) {
   }
 
   list.replaceChildren();
-  filtered.slice(0, 100).forEach(item => {
+  filtered.slice(0, 300).forEach(item => {
     const title   = item.title || item.videoTitle || 'Unknown';
-    const site    = item.site  || item.siteName  || '';
+    const site    = canonHost(item.site) || item.siteName || '';
     const pos     = item.position || item.currentTime || 0;
     const dur     = item.duration || 0;
     const pct     = dur > 0 ? Math.min(100, Math.round((pos / dur) * 100)) : 0;
@@ -1089,7 +1159,7 @@ async function loadHistory(data) {
     const cache = raw['skipstream_cache'] || {};
     _histLocal = Object.entries(cache).map(([mediaId, entry]) => ({
       title:    entry.title    || '',
-      site:     entry.site     || '',
+      site:     canonHost(entry.site),
       siteName: entry.site_name || entry.site || '',
       url:      entry.url      || mediaId,
       position: entry.p        || 0,
@@ -1116,7 +1186,7 @@ async function loadHistory(data) {
         if (Array.isArray(result?.data)) {
           _histCloud = result.data.map(row => ({
             title:    row.video_title || '',
-            site:     row.site_name   || row.site || '',
+            site:     canonHost(row.site) || row.site_name || '',
             siteName: row.site_name   || '',
             url:      row.page_url    || '',
             position: row.playback_time || 0,
@@ -1144,7 +1214,7 @@ async function loadHistory(data) {
 
   const filterEl = $('historyFilter');
   if (filterEl) {
-    const sites = [...new Set((getHistoryItems() || []).map(i => (i.site || i.siteName || '').toLowerCase().replace(/^www\./, '')).filter(Boolean))].sort();
+    const sites = [...new Set((getHistoryItems() || []).map(i => canonHost(i.site || i.siteName)).filter(Boolean))].sort();
     filterEl.replaceChildren();
     const allOpt = document.createElement('option');
     allOpt.value = '';
@@ -1253,13 +1323,13 @@ function backupKit(subtle, randomBytes) {
     'autoNextEpisode', 'playbackSpeed', 'animeSkipEnabled', 'skipstream_site_rules', 'deviceName',
     'subtitle_language', 'subtitle_font_size', 'subtitle_enabled', 'subtitle_sync', 'subtitle_drag_pos',
     'skipstream_theme', 'skipstream_seed_color',
-    'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_offsets', 'sbModes', 'showTimeline'];
+    'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_edge', 'subtitle_offsets', 'sbModes', 'showTimeline', 'skipNotice'];
   const STATS = ['skipstream_stats', 'statsSkipsToday', 'statsDate', 'statsTotalSkips', 'statsTotalTimeSaved', 'statsSessions'];
   const SECRETS = ['supabaseUrl', 'supabaseAnonKey', 'introdbApiKey', 'tmdbApiKey', 'animeSkipClientId',
     'animeSkipAuthToken', 'osub_username', 'osub_password'];
   const ITER = 600000;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const HISTORY_MAX = 100;
+  const HISTORY_MAX = 300;   // same as the local cache (content.js CACHE_MAX)
   const enc = new TextEncoder();
   const b64 = u8 => { let s = ''; for (const x of u8) s += String.fromCharCode(x); return btoa(s); };
   const unb64 = s => Uint8Array.from(atob(String(s)), ch => ch.charCodeAt(0));
@@ -1418,7 +1488,7 @@ if (exportBtn) {
 // -- Import migration shim: handles schema changes from 1.6.5 and earlier --
 // H18: an imported value must have the type the extension reads, or it is skipped.
 const IMPORT_BOOL = new Set([S.animeSkipEnabled, S.skipIntro, S.skipRecap, S.skipOutro, S.resumePlayback,
-  S.autoNextEpisode, S.subEnabled, S.skipEnabled, S.subOutline, S.showTimeline]);
+  S.autoNextEpisode, S.subEnabled, S.skipEnabled, S.subOutline, S.showTimeline, S.skipNotice]);
 const IMPORT_MODES = new Set(['off', 'prompt', 'auto-intro', 'auto-recap', 'auto-outro', 'auto-all']);
 function importValueOk(key, v) {
   const num = (x, lo, hi) => typeof x === 'number' && Number.isFinite(x) && x >= lo && x <= hi;
@@ -1436,6 +1506,7 @@ function importValueOk(key, v) {
     case S.subColor:     return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
     case S.subBg:        return num(Number(v), 0, 90) && typeof v === 'number';
     case S.subFont:      return v === 'sans' || v === 'serif' || v === 'mono';
+    case S.subEdge:      return SUB_EDGE_VALUES.has(v);
     case S.sbModes:      return !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 12 && Object.values(v).every(x => SB_MODE_VALUES.has(x));
     case S.subOffsets:   return !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 200 && Object.entries(v).every(([k, x]) => /^tt\d{7,8}$/.test(k) && num(Number(x), -600, 600));
     case S.siteRules:
@@ -1638,7 +1709,7 @@ if (clearCloudHistoryBtn) {
       if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(sbUrl)) { showAlert($('alert-cloud'), 'err', 'Supabase URL must be https://<project>.supabase.co'); return; }
       const r = await fetch(`${sbUrl}/rest/v1/rpc/ss_clear_playback`, {
         method: 'POST',
-        headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey, 'Content-Type': 'application/json' },
+        headers: { ...sbAuth(sbKey), 'Content-Type': 'application/json' },
         body: JSON.stringify({ p_user_id: userId })
       });
       if (r.ok) {

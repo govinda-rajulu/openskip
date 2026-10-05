@@ -1,4 +1,4 @@
-/* SkipStream - popup v1.12.0 */
+/* SkipStream - popup v1.13.0 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
@@ -341,6 +341,13 @@ function siteReportText(r, version) {
     }
     for (const fr of x.iframes || []) L.push('  iframe ' + fr.src + ' ' + fr.size + (fr.sandbox ? ' sandbox=' + fr.sandbox : ''));
     if (x.ids && x.ids.length) L.push('  ids: ' + x.ids.join(', '));
+    if (x.globals && x.globals.length) L.push('  page player code: ' + x.globals.join(', '));
+    const many = (head, list) => { if (list && list.length) { L.push('  ' + head + ' (' + list.length + '):'); for (const s of list) L.push('    ' + s); } };
+    many('source buttons', x.sources);
+    many('lazy frames', x.lazyFrames);
+    many('subtitle files', x.trackFiles);
+    many('media loaded', x.loaded);
+    many('media in scripts', x.inScripts);
     if (x.error) L.push('  error: ' + x.error);
   }
   return L.join('\n');

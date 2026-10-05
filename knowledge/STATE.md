@@ -2,11 +2,48 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
+## Start here (5 Oct 2026, packet os-130, release 1.13.0)
+
+- **Released:** 1.12.0 (PR #80 merge `eac9924d`, tree `165aa58b`, tag `v1.12.0`, AMO upload OK
+  3 Oct 13:11 UTC). AMO public page still showed 1.11.0 on 5 Oct: check the developer page.
+- **In flight:** 1.13.0 PR from packet `os-130` (branch `packet/release-1.13.0-20261005`), built
+  on tree `165aa58b`. Owner: device test the ZIP (checklist in the PR), merge, then run the
+  guarded tag command. The tag publishes to AMO.
+- **Owner, outside code:** AMO listing (screenshots, privacy link = PRIVACY.md on GitHub);
+  Edge Add-ons listing (free, takes the Chrome ZIP).
+  **Firefox for Android updates:** users have no manual add-on update button. Owner path:
+  About Firefox, tap the logo 5 times, Secret Settings, enable the debug drawer, then
+  Add-ons tools > Check for updates (Firefox 142+). Extensions cannot force their own update
+  (`runtime.requestUpdateCheck` is not in Firefox, bug 1740508).
+- **Next code:** the "Agent clean-up (after 1.13)" lane in ROADMAP (hand-over addendum items
+  5 to 9). Then Supabase login (1.14.0, ROADMAP).
+- **Owner decides:** own OpenSubtitles API key field (only if quota errors); drop free-streaming
+  site names from getSiteName(); a headless browser CI job; Edge Add-ons listing.
+- **Unverified live:** Anime Skip, SkipDB, TheIntroDB, AniSkip answers. 1Shows triple subtitles.
+- **Writing:** all docs follow knowledge/handbook/WRITING.md. Mirror it to patch-factory by
+  that repo's own PR.
+
+## What 1.13.0 contains
+
+- Sticky resume (`_resumeSeek`, save hold 15 s, `?t=` wins, pending resume 120 s), YouTube ads
+  guard (`_ytAdShowing`), mobile YouTube bar (`YT_BAR_SELECTORS`, `_tlKeep`), cloud push at most
+  every 20 s plus pause, hidden tab and `pushUnsyncedHistory` every 5 min.
+- Sources: TheIntroDB, AniSkip, Jikan (MAL id), page chapters. Priority IntroDB > TheIntroDB >
+  SkipDB > AniSkip > Anime Skip > page chapters. SponsorBlock `service=YouTube`, `_sbFitDuration`.
+- `sbAuth()`: publishable keys only in `apikey`. CSP `connect-src 'self'`. Setup helper in Settings.
+  `ss_put_creds` dropped from supabase_setup.sql (column kept).
+- Skip notice opt-in (`skipNotice`), Alt+Z undo, subtitle edge (`subtitle_edge`), deep site report,
+  history 300, AMO listing fix (flat categories, STE text, `--print-listing`).
+- One site, one name: `_canonHost` drops www., m. and mobile. from saved hosts and ids. Resume
+  still finds positions saved under the old id (`_legacyMediaId`). History merges both copies.
+- Tests: 186 (48 in tests/v113.test.mjs, checked to fail on the 1.12.0 tree).
+
 ## Start here (3 Oct 2026, end of the long session)
 
 - **Released:** 1.11.0 (tag `v1.11.0`, main tree `b1c6801a`, AMO upload OK 3 Oct 12:08 UTC).
 - **In flight:** 1.12.0 PR from packet `os-120` (branch `packet/release-1.12.0-20261003`).
   Owner: device test the ZIP, merge, push tag `v1.12.0` (that publishes to AMO).
+  **Superseded 5 Oct:** #80 merged and v1.12.0 released 3 Oct, before the device test.
 - **Owner, outside code:** AMO listing (screenshots, privacy link = PRIVACY.md on GitHub);
   Edge Add-ons listing (free, takes the Chrome ZIP).
 - **Next code:** Supabase login (1.13.0, ROADMAP). Site fixes come from "Site report" pastes.

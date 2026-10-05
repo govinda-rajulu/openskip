@@ -4,6 +4,34 @@ Newest first. Append; never delete. Older lessons live verbatim in
 [archive/skills/](archive/skills/) (MY-WRONG-CALLS-4-5-SEP, FIXED-WORK-AND-WRONG-CALLS,
 SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
 
+## 5 Oct 2026 (1.13.0, packet os-130)
+
+1. **Resume from History.** The old code gave up if YouTube had already started playing.
+   YouTube starts sooner on warm loads, so the 2nd and 3rd resume were skipped. Then saves
+   from 0 overwrote the real position. **Wrong call:** ads were blamed, but the owner uses
+   ad blockers. Ask what the user runs before you name a cause.
+2. **Sync push starvation.** Every save restarted a 3-second timer, so a playing video never
+   reached the cloud until pause. Throttle cloud pushes, and send at once on pause and on
+   app switch.
+3. **The store listing PATCH probably failed.** amo-update.js sent the category in a format
+   that the store API no longer accepts. So the AMO description stayed old and false. A
+   step that only warns can hide a failure for months.
+4. **New Supabase publishable keys are not JWTs.** Never send them as Bearer. Keep auth
+   headers in one helper.
+5. **The anon key cannot run SQL.** Guide the user to run the setup script one time. Never
+   ask for a personal access token.
+6. **Taking on more than one session can ship is a wrong call.** Ship a smaller packet.
+7. **One site can have many hosts.** History showed m.youtube.com and youtube.com as two
+   sites. Use one canonical host (no www., m. or mobile.), and keep a fallback for ids
+   saved under the old host.
+8. **A flag can look like an id.** `?video_id=x&tmdb=1` gave TMDB id 1. Test odd inputs.
+9. **Extension pages need `'self'` in connect-src** to read their own files once
+   connect-src lists hosts.
+10. **Pin the test reporter in gates (assistant's wrong call).** The packet read the TAP
+    summary ("# pass N"). Node 22 prints TAP when output goes to a file. Node 24 prints its
+    "spec" format, so the gate found no numbers and stopped, with 186 tests passing. Always
+    pass `--test-reporter=tap`. Rehearse with the owner's Node version.
+
 ## 3 Oct 2026, evening (1.11.0 device test, 1.12.0, UI refresh)
 
 1. **Check which build is running before reading a test.** The first device test ran the old

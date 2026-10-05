@@ -181,32 +181,17 @@ as $$
     updated_at = now();
 $$;
 
-create or replace function public.ss_put_creds(p_user_id text, p_creds jsonb)
-returns void
-language sql
-security definer
-set search_path = public
-as $$
-  insert into public.user_settings (user_id, stats, prefs, site_rules, theme, creds)
-  values (
-    p_user_id,
-    '{}'::jsonb,
-    '{}'::jsonb,
-    '{}'::jsonb,
-    null,
-    coalesce(p_creds, '{}'::jsonb)
-  )
-  on conflict (user_id) do update set
-    creds = excluded.creds,
-    updated_at = now();
-$$;
+-- 1.13: ss_put_creds is gone. SkipStream stopped storing keys and logins in the
+-- cloud in 1.11 (keys go only into an encrypted backup file). The old function is
+-- dropped for projects set up before 1.13. The creds column stays so that no old
+-- row is deleted by this script. SkipStream never reads or writes it. To clear it:
+--   update public.user_settings set creds = '{}'::jsonb;
+drop function if exists public.ss_put_creds(text, jsonb);
 
 revoke all on function public.ss_get_settings(text) from public;
 revoke all on function public.ss_put_settings(text,jsonb,jsonb,jsonb,text) from public;
-revoke all on function public.ss_put_creds(text,jsonb) from public;
 grant execute on function public.ss_get_settings(text) to anon, authenticated;
 grant execute on function public.ss_put_settings(text,jsonb,jsonb,jsonb,text) to anon, authenticated;
-grant execute on function public.ss_put_creds(text,jsonb) to anon, authenticated;
 
 -- ── 8c. Playback RPCs (security definer) ─────────────────────────────────────
 create or replace function public.ss_put_playback(p_row jsonb)
@@ -350,8 +335,8 @@ begin
     exists(select 1 from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
       where n.nspname='public' and p.proname='ss_put_settings'),
-    'rpc_ss_put_creds',
-    exists(select 1 from pg_proc p
+    'rpc_ss_put_creds_gone',
+    not exists(select 1 from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
       where n.nspname='public' and p.proname='ss_put_creds')
   );
@@ -381,9 +366,6 @@ begin
       and exists(select 1 from pg_proc p
         join pg_namespace n on n.oid = p.pronamespace
         where n.nspname='public' and p.proname='ss_put_settings')
-      and exists(select 1 from pg_proc p
-        join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname='public' and p.proname='ss_put_creds')
       and not exists (
         select 1 from information_schema.role_table_grants
         where table_schema='public'

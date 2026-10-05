@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.13.0] - 2026-10-05
+### Fixed
+- Resume from History worked 2 or 3 times, then started from 0. SkipStream gave up when the player started by itself. Then the start-up position replaced the saved position. Now SkipStream waits for the player, checks the position twice and seeks again (up to 4 times). Saving waits until the position holds (at most 15 seconds)
+- A time in the address (?t=90, start=, time_continue=) now has priority over resume
+- A History click is now kept for 120 seconds (was 30), for slow phones
+- Cloud sync: a video that kept playing never reached the cloud until you paused it. Now SkipStream sends the position at most every 20 seconds, at once when you pause or leave the tab, and every 5 minutes from the background
+- YouTube: during an ad, SkipStream does not save, skip, resume or draw marks
+- YouTube: marks now show on the m.youtube.com progress bar, never on hover previews, and come back when YouTube rebuilds its controls
+- SponsorBlock: only YouTube rows, and rows made for a different video length (more than 3 seconds off) are not used
+- Supabase: new publishable keys (sb_publishable_...) are sent only as apikey, as Supabase requires. Legacy anon keys still work
+- Settings could not read its own setup script (security policy). It now can
+- A player address with "&tmdb=1" read the flag as TMDB id 1
+- The AMO listing kept its old text: the update sent categories in the old format. The listing text is new and matches the code
+- History showed m.youtube.com and youtube.com (and www. or m. copies of any site) as different sites. Hosts are now saved without www., m. or mobile., History merges the copies, and resume still finds positions saved under the old address
+### Added
+- New skip sources: TheIntroDB (by TMDB id) and AniSkip (anime, by MyAnimeList id). Jikan finds the MyAnimeList id from the title on anime sites. Chapters that the page gives its player are used when no source answers
+- Player addresses such as ?video_id=1399&tmdb=1&s=1&e=2, /movie/tmdb/603 and /tv/1399-1-2 give the TMDB id, season and episode
+- Titles: release words (1080p, WEB-DL, Eng Sub, Dubbed), brackets and emoji are removed. Up to 3 names from the page are tried. A poster is used only when the name is close and the year is within 1
+- "Skipped intro, Undo" after automatic skips is now off by default (Settings > Skipping). Alt+Z undoes the last automatic skip for 30 seconds, else goes back 15 seconds
+- Subtitles: letter edge (Outline, Drop shadow, Raised, None)
+- Supabase setup helper: when the tables are missing, Settings opens your project's SQL editor with the script filled in, copies it, and checks again
+- Site report: source and server buttons, media that the page loaded or has in its scripts, lazy frames, subtitle files and (Firefox) the player code that the page loaded. At most 30 of each, host and path only
+- Local history now keeps 300 videos (was 100)
+### Changed
+- supabase_setup.sql no longer makes ss_put_creds (unused since 1.11) and removes it from old projects. The old creds column stays. PRIVACY.md says how to clear it
+- README, PRIVACY, TESTING and the store text are rewritten in plain, short sentences (knowledge/handbook/WRITING.md)
+
 ## [1.12.0] - 2026-10-03
 ### Added
 - Popup "Site report": what every frame of the page holds (players such as JW Player or Video.js, stream type, video size and length, subtitle tracks, frames, ids), including frames SkipStream does not run in. Shown in the popup, copied only when you press Copy; addresses are cut to host and path

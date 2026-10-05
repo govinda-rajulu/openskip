@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "SkipStream",
-  "description": "Automatically skip intros, recaps, and outros - and resume playback across all your devices.",
-  "version": "1.12.0",
+  "description": "Skips intros, recaps and credits. Continues videos where you stopped. Optional sync to your own Supabase project.",
+  "version": "1.13.0",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
@@ -15,7 +15,7 @@
     "storage",
     "tabs"
   ],
-  "content_security_policy": "script-src 'self'; object-src 'self'; connect-src https://api.themoviedb.org https://image.tmdb.org https://api.introdb.app https://api.skipdb.tv https://api.anime-skip.com https://sponsor.ajay.app https://*.supabase.co https://i.ytimg.com https://open.spotify.com https://soundcloud.com https://*.opensubtitles.com https://*.opensubtitles.org",
+  "content_security_policy": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.themoviedb.org https://image.tmdb.org https://api.introdb.app https://api.skipdb.tv https://api.theintrodb.org https://api.aniskip.com https://api.jikan.moe https://api.anime-skip.com https://sponsor.ajay.app https://*.supabase.co https://i.ytimg.com https://open.spotify.com https://soundcloud.com https://*.opensubtitles.com https://*.opensubtitles.org",
   "background": {
     "scripts": [
       "background.js"

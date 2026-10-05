@@ -173,14 +173,29 @@
         </div>
         <div class="field">
           <label class="field-label" for="supabaseAnonKey">Anon / Public Key</label>
-          <input type="password" id="supabaseAnonKey" placeholder="eyJhbGci…" autocomplete="off" spellcheck="false">
-          <p class="help">Project Settings → API → anon public.</p>
+          <input type="password" id="supabaseAnonKey" placeholder="sb_publishable_… or eyJhbGci…" autocomplete="off" spellcheck="false">
+          <p class="help">Project Settings → API Keys. Use the publishable key (it starts with sb_publishable_). The legacy anon key (it starts with eyJ) also works. Never use a secret key. SkipStream does not run SQL in your project. You run the setup script one time (this page shows how).</p>
         </div>
         <div class="btn-row">
           <button class="btn-primary" id="saveSupabase">Save &amp; Verify</button>
         </div>
         <div class="alert" id="alert-supabase"></div>
         <div class="alert warn" id="sqlAlert2"></div>
+        <div class="sb-setup" id="sbSetup" hidden>
+          <p class="help"><strong>One more step, one time only.</strong> SkipStream cannot create tables in your project. Your anon key does not allow that, and that keeps your project safe. Run the setup script yourself:</p>
+          <ol class="help">
+            <li>Press <b>Open the SQL editor</b>. Supabase opens with the script filled in. Log in if Supabase asks.</li>
+            <li>In Supabase, press <b>Run</b>.</li>
+            <li>Come back here and press <b>Check again</b>.</li>
+          </ol>
+          <div class="btn-row">
+            <a class="btn-primary" id="sbOpenSql" target="_blank" rel="noopener" href="https://supabase.com/dashboard">Open the SQL editor</a>
+            <button class="btn-ghost" id="sbCopySql" type="button">Copy the script</button>
+            <button class="btn-ghost" id="sbRecheck" type="button">Check again</button>
+          </div>
+          <p class="help">The script adds two tables (playback_states and user_settings) and the functions SkipStream calls. It changes nothing else, and you can run it again safely. If your project already has tables with these names for something else, use a new project.</p>
+          <p class="help" id="sbSetupStatus" aria-live="polite"></p>
+        </div>
       </div>
     </div>
 
@@ -305,15 +320,15 @@
             <output id="subBgValue" for="subBg" style="min-width:42px;text-align:right;font-size:12px;color:var(--text2)">38%</output>
           </div>
         </div>
-        <div class="toggle-row">
-          <div class="toggle-info">
-            <div class="toggle-name">Outline</div>
-            <div class="toggle-desc">Dark edge around the letters, easier to read on bright scenes</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="subOutline" aria-label="Subtitle outline" checked>
-            <span class="slider"></span>
-          </label>
+        <div class="field">
+          <label class="field-label" for="subEdge">Letter edge</label>
+          <select id="subEdge">
+            <option value="outline">Outline</option>
+            <option value="shadow">Drop shadow</option>
+            <option value="raised">Raised</option>
+            <option value="none">None</option>
+          </select>
+          <p class="help">An edge makes the letters easier to read on bright scenes.</p>
         </div>
         <p class="help">Sync offset: right-click CC on the video. It is remembered for each film or show.</p>
         <div class="btn-row">
@@ -379,6 +394,16 @@
           </div>
           <label class="toggle">
             <input type="checkbox" id="showTimeline" aria-label="Show skips on the timeline" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-name">Show "Skipped, Undo" after automatic skips</div>
+            <div class="toggle-desc">Off: automatic skips happen without a message. Alt+Z goes back to the start of the last skip.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="skipNotice" aria-label="Show a message with Undo after automatic skips">
             <span class="slider"></span>
           </label>
         </div>
@@ -559,7 +584,7 @@
         <p class="help">This product uses TMDB and the TMDB APIs but is not endorsed, certified or otherwise approved by TMDB. Posters and show data: <a href="https://www.themoviedb.org" target="_blank" rel="noopener">themoviedb.org</a>.</p>
         <p class="help">YouTube sponsor segments: <a href="https://sponsor.ajay.app" target="_blank" rel="noopener">SponsorBlock</a>, data licensed <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a>.</p>
         <p class="help">Extra intro, recap, credits and preview times: <a href="https://skipdb.tv" target="_blank" rel="noopener">SkipDB</a>, data licensed <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL 1.0</a>.</p>
-        <p class="help">Skip times: <a href="https://introdb.app" target="_blank" rel="noopener">IntroDB</a> and <a href="https://anime-skip.com" target="_blank" rel="noopener">Anime Skip</a>. Subtitles: <a href="https://www.opensubtitles.com" target="_blank" rel="noopener">OpenSubtitles</a>.</p>
+        <p class="help">Skip times: <a href="https://introdb.app" target="_blank" rel="noopener">IntroDB</a>, <a href="https://theintrodb.org" target="_blank" rel="noopener">TheIntroDB</a>, <a href="https://aniskip.com" target="_blank" rel="noopener">AniSkip</a> (anime, with MyAnimeList ids from <a href="https://jikan.moe" target="_blank" rel="noopener">Jikan</a>) and <a href="https://anime-skip.com" target="_blank" rel="noopener">Anime Skip</a>. Subtitles: <a href="https://www.opensubtitles.com" target="_blank" rel="noopener">OpenSubtitles</a>.</p>
         <p class="help"><a href="https://github.com/govinda-rajulu/openskip/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy policy</a></p>
       </div>
     </div>
