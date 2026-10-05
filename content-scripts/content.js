@@ -2852,7 +2852,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
             });
           }
         }
-      } else if (!active && activeSegmentKey) {
+      } else if (activeSegmentKey) {
         activeSegmentKey = '';
         hideSkipBtn();
       }
