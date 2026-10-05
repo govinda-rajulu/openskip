@@ -1286,7 +1286,7 @@ function _pageUrl() {
     // The player box: the highest ancestor (6 levels, out of shadow roots too)
     // that is still about the size of the video.
     let el = video, scope = null;
-    for (let i = 0; i < 6 && el; i++) {
+    for (let i = 0; i < 6; i++) {
       el = el.parentElement || (el.getRootNode && el.getRootNode() && el.getRootNode().host) || null;
       if (!el || typeof el.querySelectorAll !== 'function') break;
       let rr; try { rr = el.getBoundingClientRect(); } catch { break; }

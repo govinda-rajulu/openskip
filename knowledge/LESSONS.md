@@ -158,3 +158,6 @@ SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
 - 5 Oct round 4: find page parts by what they do (role, size, place, value), not by one
   player's class names; never insert into another app's DOM that re-renders. Overlay instead.
 - 5 Oct round 4: check every outside link live before a release: aniskip.com was parked.
+- 5 Oct os-139: CodeQL ran on PR #81 and failed with 5 alerts (all in new tests but one), unseen
+  since os-130, because packets gate locally and nobody read the PR checks. Packets that merge
+  now wait for every PR check, CodeQL included, and stop on any failure.

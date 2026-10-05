@@ -278,9 +278,9 @@ test('theintrodb: TMDB id, season, episode and length; credits without an end ru
   const bg = loadBackground({ fetchImpl: route({ 'api.theintrodb.org': { intro: [{ start_ms: 5000, end_ms: 65000 }], credits: [{ start_ms: 3200000, end_ms: null }], recap: [] } }) });
   const r = await bg.send({ type: 'FETCH_SEGMENTS', imdbId: null, season: 1, episode: 2, tmdbId: 1399, durationSec: 3300 });
   assert.deepEqual(j(r.data), { intro: { start_sec: 5, end_sec: 65, src: 'TheIntroDB' }, outro: { start_sec: 3200, end_sec: 3300, src: 'TheIntroDB' } });
-  const u = bg.calls.find((x) => x.url.includes('api.theintrodb.org')).url;
+  const u = bg.calls.find((x) => new URL(x.url).hostname === 'api.theintrodb.org').url;
   assert.equal(u, 'https://api.theintrodb.org/v3/media?tmdb_id=1399&season=1&episode=2&duration_ms=3300000');
-  assert.equal(bg.calls.some((x) => x.url.includes('introdb.app') || x.url.includes('skipdb')), false, 'no IMDb id: IMDb sources are not asked');
+  assert.equal(bg.calls.some((x) => ['api.introdb.app', 'api.skipdb.tv'].includes(new URL(x.url).hostname)), false, 'no IMDb id: IMDb sources are not asked');
 });
 
 test('theintrodb: IntroDB still wins for the same part; a movie sends no season', async () => {
@@ -615,7 +615,7 @@ test('release: 1.13.0 in all 7 places and updates.json', () => {
   assert.ok(read('popup.js').startsWith('/* SkipStream - popup v' + v + ' */'));
   assert.ok(read('popup.css').startsWith('/* SkipStream popup - v' + v));
   assert.ok(read('README.md').includes('version-' + v + '-green') && read('README.md').includes('releases/tag/v' + v));
-  assert.match(read('CHANGELOG.md'), new RegExp('^# Changelog\\n\\n## \\[' + v.replace(/\./g, '\\.') + '\\] - 2026-10-05\\n'));
+  assert.match(read('CHANGELOG.md'), new RegExp('^# Changelog\\n\\n## \\[' + v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\] - 2026-10-05\\n'));
   const u = JSON.parse(read('updates.json')).addons['skipstream@extension'].updates;
   assert.equal(u[u.length - 1].version, v);
   assert.ok(u[u.length - 1].update_link.endsWith('/v' + v + '/skipstream-' + v + '-firefox.zip'));

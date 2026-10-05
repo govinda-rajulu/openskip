@@ -205,7 +205,10 @@ test('skip mode shown = what the player does: a fresh install shows "Intros + re
 });
 
 test('links: no source points to a parked or wrong domain (aniskip.com is parked; AniSkip lives on GitHub)', () => {
-  for (const f of ['options.html', 'README.md']) assert.equal(/https:\/\/aniskip\.com/.test(read(f)), false, f);
+  for (const f of ['options.html', 'README.md']) {
+    const hosts = (read(f).match(/https?:\/\/[^\s"'()<>]+/g) || []).map((u) => { try { return new URL(u).hostname; } catch { return ''; } });
+    assert.equal(hosts.includes('aniskip.com'), false, f);
+  }
   assert.ok(read('options.html').includes('href="https://github.com/aniskip"'));
 });
 
@@ -234,7 +237,7 @@ test('wiring: every control has code, every saved setting is read, backed up, sy
   const viaAttr = { 'sbm-': /select\[data-sb\]/, src: /\.source-pill|data-source/ };
   for (const page of ['options', 'popup']) {
     for (const [, id] of H[page].matchAll(/<(?:input|select|textarea|button)[^>]*\bid="([^"]+)"/g)) {
-      const direct = new RegExp("['\"]" + id.replace(/[-]/g, '\\-') + "['\"]").test(J[page]);
+      const direct = J[page].includes("'" + id + "'") || J[page].includes('"' + id + '"');
       const pattern = Object.entries(viaAttr).some(([p, re]) => id.startsWith(p) && re.test(J[page]));
       assert.ok(direct || pattern, page + '.html #' + id + ' has no code');
     }

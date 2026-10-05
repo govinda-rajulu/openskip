@@ -464,7 +464,7 @@ async function pushUnsyncedHistory() {
     const since = Number(st[LAST_PUSH_KEY]) || 0;
     const due = Object.entries(cache)
       .filter(([, e]) => e && Number(e.t) > since && Number(e.p) >= 10 && e.title)
-      .sort((a, b) => a[1].t - b[1].t).slice(0, 25);
+      .sort((a, b) => (Number(a[1].t) || 0) - (Number(b[1].t) || 0)).slice(0, 25);
     let pushed = 0, mark = since;
     for (const [mediaId, e] of due) {
       const r = await supabaseUpsert({
