@@ -235,6 +235,11 @@ let _diagChapters = null;   // the page's own chapter list, when that is the sou
     for (const [domain, m] of Object.entries(rules)) {
       if (host === domain || host.endsWith('.' + domain)) return m;
     }
+    // Same site on a new address (1shows.cx -> 1shows.to): same name before the ending.
+    const fam = _siteFamily(host);
+    for (const [domain, m] of Object.entries(rules)) {
+      if (fam && fam === _siteFamily(domain)) return m;
+    }
     return null;
   }
 
@@ -265,6 +270,17 @@ let _diagChapters = null;   // the page's own chapter list, when that is the sou
       if (y === x || !y.includes('.')) return x;
       x = y;
     }
+  }
+
+  // The site's name without www./m. and without its ending: 1shows.cx and
+  // 1shows.to are both "1shows", news.bbc.co.uk is "bbc". Streaming sites move to
+  // a new ending often; rules, History and resume use this to stay with the site.
+  function _siteFamily(h) {
+    const x = _canonHost(h);
+    const parts = x.split('.').filter(Boolean);
+    if (parts.length < 2) return x;
+    const two = parts.length >= 3 && /^(?:co|com|net|org|gov|edu|ac)$/.test(parts[parts.length - 2]) && parts[parts.length - 1].length === 2;
+    return parts[parts.length - (two ? 3 : 2)];
   }
 
   function getMediaId() {
@@ -354,6 +370,9 @@ let _diagChapters = null;   // the page's own chapter list, when that is the sou
   // The progress bar to draw skip marks in: desktop and the mobile site
   // (m.youtube.com) use different elements; hover previews on the home page
   // have bars too and are never used. Same order as SponsorBlock.
+  const PLAYER_BAR_SELECTORS = ['.vds-time-slider .vds-slider-track', 'media-time-slider', '[data-media-time-slider]', '.vjs-progress-holder',
+    '.plyr__progress', '.jw-slider-time .jw-rail', '.shaka-seek-bar-container', '.dplayer-bar-wrap', '.art-control-progress-inner',
+    '.mejs__time-total', '.mejs-time-total', '.fluid_controls_progress_container', '.bar-background'];
   const YT_BAR_SELECTORS = ['.ytChapteredProgressBarHost', '.ytProgressBarLineHost', '.YtProgressBarLineHost',
     '.YtChapteredProgressBarHost', '.YtmProgressBarProgressBarLine', '.ytp-progress-bar'];
   function _ytBar() {
@@ -815,6 +834,8 @@ function _pageUrl() {
         } catch { /* ok */ }
       }
     }
+    // Saved on the site's old address (1shows.cx, now 1shows.to): same name, same path.
+    if (!saved) saved = await _cacheReadMoved(mediaId);
     if (!saved || saved.p < 10) return;
     if (saved.d && saved.p / saved.d > 0.95 && saved.d - saved.p < 60) return;
 
@@ -1208,6 +1229,42 @@ function _pageUrl() {
     const r = video.getBoundingClientRect();
     Object.assign(box.style, { position: 'fixed', left: r.left + 'px', width: r.width + 'px', top: (r.bottom - 5) + 'px', bottom: '' });
   }
+  // A local history entry for the same page on the site's old address: same site
+  // name (_siteFamily), same path and ids. The newest one wins. Ids without a host
+  // (movie/603, tv/1396) already stay the same when a site moves.
+  async function _cacheReadMoved(id) {
+    const HID = /^([a-z0-9-]+(?:\.[a-z0-9-]+)+)(\/.*)$/i;
+    const m = HID.exec(String(id || ''));
+    if (!m) return null;
+    const fam = _siteFamily(m[1]);
+    try {
+      const c = (await br.storage.local.get(CACHE_KEY))[CACHE_KEY] || {};
+      let best = null;
+      for (const [k, v] of Object.entries(c)) {
+        if (k === id || !v || typeof v !== 'object') continue;
+        const n = HID.exec(k);
+        if (n && n[2] === m[2] && _siteFamily(n[1]) === fam && (!best || (v.t || 0) > (best.t || 0))) best = v;
+      }
+      return best;
+    } catch { return null; }
+  }
+
+  // The player's own progress bar (video.js, Vidstack, Plyr, JW Player, Shaka,
+  // DPlayer, ArtPlayer, MediaElement, Fluid, Clappr). Marks go inside it, like on
+  // YouTube. Searched upward from the video (6 levels, also out of a shadow root).
+  function _playerBar(video) {
+    let el = video;
+    for (let i = 0; i < 6 && el; i++) {
+      el = el.parentElement || (el.getRootNode && el.getRootNode() && el.getRootNode().host) || null;
+      if (!el || typeof el.querySelector !== 'function') break;
+      for (const sel of PLAYER_BAR_SELECTORS) {
+        const b = el.querySelector(sel);
+        if (b) return b;
+      }
+    }
+    return null;
+  }
+
   function _renderTimeline(video, segs) {
     _tlVideo = video; _tlSegs = segs;
     if (_tlBox) { _tlBox.remove(); _tlBox = null; }
@@ -1222,30 +1279,36 @@ function _pageUrl() {
     if (yt && _ytAdShowing()) return;
     const ytBar = yt ? _ytBar() : null;
     if (yt && !ytBar) return;
+    const pBar = yt ? null : _playerBar(video);
     const box = document.createElement('div');
     box.id = 'skipstream-timeline';
-    if (ytBar) {
-      box.dataset.ss = 'yt';
-      try { if (getComputedStyle(ytBar).position === 'static') ytBar.style.position = 'relative'; } catch { /* ok */ }
+    if (ytBar || pBar) {
+      const bar = ytBar || pBar;
+      box.dataset.ss = ytBar ? 'yt' : 'bar';
+      try { if (getComputedStyle(bar).position === 'static') bar.style.position = 'relative'; } catch { /* ok */ }
       Object.assign(box.style, { position: 'absolute', left: '0', right: '0', top: '0', bottom: '0', pointerEvents: 'none', zIndex: '40' });
-      ytBar.appendChild(box);
-      _tlWatch();
+      bar.appendChild(box);
+      if (ytBar) _tlWatch();
     } else {
+      // No player bar found: a thin strip along the bottom of the video.
       Object.assign(box.style, { height: '5px', pointerEvents: 'none', zIndex: '2147483644', opacity: '0', transition: 'opacity 200ms ease' });
       (document.fullscreenElement || document.webkitFullscreenElement || document.body || document.documentElement).appendChild(box);
       _placeStrip(box, video);
-      if (!_tlMoveOn) {
-        _tlMoveOn = true;
-        document.addEventListener('mousemove', throttle((e) => {
-          if (!_tlBox || !_tlVideo || _tlBox.dataset.ss === 'yt' || !_tlBox.isConnected) return;
+    }
+    if (!yt && !_tlMoveOn) {
+      _tlMoveOn = true;
+      document.addEventListener('mousemove', throttle((e) => {
+          if (!_tlBox || !_tlVideo || _tlBox.dataset.ss === 'yt') return;
+          // Player bars often appear only on hover, or are rebuilt: draw into the bar again.
+          if ((_tlBox.dataset.ss !== 'bar' || !_tlBox.isConnected) && _playerBar(_tlVideo)) { _renderTimeline(_tlVideo, _tlSegs); return; }
+          if (_tlBox.dataset.ss === 'bar' || !_tlBox.isConnected) return;
           const r = _tlVideo.getBoundingClientRect();
           if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
           _placeStrip(_tlBox, _tlVideo);
           _tlBox.style.opacity = '1';
           clearTimeout(_tlHideT);
           _tlHideT = setTimeout(() => { if (_tlBox) _tlBox.style.opacity = '0'; }, 2500);
-        }, 150), true);
-      }
+      }, 150), true);
     }
     for (const sp of spans) {
       const m = document.createElement('div');

@@ -1170,4 +1170,5 @@ a.btn-primary, a.btn-ghost{ display: inline-flex; align-items: center; justify-c
 .src-logo { width: 20px; height: 20px; border-radius: 4px; flex: 0 0 20px; margin-top: 1px; }
 .src-text { min-width: 0; }
 .src-text .help { margin: 2px 0 0; }
+.card-icon .acct-logo { width: 18px; height: 18px; border-radius: 4px; }
 .card-title .tag { font-size: 10px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; margin-left: 6px; }

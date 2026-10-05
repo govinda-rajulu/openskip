@@ -153,3 +153,5 @@ SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
   tests (fake fetch) stayed green. Check each source live once per release with a known title.
 - 5 Oct os-133: Settings died on load (`manifest` read before its `const`, TDZ). No test ran
   options.js end to end. Now a test runs options.js and popup.js as whole files.
+- 5 Oct round 3: a shown choice must come from what the code reads. The mode select showed
+  "Auto all" from a missing key while skipOutro was off; re-picking it fired no change.

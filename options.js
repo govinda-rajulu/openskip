@@ -200,15 +200,31 @@ const MODE_TO_SEGS = {
   'auto-intro': { i: true,  r: false, o: false },
   'auto-recap': { i: false, r: true,  o: false },
   'auto-outro': { i: false, r: false, o: true  },
+  'auto-ir':    { i: true,  r: true,  o: false },
   'auto-all':   { i: true,  r: true,  o: true  },
 };
+// What the player really does comes from skipIntro / skipRecap / skipOutro, so the
+// shown mode is read from them. Up to 1.13 round 3 a fresh install showed "Auto
+// all" while outros only asked (skipOutro is off by default): picking "Auto all"
+// changed nothing, because it already looked picked. "auto-ir" is that default.
+function modeFromPrefs(d) {
+  if (!d || d.skipEnabled === false) return 'off';
+  const i = d.skipIntro !== false, r = d.skipRecap !== false, o = d.skipOutro === true;
+  if (!i && !r && !o) return 'prompt';
+  if (i && r && o) return 'auto-all';
+  if (i && r) return 'auto-ir';
+  if (i && !r && !o) return 'auto-intro';
+  if (!i && r && !o) return 'auto-recap';
+  if (!i && !r && o) return 'auto-outro';
+  return MODE_TO_SEGS[d.skipMode] ? d.skipMode : 'auto-all';
+}
 function featShow(d) {
   const sel = $('featSkipMode');
-  if (sel) sel.value = d.skipEnabled === false ? 'off' : (MODE_TO_SEGS[d.skipMode] ? d.skipMode : 'auto-all');
+  if (sel) sel.value = modeFromPrefs(d);
   if ($('featResume')) $('featResume').checked = d.resumePlayback !== false;
   if ($('featAutoNext')) $('featAutoNext').checked = d.autoNextEpisode === true;
 }
-const FEAT_KEYS = ['skipMode', 'skipEnabled', 'resumePlayback', 'autoNextEpisode'];
+const FEAT_KEYS = ['skipMode', 'skipEnabled', 'skipIntro', 'skipRecap', 'skipOutro', 'resumePlayback', 'autoNextEpisode'];
 br.storage.local.get(FEAT_KEYS).then(featShow).catch(() => {});
 $('featSkipMode')?.addEventListener('change', e => {
   const mode = MODE_TO_SEGS[e.target.value] ? e.target.value : 'auto-all';
@@ -320,7 +336,7 @@ function showPanel(id) {
     if (isActive) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current');
   });
   history.replaceState(null, '', '#' + id);
-  if (id === 'sources') loadSourceLogos();
+  if (id === 'sources' || id === 'accounts') loadSourceLogos($('panel-' + id));
   if (id === 'stats') {
     br.storage.local.get([S.stats]).then(d => loadStats(d)).catch(() => {});
   }
@@ -343,12 +359,22 @@ if (initialHash && document.getElementById('panel-' + initialHash)) {
 // -- Sources page logos (1.13) --
 // Each source's own site icon, from DuckDuckGo's icon service, loaded only when
 // the Sources page opens. A logo that does not load stays hidden (name only).
-function loadSourceLogos() {
-  document.querySelectorAll('img.src-logo[data-logo]').forEach(img => {
+// Each logo comes from the service's own website first; when that fails, from
+// DuckDuckGo's icon service; when that fails too, the logo stays hidden (on
+// Accounts the drawn icon stays). Loaded only when Accounts or Sources opens.
+function loadSourceLogos(scope) {
+  (scope || document).querySelectorAll('img.src-logo[data-logo]').forEach(img => {
     if (img.dataset.loaded) return;
     img.dataset.loaded = '1';
-    img.addEventListener('load', () => { img.hidden = false; });
-    img.addEventListener('error', () => { img.hidden = true; });
+    img.addEventListener('load', () => {
+      img.hidden = false;
+      const svg = img.nextElementSibling;
+      if (svg && svg.tagName && svg.tagName.toLowerCase() === 'svg') svg.style.display = 'none';
+    });
+    img.addEventListener('error', () => {
+      if (img.dataset.logoAlt && img.src !== img.dataset.logoAlt) { img.src = img.dataset.logoAlt; return; }
+      img.hidden = true;
+    });
     img.src = img.dataset.logo;
   });
 }
@@ -985,6 +1011,14 @@ function canonHost(h) {
     x = y;
   }
 }
+// Same rule as content.js _siteFamily: 1shows.cx and 1shows.to are one site.
+function siteFamily(h) {
+  const x = canonHost(h);
+  const parts = x.split('.').filter(Boolean);
+  if (parts.length < 2) return x;
+  const two = parts.length >= 3 && /^(?:co|com|net|org|gov|edu|ac)$/.test(parts[parts.length - 2]) && parts[parts.length - 1].length === 2;
+  return parts[parts.length - (two ? 3 : 2)];
+}
 function canonMediaKey(id) {
   const m = /^([a-z0-9-]+(?:\.[a-z0-9-]+)+)(\/.*)?$/i.exec(String(id || ''));
   return m ? canonHost(m[1]) + (m[2] || '') : String(id || '');
@@ -1175,7 +1209,7 @@ function renderHistory(items) {
   const devFilter = ($('historyDevice') || {}).value || '';
   const filtered = items.filter(item => {
     const title = (item.title || item.videoTitle || '').toLowerCase();
-    const site = canonHost(item.site || item.siteName);
+    const site = siteFamily(item.site || item.siteName);
     return (!search || title.includes(search.toLowerCase()))
       && (!filter || site === filter.toLowerCase())
       && (!devFilter || itemDevice(item) === devFilter);
@@ -1368,7 +1402,16 @@ async function loadHistory(data) {
 
   const filterEl = $('historyFilter');
   if (filterEl) {
-    const sites = [...new Set((getHistoryItems() || []).map(i => canonHost(i.site || i.siteName)).filter(Boolean))].sort();
+    // One entry per site, also when the site moved to a new address: the label is
+    // the newest address's name (siteFamily groups 1shows.cx and 1shows.to).
+    const byFam = new Map();
+    for (const i of (getHistoryItems() || [])) {
+      const h = canonHost(i.site || i.siteName), f = siteFamily(h);
+      if (!f) continue;
+      const t = Number(i.timestamp || i.t || 0) || 0;
+      if (!byFam.has(f) || t > byFam.get(f).t) byFam.set(f, { h, t });
+    }
+    const sites = [...byFam.keys()].sort();
     filterEl.replaceChildren();
     const allOpt = document.createElement('option');
     allOpt.value = '';
@@ -1376,7 +1419,7 @@ async function loadHistory(data) {
     filterEl.appendChild(allOpt);
     sites.forEach(s => {
       const opt = document.createElement('option');
-      opt.value = s; opt.textContent = siteDisplayName(s, '');
+      opt.value = s; opt.textContent = siteDisplayName(byFam.get(s).h, '');
       filterEl.appendChild(opt);
     });
   }
@@ -1660,7 +1703,7 @@ if (exportBtn) {
 // H18: an imported value must have the type the extension reads, or it is skipped.
 const IMPORT_BOOL = new Set([S.animeSkipEnabled, S.skipIntro, S.skipRecap, S.skipOutro, S.resumePlayback,
   S.autoNextEpisode, S.subEnabled, S.skipEnabled, S.subOutline, S.showTimeline, S.skipNotice, S.resumeNotice]);
-const IMPORT_MODES = new Set(['off', 'prompt', 'auto-intro', 'auto-recap', 'auto-outro', 'auto-all']);
+const IMPORT_MODES = new Set(['off', 'prompt', 'auto-intro', 'auto-recap', 'auto-outro', 'auto-ir', 'auto-all']);
 function importValueOk(key, v) {
   const num = (x, lo, hi) => typeof x === 'number' && Number.isFinite(x) && x >= lo && x <= hi;
   if (IMPORT_BOOL.has(key)) return typeof v === 'boolean';

@@ -665,7 +665,7 @@ test('sites: History shows one entry and one filter name for www., m. and deskto
   assert.equal(items[0].mediaId, 'm.example.com/watch/x', 'newest copy wins');
   assert.match(OPTIONS, /site: {5}canonHost\(entry\.site\),/);
   assert.match(OPTIONS, /site: {5}canonHost\(row\.site\) \|\| row\.site_name \|\| '',/);
-  assert.match(OPTIONS, /map\(i => canonHost\(i\.site \|\| i\.siteName\)\)/);
+  assert.match(OPTIONS, /const h = canonHost\(i\.site \|\| i\.siteName\), f = siteFamily\(h\);/);
 });
 
 // ── Device test round 1 (5 Oct): notices, OpenSubtitles numbers, History, subtitles ──
@@ -704,7 +704,7 @@ test('history: popular sites by name (JioHotstar, YouTube), others by their own 
   assert.equal(k.siteDisplayName('tv.apple.com', ''), 'Apple TV+');
   assert.equal(k.siteDisplayName('www.1shows.cx', '1shows'), '1shows');
   assert.equal(k.siteDisplayName('obscure.example', ''), 'obscure.example');
-  assert.match(OPTIONS, /opt\.value = s; opt\.textContent = siteDisplayName\(s, ''\);/, 'the site filter shows names');
+  assert.match(OPTIONS, /opt\.value = s; opt\.textContent = siteDisplayName\(byFam\.get\(s\)\.h, ''\);/, 'the site filter shows names');
 });
 
 test('history: each site shows its own icon from the site; a missing icon becomes a letter', () => {

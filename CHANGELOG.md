@@ -39,7 +39,11 @@
 - Settings in 5S order. Features: every switch, skip mode, YouTube kinds and per-site rules. Customise: subtitle look and accent colour (the accent moved here from the popup). Accounts: every login and key, each marked optional, and what needs a login (nothing does). Data: export, import and clear. Sources & help: each source with its logo, link, what it gives and its licence, keyboard shortcuts. Old links (#connections, #siterules, #dataadvanced) still open the right page
 - Skip sources: kinds combine across sources (the intro from one, the credits from another). Inside one kind, one source gives all its parts, in this order: IntroDB, TheIntroDB, SkipDB, AniSkip, Anime Skip. Two sources are never mixed in one kind, because their times can come from different releases
 - Check this page and Site report show each skip with its times and its source, for example "intro 0:00-0:40 (TheIntroDB)"
+- Skip mode: a fresh install showed "Auto all" while outros only asked first (the default), so picking "Auto all" changed nothing. The popup and Settings now show the mode the player really uses. New mode "Intros + recaps" (outros ask first) is the default
 - Popup footer: a Sources link
+- A site on a new address (1shows.cx to 1shows.to) stays the same site: per-site rules still apply, History shows one site in the filter, and resume finds the position saved on the old address. Pages with ids in the address (/movie/603, /tv/1396) already kept their position
+- Skip marks on other sites now go inside the player's own progress bar (video.js, Vidstack, Plyr, JW Player, Shaka, DPlayer, ArtPlayer, MediaElement, Fluid, Clappr), like on YouTube. Without a known bar, the thin strip along the bottom of the video stays
+- Accounts: each service card shows its logo, from the service's own website first
 - supabase_setup.sql no longer makes ss_put_creds (unused since 1.11) and removes it from old projects. The old creds column stays. PRIVACY.md says how to clear it
 - README, PRIVACY, TESTING and the store text are rewritten in plain, short sentences (knowledge/handbook/WRITING.md)
 

@@ -110,7 +110,7 @@ test('iframe relay accepts every real label and rejects others (C4)', () => {
 });
 
 test('site rules: www / case normalised, parent-domain match (C6)', () => {
-  const f = contentFns(['_normSiteRules', '_siteRuleFor']);
+  const f = contentFns(['_normSiteRules', '_siteRuleFor', '_siteFamily', '_canonHost']);
   const rules = f._normSiteRules({ 'WWW.Example.com': 'off', 'hianime.to': 'auto-all', bad: 3 });
   assert.equal(JSON.stringify(rules), JSON.stringify({ 'example.com': 'off', 'hianime.to': 'auto-all' }));
   assert.equal(f._siteRuleFor(rules, 'example.com'), 'off');

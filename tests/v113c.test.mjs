@@ -113,11 +113,11 @@ test('settings 5S: popup and Settings write the same skip-mode keys; accent live
   assert.match(read('options.js'), /connections: 'accounts', siterules: 'features', dataadvanced: 'data'/, 'old links still open the right page');
 });
 
-test('sources page: 10 sources, each with a link, logos only from the icon service and only when the page opens', () => {
+test('sources page: 10 sources, each with a link; logos from the official site first, only when the page opens', () => {
   const rows = [...OPTIONS_HTML.matchAll(/<li class="src-row">([\s\S]*?)<\/li>/g)].map((m) => m[1]);
   assert.equal(rows.length, 10);
   for (const r of rows) {
-    assert.match(r, /<img class="src-logo" data-logo="https:\/\/icons\.duckduckgo\.com\/ip3\/[a-z0-9.-]+\.ico" alt="" width="20" height="20" referrerpolicy="no-referrer" hidden>/);
+    assert.match(r, /<img class="src-logo" data-logo="https:\/\/[a-z0-9.-]+\/favicon\.ico" data-logo-alt="https:\/\/icons\.duckduckgo\.com\/ip3\/[a-z0-9.-]+\.ico" alt="" width="20" height="20" referrerpolicy="no-referrer" hidden>/);
     assert.match(r, /<a href="https:\/\/[^"]+" target="_blank" rel="noopener"><strong>/);
   }
   assert.equal(/<img[^>]* src="https?:/.test(OPTIONS_HTML), false, 'no remote image loads when Settings opens');
@@ -140,4 +140,58 @@ test('options.js and popup.js run to the end without throwing (whole file, fake 
     vm.runInContext(read('theme-engine.js'), ctx, { filename: 'theme-engine.js' });
     assert.doesNotThrow(() => vm.runInContext(read(f), ctx, { filename: f }), f);
   }
+});
+
+// ── Round 3 (5 Oct): a site on a new address, marks in the player's own bar, Accounts logos ──
+test('site moved (1shows.cx -> 1shows.to): rules, History filter and resume follow the site name', async () => {
+  const f = contentFns(['_siteFamily', '_canonHost', '_siteRuleFor'], [], {});
+  for (const [h, want] of [['www.1shows.cx', '1shows'], ['1shows.to', '1shows'], ['player.viduki.net', 'viduki'], ['news.bbc.co.uk', 'bbc'], ['m.youtube.com', 'youtube'], ['localhost', 'localhost']]) assert.equal(f._siteFamily(h), want, h);
+  assert.equal(f._siteRuleFor({ '1shows.cx': 'off' }, '1shows.to'), 'off', 'a rule for the old address still applies');
+  assert.equal(f._siteRuleFor({ 'example.com': 'off' }, 'other.com'), null);
+  const OPT = read('options.js');
+  const fam = vm.runInNewContext(['canonHost', 'siteFamily'].map((n) => { const src = OPT; const i = src.indexOf('function ' + n + '('); let d = 0, k = src.indexOf('{', i); for (; k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && !--d) break; } return src.slice(i, k + 1); }).join('\n') + ';siteFamily');
+  assert.equal(fam('www.1shows.cx'), fam('1shows.to'));
+  const storage = { skipstream_cache: { '1shows.cx/watch/abc': { p: 600, d: 3000, t: 5 }, 'other.cx/watch/abc': { p: 900, t: 9 }, '1shows.cx/watch/zzz': { p: 50, t: 9 } } };
+  const listeners = {};
+  const g = contentFns(['_cacheReadMoved', '_siteFamily', '_canonHost'], [], { br: makeBrowser(listeners, storage), CACHE_KEY: 'skipstream_cache' });
+  assert.deepEqual(j(await g._cacheReadMoved('1shows.to/watch/abc')), { p: 600, d: 3000, t: 5 });
+  assert.equal(await g._cacheReadMoved('movie/603'), null, 'host-free ids need no search');
+});
+
+test('timeline: marks go inside the player\'s own progress bar when there is one (video.js, Vidstack, Plyr ...)', () => {
+  const bar = { tag: 'vjs' };
+  const player = { parentElement: null, querySelector: (sel) => (sel === '.vjs-progress-holder' ? bar : null) };
+  const wrap = { parentElement: player, querySelector: () => null };
+  const video = { parentElement: wrap };
+  const { _playerBar } = contentFns(['_playerBar'], ['PLAYER_BAR_SELECTORS'], {});
+  assert.equal(_playerBar(video), bar);
+  assert.equal(_playerBar({ parentElement: { parentElement: null, querySelector: () => null } }), null, 'no bar: the strip is used');
+  const C = read('content-scripts/content.js');
+  for (const sel of ['.vds-time-slider .vds-slider-track', 'media-time-slider', '.vjs-progress-holder', '.plyr__progress', '.jw-slider-time .jw-rail']) assert.ok(C.includes("'" + sel + "'"), sel);
+  assert.match(C, /const pBar = yt \? null : _playerBar\(video\);/);
+});
+
+test('accounts: each service card has its logo from its own site (DuckDuckGo as fallback), loaded only when Accounts opens', () => {
+  const H = read('options.html');
+  const acc = H.slice(H.indexOf('<section id="panel-accounts"'), H.indexOf('</section>', H.indexOf('<section id="panel-accounts"')));
+  const logos = [...acc.matchAll(/<img class="src-logo acct-logo" data-logo="(https:\/\/[^"]+\/favicon\.ico)" data-logo-alt="https:\/\/icons\.duckduckgo\.com\/ip3\/[a-z0-9.-]+\.ico"/g)].map((m) => m[1]);
+  assert.deepEqual(logos.sort(), ['https://anime-skip.com/favicon.ico', 'https://introdb.app/favicon.ico', 'https://supabase.com/favicon.ico', 'https://www.opensubtitles.com/favicon.ico', 'https://www.themoviedb.org/favicon.ico']);
+  assert.match(read('options.js'), /if \(id === 'sources' \|\| id === 'accounts'\) loadSourceLogos\(\$\('panel-' \+ id\)\);/);
+});
+
+test('skip mode shown = what the player does: a fresh install shows "Intros + recaps", not "Auto all"', () => {
+  for (const f of ['popup.js', 'options.js']) {
+    const src = read(f);
+    const a = src.indexOf('const MODE_TO_SEGS = {'), b = src.indexOf('\n}', src.indexOf('function modeFromPrefs(')) + 2;
+    const modeFromPrefs = vm.runInNewContext(src.slice(a, b) + ';modeFromPrefs');
+    assert.equal(modeFromPrefs({}), 'auto-ir', f + ': defaults (outros ask)');
+    assert.equal(modeFromPrefs({ skipMode: 'auto-all' }), 'auto-ir', f + ': a stored "auto-all" with skipOutro off is not shown as Auto all');
+    assert.equal(modeFromPrefs({ skipIntro: true, skipRecap: true, skipOutro: true }), 'auto-all', f);
+    assert.equal(modeFromPrefs({ skipEnabled: false, skipOutro: true }), 'off', f);
+    assert.equal(modeFromPrefs({ skipIntro: false, skipRecap: false, skipOutro: false }), 'prompt', f);
+    assert.equal(modeFromPrefs({ skipIntro: true, skipRecap: false }), 'auto-intro', f);
+  }
+  assert.ok(read('popup.html').includes('data-mode="auto-ir"'));
+  assert.ok(read('options.html').includes('<option value="auto-ir">'));
+  assert.match(read('popup.js'), /const mode {5}= modeFromPrefs\(data\);/);
 });

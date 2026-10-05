@@ -83,7 +83,7 @@ async function detectDomain() {
 const MODE_LABELS = {
   off: 'Disabled', prompt: 'Prompt',
   'auto-intro': 'Auto Intros', 'auto-recap': 'Auto Recaps',
-  'auto-outro': 'Auto Outros', 'auto-all': 'Auto All',
+  'auto-outro': 'Auto Outros', 'auto-ir': 'Intros + Recaps', 'auto-all': 'Auto All',
 };
 
 // -- Mode <-> Toggle bidirectional mapping --
@@ -93,13 +93,30 @@ const MODE_TO_SEGS = {
   'auto-intro': { i: true,  r: false, o: false },
   'auto-recap': { i: false, r: true,  o: false },
   'auto-outro': { i: false, r: false, o: true  },
+  'auto-ir':    { i: true,  r: true,  o: false },
   'auto-all':   { i: true,  r: true,  o: true  },
 };
+// What the player really does comes from skipIntro / skipRecap / skipOutro, so the
+// shown mode is read from them. Up to 1.13 round 3 a fresh install showed "Auto
+// all" while outros only asked (skipOutro is off by default): picking "Auto all"
+// changed nothing, because it already looked picked. "auto-ir" is that default.
+function modeFromPrefs(d) {
+  if (!d || d.skipEnabled === false) return 'off';
+  const i = d.skipIntro !== false, r = d.skipRecap !== false, o = d.skipOutro === true;
+  if (!i && !r && !o) return 'prompt';
+  if (i && r && o) return 'auto-all';
+  if (i && r) return 'auto-ir';
+  if (i && !r && !o) return 'auto-intro';
+  if (!i && r && !o) return 'auto-recap';
+  if (!i && !r && o) return 'auto-outro';
+  return MODE_TO_SEGS[d.skipMode] ? d.skipMode : 'auto-all';
+}
 
 function inferMode(i, r, o) {
   if (!i && !r && !o) return 'prompt';
   if (i  && !r && !o) return 'auto-intro';
   if (!i && r  && !o) return 'auto-recap';
+  if (i  && r  && !o) return 'auto-ir';
   if (!i && !r && o)  return 'auto-outro';
   return 'auto-all';
 }
@@ -241,7 +258,7 @@ $('masterToggle')?.addEventListener('change', () => {
 async function loadState() {
   const data = await br.storage.local.get(Object.values(KEYS));
   const enabled  = data[KEYS.enabled] !== false;
-  const mode     = data[KEYS.skipMode] || 'auto-all';
+  const mode     = modeFromPrefs(data);
   currentTheme   = data[KEYS.theme] || ssSystemMode();
   currentSeedHex = data[KEYS.seedColor] || '#57A860';
 

@@ -24,6 +24,8 @@ Newest checkpoint first. Each section is a dated snapshot; verify live before ac
 - **Device round 2 (5 Oct):** 7 of 8 passed; the OpenSubtitles count was not confirmed. Found: player
   frames did not finish start-up (timer this-binding, since 1.11) and TheIntroDB v1 gone. Both fixed
   in os-133 with the 5S Settings, Sources page and per-kind source merge. Round 3 is in the PR.
+- **Round 3 (5 Oct):** passed; asked for: site moves (site family), marks in player bars, Accounts
+  logos (os-135). Outros ask by default (skipOutro false): by design.
 - **Writing:** all docs follow knowledge/handbook/WRITING.md. Mirror it to patch-factory by
   that repo's own PR.
 
