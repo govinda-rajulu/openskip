@@ -207,7 +207,7 @@ test('skip mode shown = what the player does: a fresh install shows "Intros + re
 test('links: no source points to a parked or wrong domain (aniskip.com is parked; AniSkip lives on GitHub)', () => {
   for (const f of ['options.html', 'README.md']) {
     const hosts = (read(f).match(/https?:\/\/[^\s"'()<>]+/g) || []).map((u) => { try { return new URL(u).hostname; } catch { return ''; } });
-    assert.equal(hosts.includes('aniskip.com'), false, f);
+    assert.equal(hosts.filter((h) => h === 'aniskip.com').length, 0, f);
   }
   assert.ok(read('options.html').includes('href="https://github.com/aniskip"'));
 });
