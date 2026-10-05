@@ -96,6 +96,12 @@ Owner decision 3 Oct: each user keeps their own keys; one login restores everyth
 - Chrome build: keepalive and EdgA label done in 1.11.0; next, list on Edge Add-ons (free,
   takes the MV3 zip).
 
+## Later: send skip times (after 1.14 login)
+
+- Accounts page: IntroDB key, TheIntroDB key and SkipDB, each optional, for sending your own times.
+- On the video: mark start and end of an intro, recap or credits, then send to one source.
+- Needs: each source's submit rules, a review screen before sending, and its own device test.
+
 ## Parking lot
 
 Add ideas here with a date. Move one into a lane only when the lane before it is done.

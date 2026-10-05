@@ -169,6 +169,7 @@
 let _ssEffPrefs = null;
 // What this frame found, for the popup's "Check this page" (local only, never sent anywhere).
 const _diag = { id: '', segs: '', last: null, subs: '' };
+let _diagChapters = null;   // the page's own chapter list, when that is the source
 
   async function loadPrefs() {
     try {
@@ -2603,13 +2604,13 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       } else if (anime && info.episode) {
         fetched = await fetchSegments(info.imdbId, info.season || 1, info.episode, false, extra);
       }
-      if (!fetched && !ytId) fetched = _pageChapters(video);
+      if (!fetched && !ytId) { fetched = _pageChapters(video); _diagChapters = fetched; }
       if (!fetched && !ytId && !ids && !(anime && info.episode)) {
         _diag.segs = 'nothing to look up';
         return;
       }
       if (gen !== _segGen) return;
-      _diag.segs = fetched ? Object.keys(fetched).map(k => k === 'full' ? 'whole video: ' + fetched.full : k).join(', ') : 'none found (yet)';
+      _diag.segs = fetched ? _diagSegs(fetched, ytId ? 'SponsorBlock' : '') : 'none found (yet)';
       if (fetched) {
         resolved = true;
         segments = fetched;
@@ -2934,7 +2935,12 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   // keeps a cheap watch (DOM changes, play events, and a 2 s look inside player
   // components) until a video appears, then starts once.
   function _waitForVideo(doc, onFound, timers) {
-    const T = timers || { setTimeout, clearTimeout, setInterval, clearInterval };
+    // Wrappers, not the bare functions: a browser timer called as a method of a
+    // plain object (T.setInterval) throws "does not implement interface Window".
+    // Up to 1.13 round 2 that stopped start-up in every player frame, so a frame
+    // started only on a play event and "Check this page" said "did not finish".
+    const T = timers || { setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (id) => clearTimeout(id),
+      setInterval: (f, ms) => setInterval(f, ms), clearInterval: (id) => clearInterval(id) };
     let done = false, pending = null, poll = null, obs = null;
     const has = () => !!doc.querySelector('video') || _shadowVideos(doc, 0, [], 4).length > 0;
     const fire = () => {
@@ -2962,6 +2968,28 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   if (window === window.top) _ssStart();
   else _waitForVideo(document, _ssStart);
 
+  // "intro 0:00-0:40 (TheIntroDB), outro 2:09:25-2:16:19 (SkipDB)": what was
+  // found, when, and which source gave it, so a user can check it at the source.
+  function _diagClock(sec) {
+    const t = Math.max(0, Math.round(Number(sec) || 0));
+    const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, x = String(t % 60).padStart(2, '0');
+    return h ? h + ':' + String(m).padStart(2, '0') + ':' + x : m + ':' + x;
+  }
+  function _diagSegs(segs, fallbackSrc) {
+    if (!segs || typeof segs !== 'object') return '';
+    const parts = [];
+    for (const [k, v] of Object.entries(segs)) {
+      if (k === 'full') { parts.push('whole video: ' + v); continue; }
+      for (const sg of [].concat(v)) {
+        if (!sg || typeof sg !== 'object') continue;
+        const a = Number(sg.start_sec), b = Number(sg.end_sec);
+        const when = Number.isFinite(a) ? ' ' + _diagClock(a) + (Number.isFinite(b) && b > a ? '-' + _diagClock(b) : '') : '';
+        const src = sg.src || fallbackSrc || (segs === _diagChapters ? 'page chapters' : '');
+        parts.push(k + when + (src ? ' (' + src + ')' : ''));
+      }
+    }
+    return parts.slice(0, 12).join(', ');
+  }
   function _diagLast(l, now) {
     if (!l) return '';
     const ago = Math.max(0, Math.round((now - l.at) / 1000));

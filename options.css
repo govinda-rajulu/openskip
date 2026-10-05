@@ -1163,3 +1163,11 @@ a.btn-primary, a.btn-ghost{ display: inline-flex; align-items: center; justify-c
 .sub-preview{ margin: 8px 0 12px; min-height: 92px; border-radius: 14px; display: flex; align-items: flex-end; justify-content: center;
   padding: 14px; background: linear-gradient(135deg, #2b3a55 0%, #8a6d3b 55%, #e9d8a6 100%); overflow: hidden; }
 .sub-preview span{ padding: 2px 8px; border-radius: 4px; text-align: center; line-height: 1.35; }
+
+/* 1.13 Sources page */
+.src-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 10px; }
+.src-row { display: flex; gap: 10px; align-items: flex-start; }
+.src-logo { width: 20px; height: 20px; border-radius: 4px; flex: 0 0 20px; margin-top: 1px; }
+.src-text { min-width: 0; }
+.src-text .help { margin: 2px 0 0; }
+.card-title .tag { font-size: 10px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; margin-left: 6px; }

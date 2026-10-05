@@ -120,7 +120,7 @@ test('settings: new keys are backed up, synced and checked on import', () => {
   for (const k of ['subtitle_color', 'sbModes', 'showTimeline']) assert.ok(extractConst(bg, 'SYNC_PREF_KEYS').includes("'" + k + "'"), 'sync ' + k);
   const html = read('options.html');
   for (const id of ['subColor', 'subFont', 'subBg', 'subEdge', 'showTimeline', 'sbm-sponsor', 'sbm-filler']) assert.ok(html.includes('id="' + id + '"'), id);
-  assert.match(html, /SkipDB<\/a>, data licensed <a href="https:\/\/opendatacommons\.org\/licenses\/odbl\/1-0\/"/);
+  assert.match(html, /SkipDB<\/strong><\/a> &middot; data <a href="https:\/\/opendatacommons\.org\/licenses\/odbl\/1-0\/"/);   // Sources page (1.13)
 });
 
 // ── Site report ───────────────────────────────────────────────────────────────

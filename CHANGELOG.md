@@ -2,6 +2,8 @@
 
 ## [1.13.0] - 2026-10-05
 ### Fixed
+- Player frames (embedded players such as 1Shows / viduki.net) stopped their start-up early since 1.11. They started only when a video began to play, and "Check this page" said "did not finish starting". A video that already played when the page loaded got no skips and no resume. Now every frame with a video starts at once
+- TheIntroDB gave no skip times: SkipStream asked API v1, which no longer answers. Now it asks v3, also by IMDb id when no TMDB id is known. An intro with no start (it starts at 0:00) is kept, and every part of a kind is kept (two recaps, credits with a scene between)
 - Resume from History worked 2 or 3 times, then started from 0. SkipStream gave up when the player started by itself. Then the start-up position replaced the saved position. Now SkipStream waits for the player, checks the position twice and seeks again (up to 4 times). Saving waits until the position holds (at most 15 seconds)
 - A time in the address (?t=90, start=, time_continue=) now has priority over resume
 - A History click is now kept for 120 seconds (was 30), for slow phones
@@ -34,6 +36,10 @@
 - Site report: each frame also shows what SkipStream sees there, and the video position
 - Site report: long random parts of addresses (often tokens) show as <id>. YouTube trailer embeds are no longer listed
 ### Changed
+- Settings in 5S order. Features: every switch, skip mode, YouTube kinds and per-site rules. Customise: subtitle look and accent colour (the accent moved here from the popup). Accounts: every login and key, each marked optional, and what needs a login (nothing does). Data: export, import and clear. Sources & help: each source with its logo, link, what it gives and its licence, keyboard shortcuts. Old links (#connections, #siterules, #dataadvanced) still open the right page
+- Skip sources: kinds combine across sources (the intro from one, the credits from another). Inside one kind, one source gives all its parts, in this order: IntroDB, TheIntroDB, SkipDB, AniSkip, Anime Skip. Two sources are never mixed in one kind, because their times can come from different releases
+- Check this page and Site report show each skip with its times and its source, for example "intro 0:00-0:40 (TheIntroDB)"
+- Popup footer: a Sources link
 - supabase_setup.sql no longer makes ss_put_creds (unused since 1.11) and removes it from old projects. The old creds column stays. PRIVACY.md says how to clear it
 - README, PRIVACY, TESTING and the store text are rewritten in plain, short sentences (knowledge/handbook/WRITING.md)
 

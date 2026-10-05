@@ -702,15 +702,20 @@ async function providerSponsorBlock(videoId) {
   } catch { return null; }
 }
 
-// TheIntroDB (theintrodb.org): intro, recap, credits, preview by TMDB id; reads
-// need no key. A credits/preview end of null means "to the end of the video".
-async function providerTheIntroDB(tmdbId, season, episode, isMovie, durationSec) {
-  if (!/^\d{1,9}$/.test(String(tmdbId || ''))) return null;
+// TheIntroDB (theintrodb.org, API v3): intro, recap, credits, preview by TMDB id,
+// or by IMDb id when no TMDB id is known; reads need no key. Up to 1.13 rounds
+// 1-2 this asked v1, which no longer answers, so TheIntroDB never gave a skip.
+// A start of null means "from the beginning"; a credits/preview end of null
+// means "to the end of the video". A kind can have more than one entry (two
+// recaps, credits with a scene between): all are kept.
+async function providerTheIntroDB(tmdbId, season, episode, isMovie, durationSec, imdbId) {
+  const byTmdb = /^\d{1,9}$/.test(String(tmdbId || ''));
+  if (!byTmdb && !/^tt\d{7,8}$/.test(String(imdbId || ''))) return null;
   try {
-    const params = new URLSearchParams({ tmdb_id: String(tmdbId) });
+    const params = new URLSearchParams(byTmdb ? { tmdb_id: String(tmdbId) } : { imdb_id: String(imdbId) });
     if (!isMovie) { params.set('season', String(season)); params.set('episode', String(episode)); }
     if (durationSec > 0) params.set('duration_ms', String(Math.round(durationSec * 1000)));
-    const r = await fetchWithRetry(`https://api.theintrodb.org/v1/media?${params}`, {}, 1);
+    const r = await fetchWithRetry(`https://api.theintrodb.org/v3/media?${params}`, {}, 1);
     if (!r.ok) return null;
     return theIntroDbSegments(await r.json(), durationSec);
   } catch { return null; }
@@ -721,13 +726,15 @@ function theIntroDbSegments(data, durationSec) {
   for (const [src, key] of [['intro', 'intro'], ['recap', 'recap'], ['credits', 'outro'], ['preview', 'preview']]) {
     const list = Array.isArray(data[src]) ? data[src] : (data[src] && typeof data[src] === 'object' ? [data[src]] : []);
     for (const sg of list) {
-      const a = sg.start_ms != null ? Number(sg.start_ms) / 1000 : Number(sg.start);
-      let b = sg.end_ms != null ? Number(sg.end_ms) / 1000 : (sg.end != null ? Number(sg.end) : NaN);
+      if (!sg || typeof sg !== 'object') continue;
+      const a = sg.start_ms != null ? Number(sg.start_ms) / 1000 : (sg.start_sec != null ? Number(sg.start_sec) : 0);
+      let b = sg.end_ms != null ? Number(sg.end_ms) / 1000 : (sg.end_sec != null ? Number(sg.end_sec) : NaN);
       if (!Number.isFinite(b) && (key === 'outro' || key === 'preview')) b = durationSec > a ? durationSec : a + 600;
       if (!Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b <= a) continue;
-      if (!out[key]) out[key] = { start_sec: a, end_sec: b };
+      (out[key] ||= []).push({ start_sec: a, end_sec: b });
     }
   }
+  for (const k of Object.keys(out)) out[k].sort((x, y) => x.start_sec - y.start_sec);
   return Object.keys(out).length ? out : null;
 }
 
@@ -794,8 +801,39 @@ async function tmdbIdFromImdb(imdbId, isMovie) {
   } catch { return null; }
 }
 
-// One lookup, every source. Priority when two answer for the same part:
-// IntroDB, then TheIntroDB, SkipDB, AniSkip, Anime Skip.
+// Every skip source answers on its own; mergeSkipSources makes one list.
+// Kinds (intro, recap, outro, preview) combine across sources: if IntroDB has
+// the intro and SkipDB the credits, both are used. Inside one kind, ONE source
+// gives all its parts: the first in this order that has that kind: IntroDB,
+// TheIntroDB, SkipDB, AniSkip, Anime Skip. Parts from two sources are never
+// mixed in one kind: their times can come from different releases of the same
+// video, and a mix could skip the same intro twice, plus real content between.
+// A source can give two or more parts of a kind (two recaps; credits with a
+// scene between): all are kept. Each part keeps "src", the source's name. One
+// part stays an object (as before 1.13); two or more become a list by start.
+const SKIP_SOURCE_ORDER = ['IntroDB', 'TheIntroDB', 'SkipDB', 'AniSkip', 'Anime Skip'];
+function mergeSkipSources(bySource) {
+  const out = {};
+  for (const src of SKIP_SOURCE_ORDER) {
+    const segs = bySource && bySource[src];
+    if (!segs || typeof segs !== 'object') continue;
+    for (const [k, v] of Object.entries(segs)) {
+      if (out[k]) continue;   // a higher source already gave this kind
+      const parts = [];
+      for (const sg of [].concat(v)) {
+        const a = Number(sg && sg.start_sec), b = Number(sg && sg.end_sec);
+        if (!Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b <= a) continue;
+        parts.push(Object.assign({}, sg, { start_sec: a, end_sec: b, src }));
+      }
+      if (!parts.length) continue;
+      parts.sort((x, y) => x.start_sec - y.start_sec);
+      out[k] = parts.length === 1 ? parts[0] : parts;
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// One lookup, every source (see mergeSkipSources for who wins).
 async function fetchSegmentsMulti(imdbId, season, episode, isMovie, extra = {}) {
   const config = await getConfig();
   const imdb = /^tt\d{7,8}$/.test(String(imdbId || '')) ? imdbId : null;
@@ -808,12 +846,11 @@ async function fetchSegmentsMulti(imdbId, season, episode, isMovie, extra = {}) 
     imdb ? providerIntroDB(imdb, season, episode, config, isMovie) : null,
     isMovie || !imdb ? null : providerAnimeSkip(imdb, season, episode, config),
     imdb ? providerSkipDB(imdb, season, episode, isMovie) : null,
-    tmdbId && (isMovie || (season && episode)) ? providerTheIntroDB(tmdbId, season, episode, isMovie, dur) : null,
+    (tmdbId || imdb) && (isMovie || (season && episode)) ? providerTheIntroDB(tmdbId, season, episode, isMovie, dur, imdb) : null,
     malId && !isMovie ? providerAniSkip(malId, episode, dur) : null,
   ]);
   if (!introdb && !animeskip && !skipdb && !tidb && !aniskip) return null;
-  const merged = Object.assign({}, animeskip || {}, aniskip || {}, skipdb || {}, tidb || {}, introdb || {});
-  return Object.keys(merged).length ? merged : null;
+  return mergeSkipSources({ IntroDB: introdb, TheIntroDB: tidb, SkipDB: skipdb, AniSkip: aniskip, 'Anime Skip': animeskip });
 }
 
 // OpenSubtitles returns a base_url after login; the session bearer token is sent

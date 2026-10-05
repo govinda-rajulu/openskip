@@ -32,7 +32,9 @@ Enter keys in the extension's Settings page (gear icon in popup).
 - Speed control (0.75x to 2x) applies to the active video and persists on reload
 - Skip mode dropdown (Off / Prompt / Auto Intro / Auto Recap / Auto Outro / Auto All)
 - Per-site rules in Settings override the global skip mode for specific domains
-- Popup: Status (switch, today's skips and time saved), Playback (skip mode, speed, subtitles, accent), Tools (Check this page, Site report)
+- Popup: Status (switch, today's skips and time saved), Playback (skip mode, speed, subtitles), Tools (Check this page, Site report)
+- Settings pages: Features (every switch), Customise (subtitle look, accent colour), Accounts (every login, all optional), History, Stats, Data (export, import, clear), Sources & help (logos load only when that page opens)
+- Check this page on 1Shows: every frame says "running"; skips show times and source, for example "intro 0:00-0:40 (TheIntroDB)"
 - YouTube with SponsorBlock data: marks on the progress bar (desktop and m.youtube.com). Sponsors are skipped with no message.
 - Settings > Skipping: switch on "Skipped, Undo" to see a message after each automatic skip. Alt+Z undoes the last automatic skip.
 - Resume from History: click a video in History. It continues from the saved position, also when the player starts by itself.

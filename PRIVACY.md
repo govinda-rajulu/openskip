@@ -8,7 +8,8 @@ SkipStream has no server. It sends nothing to its developer. To work, it sends s
 
 - **IntroDB** (api.introdb.app): the IMDb id of the video, and the season and episode for TV. SkipStream uses this to get intro, recap and credits times. No key and no account.
 - **SkipDB** (api.skipdb.tv): the same IMDb id, season and episode, for times that IntroDB does not have. No key and no account.
-- **TheIntroDB** (api.theintrodb.org): the TMDB id, the season and episode for TV, and the video length. SkipStream sends this only when it knows the TMDB id. No key and no account.
+- **TheIntroDB** (api.theintrodb.org): the TMDB id (or, when SkipStream does not know it, the IMDb id), the season and episode for TV, and the video length. No key and no account.
+- **DuckDuckGo icon service** (icons.duckduckgo.com): only when you open Settings > Sources & help, your browser loads the site icons of the 10 sources listed there. The request names only those 10 fixed websites, never what you watch.
 - **AniSkip** (api.aniskip.com), anime only: the MyAnimeList id, the episode number and the episode length. SkipStream sends this only when it knows the MyAnimeList id. No key and no account.
 - **Jikan** (api.jikan.moe), anime sites only: the anime title, with release words removed. SkipStream sends this only when the page does not show a MyAnimeList id. Jikan gives back the MyAnimeList id.
 - **SponsorBlock** (sponsor.ajay.app), YouTube only: the first 4 characters of a SHA-256 hash of the video id. SponsorBlock does not get the video id, so it cannot know which video you watch.

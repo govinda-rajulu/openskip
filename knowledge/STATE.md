@@ -19,7 +19,11 @@ Newest checkpoint first. Each section is a dated snapshot; verify live before ac
   5 to 9). Then Supabase login (1.14.0, ROADMAP).
 - **Owner decides:** own OpenSubtitles API key field (only if quota errors); drop free-streaming
   site names from getSiteName(); a headless browser CI job; Edge Add-ons listing.
-- **Unverified live:** Anime Skip, SkipDB, TheIntroDB, AniSkip answers. 1Shows triple subtitles.
+- **Checked live 5 Oct:** TheIntroDB v3 (v1 is gone) for tmdb 603 and imdb tt0903747; SkipDB and IntroDB.
+  **Unverified live:** Anime Skip, AniSkip answers. 1Shows triple subtitles.
+- **Device round 2 (5 Oct):** 7 of 8 passed; the OpenSubtitles count was not confirmed. Found: player
+  frames did not finish start-up (timer this-binding, since 1.11) and TheIntroDB v1 gone. Both fixed
+  in os-133 with the 5S Settings, Sources page and per-kind source merge. Round 3 is in the PR.
 - **Writing:** all docs follow knowledge/handbook/WRITING.md. Mirror it to patch-factory by
   that repo's own PR.
 
@@ -28,7 +32,7 @@ Newest checkpoint first. Each section is a dated snapshot; verify live before ac
 - Sticky resume (`_resumeSeek`, save hold 15 s, `?t=` wins, pending resume 120 s), YouTube ads
   guard (`_ytAdShowing`), mobile YouTube bar (`YT_BAR_SELECTORS`, `_tlKeep`), cloud push at most
   every 20 s plus pause, hidden tab and `pushUnsyncedHistory` every 5 min.
-- Sources: TheIntroDB, AniSkip, Jikan (MAL id), page chapters. Priority IntroDB > TheIntroDB >
+- Sources: TheIntroDB, AniSkip, Jikan (MAL id), page chapters. One source per kind, kinds combine (`mergeSkipSources`, each part has `src`). Order IntroDB > TheIntroDB >
   SkipDB > AniSkip > Anime Skip > page chapters. SponsorBlock `service=YouTube`, `_sbFitDuration`.
 - `sbAuth()`: publishable keys only in `apikey`. CSP `connect-src 'self'`. Setup helper in Settings.
   `ss_put_creds` dropped from supabase_setup.sql (column kept).

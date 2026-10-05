@@ -146,3 +146,8 @@ SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
 - CWS secrets are absent; `cws-submit` fails silently on release. Chrome is unpublished by
   choice.
 - Any shipped file must be in all four workflow file lists (see AGENTS.md).
+- 5 Oct round 2: `const T = { setTimeout, setInterval }` then `T.setInterval(f)` throws in every
+  browser ("does not implement interface Window"); node:vm does not. Tests passed for 4 releases
+  while every player frame aborted start-up. Fake browser timers in tests must check `this`.
+- 5 Oct round 2: a source's API version can disappear. TheIntroDB v1 stopped answering and the
+  tests (fake fetch) stayed green. Check each source live once per release with a known title.

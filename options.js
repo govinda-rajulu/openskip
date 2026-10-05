@@ -192,6 +192,49 @@ $('subEdge')?.addEventListener('change', e => {
 $('showTimeline')?.addEventListener('change', e => br.storage.local.set({ [S.showTimeline]: !!e.target.checked }).catch(() => {}));
 $('skipNotice')?.addEventListener('change', e => br.storage.local.set({ [S.skipNotice]: !!e.target.checked }).catch(() => {}));
 
+// -- Features page: skip mode, resume, next episode (1.13 5S) --
+// Same storage keys and the same mode table as the popup (a test keeps them in step).
+const MODE_TO_SEGS = {
+  'off':        { i: false, r: false, o: false },
+  'prompt':     { i: false, r: false, o: false },
+  'auto-intro': { i: true,  r: false, o: false },
+  'auto-recap': { i: false, r: true,  o: false },
+  'auto-outro': { i: false, r: false, o: true  },
+  'auto-all':   { i: true,  r: true,  o: true  },
+};
+function featShow(d) {
+  const sel = $('featSkipMode');
+  if (sel) sel.value = d.skipEnabled === false ? 'off' : (MODE_TO_SEGS[d.skipMode] ? d.skipMode : 'auto-all');
+  if ($('featResume')) $('featResume').checked = d.resumePlayback !== false;
+  if ($('featAutoNext')) $('featAutoNext').checked = d.autoNextEpisode === true;
+}
+const FEAT_KEYS = ['skipMode', 'skipEnabled', 'resumePlayback', 'autoNextEpisode'];
+br.storage.local.get(FEAT_KEYS).then(featShow).catch(() => {});
+$('featSkipMode')?.addEventListener('change', e => {
+  const mode = MODE_TO_SEGS[e.target.value] ? e.target.value : 'auto-all';
+  const seg = MODE_TO_SEGS[mode];
+  const out = { skipMode: mode, skipEnabled: mode !== 'off', skipIntro: seg.i, skipRecap: seg.r, skipOutro: seg.o };
+  if (mode !== 'off') out.skipstream_last_mode = mode;
+  br.storage.local.set(out).catch(() => {});
+});
+$('featResume')?.addEventListener('change', e => br.storage.local.set({ resumePlayback: !!e.target.checked }).catch(() => {}));
+$('featAutoNext')?.addEventListener('change', e => br.storage.local.set({ autoNextEpisode: !!e.target.checked }).catch(() => {}));
+br.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !FEAT_KEYS.some(k => k in changes)) return;
+  br.storage.local.get(FEAT_KEYS).then(featShow).catch(() => {});
+});
+
+// -- Customise page: accent colour (moved here from the popup in 1.13) --
+(() => {
+  const picker = $('optSeedColor');
+  if (!picker) return;
+  const put = (c) => { if (/^#[0-9a-f]{6}$/i.test(c)) br.storage.local.set({ skipstream_seed_color: c }).catch(() => {}); };
+  br.storage.local.get('skipstream_seed_color').then(d => { if (/^#[0-9a-f]{6}$/i.test(d.skipstream_seed_color || '')) picker.value = d.skipstream_seed_color; }).catch(() => {});
+  picker.addEventListener('input', () => put(picker.value));
+  document.querySelectorAll('.opt-color-dot').forEach(dot => dot.addEventListener('click', () => { picker.value = dot.dataset.color; put(dot.dataset.color); }));
+})();
+if ($('aboutVer')) $('aboutVer').textContent = 'v' + manifest.version;
+
 // -- Supabase one-time setup helper --
 // The anon key cannot create tables (Supabase allows that only to the project
 // owner), so the user runs supabase_setup.sql once. This opens the project's SQL
@@ -277,6 +320,7 @@ function showPanel(id) {
     if (isActive) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current');
   });
   history.replaceState(null, '', '#' + id);
+  if (id === 'sources') loadSourceLogos();
   if (id === 'stats') {
     br.storage.local.get([S.stats]).then(d => loadStats(d)).catch(() => {});
   }
@@ -287,11 +331,26 @@ navItems.forEach(item => {
 });
 
 // Deep-link from popup (History / Stats buttons open options with #hash)
-const HASH_REDIRECTS = { exportimport: 'dataadvanced', advanced: 'dataadvanced', subtitles: 'dataadvanced', skipbehavior: 'connections' };
+// 1.13 5S layout: old names still open the right page.
+const HASH_REDIRECTS = { connections: 'accounts', siterules: 'features', dataadvanced: 'data', exportimport: 'data', advanced: 'data',
+  subtitles: 'customise', skipbehavior: 'features', credits: 'sources' };
 const rawHash = location.hash.replace('#', '');
 const initialHash = HASH_REDIRECTS[rawHash] || rawHash;
 if (initialHash && document.getElementById('panel-' + initialHash)) {
   showPanel(initialHash);
+}
+
+// -- Sources page logos (1.13) --
+// Each source's own site icon, from DuckDuckGo's icon service, loaded only when
+// the Sources page opens. A logo that does not load stays hidden (name only).
+function loadSourceLogos() {
+  document.querySelectorAll('img.src-logo[data-logo]').forEach(img => {
+    if (img.dataset.loaded) return;
+    img.dataset.loaded = '1';
+    img.addEventListener('load', () => { img.hidden = false; });
+    img.addEventListener('error', () => { img.hidden = true; });
+    img.src = img.dataset.logo;
+  });
 }
 
 // -- Alert helpers --

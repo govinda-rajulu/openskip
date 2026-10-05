@@ -56,6 +56,27 @@ You do not need an account or a key for skips, SponsorBlock and resume. Settings
 
 Every user brings their own keys. SkipStream ships no keys for these services.
 
+## Sources
+
+SkipStream uses these services. Logos belong to their owners and show only where data comes from. None of them endorses SkipStream.
+
+| | Source | What it gives | Login |
+|---|---|---|---|
+| <img src="https://icons.duckduckgo.com/ip3/introdb.app.ico" width="16" height="16" alt=""> | [IntroDB](https://introdb.app) | Intro, recap and credits times, by IMDb id | None (key only to send times) |
+| <img src="https://icons.duckduckgo.com/ip3/theintrodb.org.ico" width="16" height="16" alt=""> | [TheIntroDB](https://theintrodb.org) | Intro, recap, credits and preview times, by TMDB or IMDb id | None (key only to send times) |
+| <img src="https://icons.duckduckgo.com/ip3/skipdb.tv.ico" width="16" height="16" alt=""> | [SkipDB](https://skipdb.tv) | Intro, recap, credits and preview times ([ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/)) | None |
+| <img src="https://icons.duckduckgo.com/ip3/sponsor.ajay.app.ico" width="16" height="16" alt=""> | [SponsorBlock](https://sponsor.ajay.app) | YouTube sponsors, reminders, highlights ([CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)) | None |
+| <img src="https://icons.duckduckgo.com/ip3/aniskip.com.ico" width="16" height="16" alt=""> | [AniSkip](https://aniskip.com) | Anime openings, endings and recaps | None |
+| <img src="https://icons.duckduckgo.com/ip3/jikan.moe.ico" width="16" height="16" alt=""> | [Jikan](https://jikan.moe) | MyAnimeList ids for anime titles | None |
+| <img src="https://icons.duckduckgo.com/ip3/anime-skip.com.ico" width="16" height="16" alt=""> | [Anime Skip](https://anime-skip.com) | More anime times | Optional client id |
+| <img src="https://icons.duckduckgo.com/ip3/themoviedb.org.ico" width="16" height="16" alt=""> | [TMDB](https://www.themoviedb.org) | Posters, titles and ids | Optional key |
+| <img src="https://icons.duckduckgo.com/ip3/opensubtitles.com.ico" width="16" height="16" alt=""> | [OpenSubtitles](https://www.opensubtitles.com) | Subtitles | Optional account |
+| <img src="https://icons.duckduckgo.com/ip3/supabase.com.ico" width="16" height="16" alt=""> | [Supabase](https://supabase.com) | Cloud sync in your own project | Optional project |
+
+This product uses TMDB and the TMDB APIs but is not endorsed, certified or otherwise approved by TMDB.
+
+**When two sources have times for the same video:** kinds combine (the intro from one source, the credits from another). Inside one kind, one source gives all its parts, in the order of the table. Two sources are never mixed in one kind, because their times can come from different releases.
+
 ## Privacy
 
 [PRIVACY.md](PRIVACY.md) lists each service and the data that goes to it. Your keys stay in your browser. Your history goes to your own Supabase project only if you set one up. You can switch off technical data (device name, settings backup and stats) in the Firefox add-on settings. SkipStream has no ads and no tracking.

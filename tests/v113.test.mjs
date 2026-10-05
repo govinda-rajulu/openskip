@@ -277,9 +277,9 @@ const route = (map) => (url) => { for (const [k, v] of Object.entries(map)) if (
 test('theintrodb: TMDB id, season, episode and length; credits without an end run to the end', async () => {
   const bg = loadBackground({ fetchImpl: route({ 'api.theintrodb.org': { intro: [{ start_ms: 5000, end_ms: 65000 }], credits: [{ start_ms: 3200000, end_ms: null }], recap: [] } }) });
   const r = await bg.send({ type: 'FETCH_SEGMENTS', imdbId: null, season: 1, episode: 2, tmdbId: 1399, durationSec: 3300 });
-  assert.deepEqual(j(r.data), { intro: { start_sec: 5, end_sec: 65 }, outro: { start_sec: 3200, end_sec: 3300 } });
+  assert.deepEqual(j(r.data), { intro: { start_sec: 5, end_sec: 65, src: 'TheIntroDB' }, outro: { start_sec: 3200, end_sec: 3300, src: 'TheIntroDB' } });
   const u = bg.calls.find((x) => x.url.includes('api.theintrodb.org')).url;
-  assert.equal(u, 'https://api.theintrodb.org/v1/media?tmdb_id=1399&season=1&episode=2&duration_ms=3300000');
+  assert.equal(u, 'https://api.theintrodb.org/v3/media?tmdb_id=1399&season=1&episode=2&duration_ms=3300000');
   assert.equal(bg.calls.some((x) => x.url.includes('introdb.app') || x.url.includes('skipdb')), false, 'no IMDb id: IMDb sources are not asked');
 });
 
@@ -289,19 +289,21 @@ test('theintrodb: IntroDB still wins for the same part; a movie sends no season'
     'api.theintrodb.org': { intro: [{ start_ms: 1000, end_ms: 2000 }], preview: [{ start_ms: 8000000, end_ms: 8100000 }] } }) });
   const r = await bg.send({ type: 'FETCH_SEGMENTS', imdbId: 'tt0133093', season: 0, episode: 0, isMovie: true, tmdbId: 603 });
   assert.equal(r.data.intro.start_sec, 10);
-  assert.ok(r.data.preview);
-  assert.ok(bg.calls.some((x) => x.url === 'https://api.theintrodb.org/v1/media?tmdb_id=603'));
+  assert.equal(r.data.intro.src, 'IntroDB', 'one source per kind: TheIntroDB\'s intro is not mixed in');
+  assert.equal(r.data.preview.src, 'TheIntroDB');
+  assert.ok(bg.calls.some((x) => x.url === 'https://api.theintrodb.org/v3/media?tmdb_id=603'));
 });
 
-test('theintrodb: an IMDb id becomes a TMDB id only with the user\'s own TMDB key', async () => {
+test('theintrodb: with a TMDB key the IMDb id becomes a TMDB id; without one TheIntroDB is asked by IMDb id', async () => {
   const fx = route({ '/find/tt0903747': { tv_results: [{ id: 1396 }] }, 'api.theintrodb.org': { intro: [{ start_ms: 1000, end_ms: 50000 }] } });
   const withKey = loadBackground({ fetchImpl: fx, storage: { tmdbApiKey: 'k123' } });
   const r = await withKey.send({ type: 'FETCH_SEGMENTS', imdbId: 'tt0903747', season: 1, episode: 1 });
-  assert.ok(withKey.calls.some((x) => x.url.startsWith('https://api.theintrodb.org/v1/media?tmdb_id=1396&season=1&episode=1')));
+  assert.ok(withKey.calls.some((x) => x.url.startsWith('https://api.theintrodb.org/v3/media?tmdb_id=1396&season=1&episode=1')));
   assert.equal(r.data.intro.end_sec, 50);
   const noKey = loadBackground({ fetchImpl: fx });
   await noKey.send({ type: 'FETCH_SEGMENTS', imdbId: 'tt0903747', season: 1, episode: 1 });
-  assert.equal(noKey.calls.some((x) => x.url.includes('themoviedb') || x.url.includes('theintrodb')), false);
+  assert.equal(noKey.calls.some((x) => x.url.includes('themoviedb')), false, 'no key: TMDB is never asked');
+  assert.ok(noKey.calls.some((x) => x.url === 'https://api.theintrodb.org/v3/media?imdb_id=tt0903747&season=1&episode=1'));
 });
 
 test('aniskip: openings, endings and recaps by MyAnimeList id and episode length', async () => {
@@ -309,7 +311,7 @@ test('aniskip: openings, endings and recaps by MyAnimeList id and episode length
     { skipType: 'op', interval: { startTime: 60, endTime: 150 } }, { skipType: 'ed', interval: { startTime: 1300, endTime: 1390 } },
     { skipType: 'recap', interval: { startTime: 0, endTime: -1 } }] } }) });
   const r = await bg.send({ type: 'FETCH_SEGMENTS', imdbId: null, season: 1, episode: 3, malId: 21, anime: true, durationSec: 1420.4 });
-  assert.deepEqual(j(r.data), { intro: { start_sec: 60, end_sec: 150 }, outro: { start_sec: 1300, end_sec: 1390 } });
+  assert.deepEqual(j(r.data), { intro: { start_sec: 60, end_sec: 150, src: 'AniSkip' }, outro: { start_sec: 1300, end_sec: 1390, src: 'AniSkip' } });
   assert.equal(bg.calls[0].url, 'https://api.aniskip.com/v2/skip-times/21/3?types[]=op&types[]=ed&types[]=mixed-op&types[]=mixed-ed&types[]=recap&episodeLength=1420');
   const { ctx } = loadBackground();
   assert.equal(ctx.aniSkipSegments({ found: false, results: [] }), null);
@@ -355,7 +357,7 @@ test('chapters: <track kind=chapters> cues and JSON-LD clips named Intro, Recap,
   assert.equal(track.mode, 'hidden', 'cues load only when the track is not disabled');
   const empty = contentFns(['_pageChapters', '_chapterKey'], ['CHAPTER_KEY'], { document: { querySelectorAll: () => [] } });
   assert.equal(empty._pageChapters({ textTracks: [] }), null);
-  assert.match(CONTENT, /if \(!fetched && !ytId\) fetched = _pageChapters\(video\);/, 'lowest priority, never on YouTube');
+  assert.match(CONTENT, /if \(!fetched && !ytId\) \{ fetched = _pageChapters\(video\);/, 'lowest priority, never on YouTube');
 });
 
 // ── Titles and ids ────────────────────────────────────────────────────────────

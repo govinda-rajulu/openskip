@@ -406,6 +406,8 @@ $('subLangSelect')?.addEventListener('change', async () => {
 $('settingsBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') }));
 $('historyBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') + '#history' }));
 $('statsBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') + '#stats' }));
+// Sources and logins live in Settings (1.13 5S); the accent colour moved to Settings > Customise.
+$('sourcesLink')?.addEventListener('click', (e) => { e.preventDefault(); br.tabs.create({ url: br.runtime.getURL('options.html') + '#sources' }); });
 
 // -- Live stats --
 br.storage.onChanged.addListener((changes, area) => {
