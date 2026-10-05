@@ -161,3 +161,6 @@ SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
 - 5 Oct os-139: CodeQL ran on PR #81 and failed with 5 alerts (all in new tests but one), unseen
   since os-130, because packets gate locally and nobody read the PR checks. Packets that merge
   now wait for every PR check, CodeQL included, and stop on any failure.
+- 5 Oct os-140 (assistant's wrong call): the CodeQL fix added a new alert. Never pass a host
+  name to `.includes()` or `.indexOf()`, even on an array: compare with `===` or parse with
+  `new URL().hostname`. CodeQL cannot run locally, so only the PR check proves a CodeQL fix.

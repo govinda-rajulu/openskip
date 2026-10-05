@@ -2,13 +2,29 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
-## Start here (5 Oct 2026, packet os-130, release 1.13.0)
+## Start here (5 Oct 2026 evening, packet os-141, 1.13.0 released)
+
+- **Released:** 1.13.0. PR #81 merged by os-141 after every PR check passed (CodeQL included), tag `v1.13.0`. The tag
+  starts the AMO upload: check the AMO developer page for review status.
+- **In flight:** this knowledge PR (branch `docs/knowledge-20261005`). Docs only.
+- **Owner next:** after AMO publishes 1.13.0, the phone checks (m.youtube.com marks, one
+  YouTube site in History, play 1 minute and switch app, laptop History shows it within
+  5 minutes); the OpenSubtitles count after a download (round 2 step 4, not confirmed); one
+  Netflix and one Prime Video episode (their players can refuse jumps; not tested).
+- **Next code:** the "Agent clean-up (after 1.13)" lane in ROADMAP. Then Supabase login
+  (1.14.0). Later: sending your own skip times (ROADMAP).
+- **This session:** [sessions/2026-10-05-release-1.13.md](sessions/2026-10-05-release-1.13.md)
+  (packets os-130 to os-141, device rounds, decisions, wrong calls).
+- **Checked live 5 Oct:** IntroDB, TheIntroDB v3 (v1 is gone), SkipDB (accepts `duration`).
+  aniskip.com is a parked domain: AniSkip links go to github.com/aniskip.
+- **Owner, outside code:** AMO listing screenshots; Edge Add-ons listing (takes the Chrome ZIP).
+
+## Earlier: 5 Oct 2026 morning, packet os-130 (superseded by the section above)
 
 - **Released:** 1.12.0 (PR #80 merge `eac9924d`, tree `165aa58b`, tag `v1.12.0`, AMO upload OK
   3 Oct 13:11 UTC). AMO public page still showed 1.11.0 on 5 Oct: check the developer page.
-- **In flight:** 1.13.0 PR from packet `os-130` (branch `packet/release-1.13.0-20261005`), built
-  on tree `165aa58b`. Owner: device test the ZIP (checklist in the PR), merge, then run the
-  guarded tag command. The tag publishes to AMO.
+- **In flight (then):** 1.13.0 PR #81 from packet `os-130`. Done: merged and tagged 5 Oct
+  (see the section above).
 - **Owner, outside code:** AMO listing (screenshots, privacy link = PRIVACY.md on GitHub);
   Edge Add-ons listing (free, takes the Chrome ZIP).
   **Firefox for Android updates:** users have no manual add-on update button. Owner path:
