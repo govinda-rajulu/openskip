@@ -164,3 +164,8 @@ SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
 - 5 Oct os-140 (assistant's wrong call): the CodeQL fix added a new alert. Never pass a host
   name to `.includes()` or `.indexOf()`, even on an array: compare with `===` or parse with
   `new URL().hostname`. CodeQL cannot run locally, so only the PR check proves a CodeQL fix.
+- 5 Oct os-145: AMO does not take the icon from the manifest; it shows a default icon until one
+  is uploaded through the API. And the workflow cut release notes at 3000 characters, mid-sentence:
+  cut after a whole line and link the full notes. Read the public AMO page after every release.
+- 5 Oct os-143/144: two packets for the same main were handed out; the owner ran the first.
+  A replacement packet must accept every main the earlier packet can leave (os-145 did).

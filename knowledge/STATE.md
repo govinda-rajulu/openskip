@@ -2,11 +2,15 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
-## Start here (5 Oct 2026 evening, packet os-141, 1.13.0 released)
+## Start here (5 Oct 2026 evening, packets os-141 to os-146, 1.13.0 released)
 
 - **Released:** 1.13.0. PR #81 merged by os-141 after every PR check passed (CodeQL included), tag `v1.13.0`. The tag
-  starts the AMO upload: check the AMO developer page for review status.
-- **In flight:** this knowledge PR (branch `docs/knowledge-20261005`). Docs only.
+  started the AMO upload; AMO made 1.13.0 public the same day.
+- **After the release (no new version):** CodeQL scans shipped code only (`tests/` ignored, PR #83);
+  alert #48 fixed (os-143); 0 open code-scanning alerts. AMO: release notes are cut after a whole
+  line with a link to the GitHub notes, the add-on icon is uploaded, and `Submit to AMO` has a
+  `listing_only` input that updates notes, text and icon without an upload (PR #85, os-145).
+- **In flight:** nothing. This knowledge PR (#82) was merged by os-146.
 - **Owner next:** after AMO publishes 1.13.0, the phone checks (m.youtube.com marks, one
   YouTube site in History, play 1 minute and switch app, laptop History shows it within
   5 minutes); the OpenSubtitles count after a download (round 2 step 4, not confirmed); one
@@ -14,7 +18,7 @@ Newest checkpoint first. Each section is a dated snapshot; verify live before ac
 - **Next code:** the "Agent clean-up (after 1.13)" lane in ROADMAP. Then Supabase login
   (1.14.0). Later: sending your own skip times (ROADMAP).
 - **This session:** [sessions/2026-10-05-release-1.13.md](sessions/2026-10-05-release-1.13.md)
-  (packets os-130 to os-141, device rounds, decisions, wrong calls).
+  (packets os-130 to os-146, device rounds, decisions, wrong calls).
 - **Checked live 5 Oct:** IntroDB, TheIntroDB v3 (v1 is gone), SkipDB (accepts `duration`).
   aniskip.com is a parked domain: AniSkip links go to github.com/aniskip.
 - **Owner, outside code:** AMO listing screenshots; Edge Add-ons listing (takes the Chrome ZIP).
