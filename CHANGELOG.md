@@ -13,6 +13,8 @@
 - Settings could not read its own setup script (security policy). It now can
 - A player address with "&tmdb=1" read the flag as TMDB id 1
 - The AMO listing kept its old text: the update sent categories in the old format. The listing text is new and matches the code
+- OpenSubtitles: Settings said "up to 200 a day". OpenSubtitles gives 5 a day without an account and 20 with a free account. After login, Settings now shows the allowance, and after each download the number left
+- "Check this page" listed only the top page on sites with player frames. Its listener was the last line of the script, so a frame whose start-up stopped early never answered. It now answers first and says when start-up did not finish
 - History showed m.youtube.com and youtube.com (and www. or m. copies of any site) as different sites. Hosts are now saved without www., m. or mobile., History merges the copies, and resume still finds positions saved under the old address
 ### Added
 - New skip sources: TheIntroDB (by TMDB id) and AniSkip (anime, by MyAnimeList id). Jikan finds the MyAnimeList id from the title on anime sites. Chapters that the page gives its player are used when no source answers
@@ -23,6 +25,14 @@
 - Supabase setup helper: when the tables are missing, Settings opens your project's SQL editor with the script filled in, copies it, and checks again
 - Site report: source and server buttons, media that the page loaded or has in its scripts, lazy frames, subtitle files and (Firefox) the player code that the page loaded. At most 30 of each, host and path only
 - Local history now keeps 300 videos (was 100)
+- History: popular sites by name (YouTube, Netflix, JioHotstar, SonyLIV, ZEE5 and more) with each site's own icon. A device filter shows what each device played last
+- Subtitles: 4 more fonts (Rounded, Casual, Condensed, Small capitals), Bold or Regular weight, Depressed and Soft glow edges, Orange and Pink, and a live preview in Settings
+- "Continued from" after a resume is now off by default (Settings > Skipping), like the skip notice
+- Subtitles: "Netflix style" and "Prime Video style". They use Netflix Sans or Amazon Ember only if your device has them (SkipStream cannot include those fonts)
+- CC button: a Settings switch to hide it. It shows only while its video is on the page. In full screen it hides after 5 seconds without mouse, touch or keys. On a normal page you can drag it, and SkipStream keeps the spot
+- OpenSubtitles: SkipStream downloads without your account first. Your account's downloads are used only when that is refused
+- Site report: each frame also shows what SkipStream sees there, and the video position
+- Site report: long random parts of addresses (often tokens) show as <id>. YouTube trailer embeds are no longer listed
 ### Changed
 - supabase_setup.sql no longer makes ss_put_creds (unused since 1.11) and removes it from old projects. The old creds column stays. PRIVACY.md says how to clear it
 - README, PRIVACY, TESTING and the store text are rewritten in plain, short sentences (knowledge/handbook/WRITING.md)

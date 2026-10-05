@@ -12,7 +12,8 @@
       if (x.protocol === 'blob:') return 'blob (stream built in the page)';
       if (x.protocol === 'data:') return 'data:';
       if (!/^https?:$/.test(x.protocol)) return x.protocol;
-      return x.host + x.pathname.slice(0, 80);
+      // Long random path parts are often signed tokens: shown as <id>.
+      return x.host + x.pathname.replace(/[A-Za-z0-9_-]{24,}/g, '<id>').slice(0, 80);
     } catch { return String(u || '').slice(0, 40); }
   };
   const PLAYERS = [
@@ -26,12 +27,15 @@
   const out = {
     frame: cut(location.href), top: window === window.top,
     skipstream: !!window.__skipstream_injected__,
+    ss: null,
     title: String(document.title || '').slice(0, 100),
     referrer: document.referrer ? cut(document.referrer) : '',
     players: [], libs: [], videos: [], iframes: [], ids: [],
     sources: [], loaded: [], inScripts: [], lazyFrames: [], trackFiles: [], globals: [],
   };
   const CAP = 30;
+  // What SkipStream itself sees in this frame (same extension world).
+  try { if (typeof window.__skipstream_diag === 'function') { const d = window.__skipstream_diag(); out.ss = JSON.parse(JSON.stringify(d)); } } catch { /* ok */ }
   const MEDIA_RE = /\.(?:m3u8|mpd|mp4|webm|mkv|vtt|srt|ass)(?:$|[?#])|\/(?:embed|e|v|player|play|stream|watch)\/|\/hls\/|\/dash\//i;
   const addTo = (list, seen, v) => { if (v && !seen.has(v) && list.length < CAP) { seen.add(v); list.push(v); } };
   try {
@@ -51,7 +55,7 @@
       out.videos.push({
         size: Math.round(r.width) + 'x' + Math.round(r.height), source: cut(src), kind,
         duration: Number.isFinite(v.duration) ? Math.round(v.duration) : null,
-        playing: !v.paused, ready: v.readyState, muted: !!v.muted, inShadow: !!v._ssInShadow,
+        playing: !v.paused, at: Number.isFinite(v.currentTime) ? Math.round(v.currentTime) : 0, ready: v.readyState, muted: !!v.muted, inShadow: !!v._ssInShadow,
         tracks: tracks.slice(0, 8),
       });
     }
@@ -111,7 +115,7 @@
       if (out.inScripts.length >= CAP) break;
       const t = String(sc.textContent || '');
       if (!t || t.length > 500000) continue;
-      for (const m of t.match(URL_RE) || []) { if (MEDIA_RE.test(m)) addTo(out.inScripts, seen, cut(m)); }
+      for (const m of t.match(URL_RE) || []) { if (MEDIA_RE.test(m) && !/^https?:\/\/(?:www\.)?youtube(?:-nocookie)?\.com\/embed\//i.test(m)) addTo(out.inScripts, seen, cut(m)); }
     }
   } catch (e) { out.error = (out.error ? out.error + '; ' : '') + 'scripts: ' + String(e).slice(0, 60); }
   try {

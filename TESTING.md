@@ -36,7 +36,10 @@ Enter keys in the extension's Settings page (gear icon in popup).
 - YouTube with SponsorBlock data: marks on the progress bar (desktop and m.youtube.com). Sponsors are skipped with no message.
 - Settings > Skipping: switch on "Skipped, Undo" to see a message after each automatic skip. Alt+Z undoes the last automatic skip.
 - Resume from History: click a video in History. It continues from the saved position, also when the player starts by itself.
-- Settings > Subtitles: letter edge (Outline, Drop shadow, Raised, None).
+- Settings > Subtitles: font, weight, colour and letter edge change the live preview and the subtitles on the video.
+- Settings > History: site icons and names; the device filter lists each device.
+- CC button: hides after 5 seconds without mouse in full screen; drag it on a normal page; Settings > Subtitles can hide it.
+- Check this page on a site with a player frame: every frame is listed.
 - Settings > Cloud: with an empty Supabase project, a setup helper opens the SQL editor with the setup script.
 - Popup > Tools > Site report: lists frames, players, source buttons, loaded media and subtitle files.
 - Sync button in history panel pushes local positions to Supabase and refreshes list

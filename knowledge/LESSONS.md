@@ -31,6 +31,20 @@ SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
     summary ("# pass N"). Node 22 prints TAP when output goes to a file. Node 24 prints its
     "spec" format, so the gate found no numbers and stopped, with 186 tests passing. Always
     pass `--test-reporter=tap`. Rehearse with the owner's Node version.
+11. **Take numbers from the provider, not from old text.** Settings said OpenSubtitles gives
+    "up to 200 a day". OpenSubtitles' help says 5 without an account and 20 with a free
+    account. Its login answer `allowed_downloads` is the allowance, not what is left.
+13. **Register diagnostics first.** The "Check this page" listener was the last line of
+    content.js. If start-up stopped early in a frame, that frame never answered, so 1Shows
+    showed only the top page. A diagnostic must not depend on the code it diagnoses.
+    (Likely cause, verify on the device: the frame now says if start-up did not finish.)
+14. **Use the free tier first.** OpenSubtitles downloads try without the account first, so
+    the account's 20 a day are kept for when the 5 run out.
+15. **Know which HTTP codes are final.** OpenSubtitles says "quota used up" with 406. The
+    retry helper treated 406 as temporary, retried, then threw, so a fallback never ran. A
+    test with a fake 406 found it.
+12. **The device test finds what tests cannot.** Round 1 (5 Oct) found a needless "Continued
+    from" message, wrong download numbers and no way to see another device's history.
 
 ## 3 Oct 2026, evening (1.11.0 device test, 1.12.0, UI refresh)
 

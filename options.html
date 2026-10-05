@@ -279,7 +279,7 @@
         </div>
       </div>
       <div class="card-body">
-        <p class="help" style="margin-bottom:12px">Anonymous: 5 downloads/day. Logged in: up to 200/day. <a href="https://www.opensubtitles.com/#modal-register" target="_blank" rel="noopener">Free account</a>. Subtitle language set in popup.</p>
+        <p class="help" style="margin-bottom:12px">Without an account: 5 downloads a day. With a <a href="https://www.opensubtitles.com/#modal-register" target="_blank" rel="noopener">free account</a>: 20 a day. VIP accounts get more. After you log in, this page shows the number from OpenSubtitles. Set the subtitle language in the popup. SkipStream downloads without your account first, so your account's 20 are used only when the 5 run out.</p>
         <div class="field">
           <label class="field-label" for="osobUsername">Username</label>
           <input type="text" id="osobUsername" placeholder="OpenSubtitles username" autocomplete="off" spellcheck="false">
@@ -303,6 +303,8 @@
             <option value="#ffeb3b">Yellow</option>
             <option value="#7fe7ff">Cyan</option>
             <option value="#b9f6ca">Green</option>
+            <option value="#ffb74d">Orange</option>
+            <option value="#ff9be0">Pink</option>
           </select>
         </div>
         <div class="field">
@@ -311,6 +313,20 @@
             <option value="sans">Sans</option>
             <option value="serif">Serif</option>
             <option value="mono">Monospace</option>
+            <option value="rounded">Rounded</option>
+            <option value="casual">Casual</option>
+            <option value="condensed">Condensed</option>
+            <option value="smallcaps">Small capitals</option>
+            <option value="netflix">Streaming: Netflix style</option>
+            <option value="prime">Streaming: Prime Video style</option>
+          </select>
+          <p class="help">Netflix Sans and Amazon Ember belong to Netflix and Amazon, so SkipStream cannot include them. The streaming styles use them only if your device has them. Else they use the closest system font.</p>
+        </div>
+        <div class="field">
+          <label class="field-label" for="subWeight">Subtitle weight</label>
+          <select id="subWeight">
+            <option value="bold">Bold</option>
+            <option value="regular">Regular</option>
           </select>
         </div>
         <div class="field">
@@ -326,9 +342,22 @@
             <option value="outline">Outline</option>
             <option value="shadow">Drop shadow</option>
             <option value="raised">Raised</option>
+            <option value="depressed">Depressed</option>
+            <option value="glow">Soft glow</option>
             <option value="none">None</option>
           </select>
           <p class="help">An edge makes the letters easier to read on bright scenes.</p>
+        </div>
+        <div class="field">
+          <label class="field-label" for="ccButton">CC button on videos</label>
+          <select id="ccButton">
+            <option value="on">Show</option>
+            <option value="off">Hide</option>
+          </select>
+          <p class="help">The button shows only while a video plays on the page. In full screen it hides after 5 seconds without mouse, touch or keys. On a normal page, drag it to where you want it.</p>
+        </div>
+        <div class="sub-preview" id="subPreview" aria-label="Subtitle preview">
+          <span id="subPreviewText">This is how your subtitles look.</span>
         </div>
         <p class="help">Sync offset: right-click CC on the video. It is remembered for each film or show.</p>
         <div class="btn-row">
@@ -407,6 +436,16 @@
             <span class="slider"></span>
           </label>
         </div>
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <div class="toggle-name">Show "Continued from" after resume</div>
+            <div class="toggle-desc">Off: a video continues from your last position without a message.</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="resumeNotice" aria-label="Show a message when a video continues from the saved position">
+            <span class="slider"></span>
+          </label>
+        </div>
         <p class="help">"Mute" segments are muted instead of skipped. A highlight, when the video has one, is offered as "Jump to highlight" in the first minute.</p>
       </div>
     </div>
@@ -434,8 +473,11 @@
       <div class="card-body">
         <div class="hist-controls">
           <input type="search" id="historySearch" class="hist-input" placeholder="Search title…" autocomplete="off">
-          <select id="historyFilter" class="hist-select">
+          <select id="historyFilter" class="hist-select" aria-label="Site">
             <option value="">All sites</option>
+          </select>
+          <select id="historyDevice" class="hist-select" aria-label="Device">
+            <option value="">All devices</option>
           </select>
         </div>
         <div class="source-pills">

@@ -315,7 +315,8 @@ function diagText(r) {
     + (x.attached && x.segs ? '\n  skips found: ' + x.segs : '')
     + (x.attached && x.auto ? '\n  mode: ' + x.auto : '')
     + (x.attached && x.last ? '\n  last skip: ' + x.last : '')
-    + (x.attached && x.subs ? '\n  subtitles: ' + x.subs : ''));
+    + (x.attached && x.subs ? '\n  subtitles: ' + x.subs : '')
+    + (x.started === false ? '\n  SkipStream did not finish starting in this frame' + (x.error ? ': ' + x.error : '') : (x.error ? '\n  error: ' + x.error : '')));
   const head = f.some(x => x.attached) ? 'SkipStream is watching a video here.'
     : 'No video in use yet. Press play first (on movie sites pick a source), then check again while it plays.';
   return head + '\n' + lines.join('\n');
@@ -336,11 +337,13 @@ function siteReportText(r, version) {
     if (x.players && x.players.length) L.push('  players: ' + x.players.join(', '));
     if (x.libs && x.libs.length) L.push('  scripts: ' + x.libs.join(', '));
     for (const v of x.videos || []) {
-      L.push('  video ' + v.size + ', ' + v.kind + (v.source ? ' (' + v.source + ')' : '') + ', ' + (v.duration ? v.duration + ' s' : 'no length') + (v.playing ? ', playing' : ', paused') + (v.inShadow ? ', inside a player component' : ''));
+      L.push('  video ' + v.size + ', ' + v.kind + (v.source ? ' (' + v.source + ')' : '') + ', ' + (v.duration ? v.duration + ' s' : 'no length') + (v.playing ? ', playing' : ', paused') + (v.at ? ' at ' + v.at + ' s' : '') + (v.inShadow ? ', inside a player component' : ''));
       if (v.tracks && v.tracks.length) L.push('    subtitle tracks: ' + v.tracks.join('; '));
     }
     for (const fr of x.iframes || []) L.push('  iframe ' + fr.src + ' ' + fr.size + (fr.sandbox ? ' sandbox=' + fr.sandbox : ''));
     if (x.ids && x.ids.length) L.push('  ids: ' + x.ids.join(', '));
+    if (x.ss) L.push('  SkipStream: ' + (x.ss.started === false ? 'did not finish starting' : 'running') + ', ' + (Number(x.ss.attached) || 0) + ' video(s) in use'
+      + (x.ss.ident ? ', what: ' + x.ss.ident : '') + (x.ss.segs ? ', skips: ' + x.ss.segs : '') + (x.ss.error ? ', error: ' + x.ss.error : ''));
     if (x.globals && x.globals.length) L.push('  page player code: ' + x.globals.join(', '));
     const many = (head, list) => { if (list && list.length) { L.push('  ' + head + ' (' + list.length + '):'); for (const s of list) L.push('    ' + s); } };
     many('source buttons', x.sources);

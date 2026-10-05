@@ -23,6 +23,10 @@ SkipStream has no server. It sends nothing to its developer. To work, it sends s
 - **Spotify and SoundCloud** (open.spotify.com, soundcloud.com, oEmbed): the address of a saved Spotify or SoundCloud page, without its query string, to show artwork in History.
 - **YouTube thumbnails** (i.ytimg.com): the YouTube video id, to show artwork in History.
 
+## Sent when you open History in Settings
+
+- **Site icons:** for each site in your History, Settings loads the icon (`/favicon.ico`) from that site itself. The site gets your IP address and a request for its icon, with no referrer. If a site has no icon, SkipStream shows the first letter of its name.
+
 ## Technical data you can switch off
 
 Firefox calls the device name, the settings backup and usage stats *technical and interaction data*. It is on by default. You can switch it off when you install SkipStream. You can also switch it off later in about:addons > SkipStream > Permissions and data. When it is off, playback still syncs without the device name. Settings and stats then stay on this device.

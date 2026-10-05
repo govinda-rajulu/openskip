@@ -36,7 +36,20 @@ Newest checkpoint first. Each section is a dated snapshot; verify live before ac
   history 300, AMO listing fix (flat categories, STE text, `--print-listing`).
 - One site, one name: `_canonHost` drops www., m. and mobile. from saved hosts and ids. Resume
   still finds positions saved under the old id (`_legacyMediaId`). History merges both copies.
-- Tests: 186 (48 in tests/v113.test.mjs, checked to fail on the 1.12.0 tree).
+- Device test round 1 (5 Oct, laptop): 1 to 5, 8, 9, 10 OK; 6 and phone items wait for the AMO
+  build. Fixed from it (packet os-131, same PR #81): "Continued from" opt-in (`resumeNotice`),
+  OpenSubtitles numbers, History device filter and site names and icons, subtitle fonts, weight,
+  edges and preview, site report token masking.
+- Cross-device history needs both browsers linked (Settings > Backup > Link devices) until the
+  Supabase login (1.14). Each cloud row keeps only the device that played it last.
+- Site report on 1Shows (5 Oct): the player is Vidstack + video.js 8.12 + hls.js 1.7.3 in
+  viduki.net, with 30 of the site's own subtitle tracks (all off). Check this page needs play first.
+- Round 1, part 2 (same packet, now os-132): OpenSubtitles downloads without the account first
+  (HTTP 406 = quota, no longer retried); Netflix and Prime Video subtitle styles (local fonts
+  only); CC button switch, 5 s auto-hide in full screen, drag on a normal page; Check this page
+  listener moved to the top (frames now answer and report unfinished start-up); Site report
+  shows SkipStream's own view per frame and the video position.
+- Tests: 199.
 
 ## Start here (3 Oct 2026, end of the long session)
 

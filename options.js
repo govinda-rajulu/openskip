@@ -42,6 +42,9 @@ const S = {
   subFont:            'subtitle_font',
   subOutline:         'subtitle_outline',
   subEdge:            'subtitle_edge',
+  subWeight:          'subtitle_weight',
+  resumeNotice:       'resumeNotice',
+  ccButton:           'ccButton',
   subOffsets:         'subtitle_offsets',
   sbModes:            'sbModes',
   showTimeline:       'showTimeline',
@@ -80,8 +83,42 @@ function bgSend(msg) {
 const CLOUD_PREF_ALLOW = ['skipEnabled', 'skipMode', 'skipIntro', 'skipRecap', 'skipOutro',
   'resumePlayback', 'autoNextEpisode', 'playbackSpeed',
   'subtitle_language', 'subtitle_font_size', 'subtitle_enabled',
-  'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_edge', 'sbModes', 'showTimeline', 'skipNotice'];
-const SUB_EDGE_VALUES = new Set(['outline', 'shadow', 'raised', 'none']);
+  'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_edge', 'subtitle_weight', 'sbModes', 'showTimeline', 'skipNotice', 'resumeNotice', 'ccButton'];
+const SUB_EDGE_VALUES = new Set(['outline', 'shadow', 'raised', 'depressed', 'glow', 'none']);
+const SUB_FONT_VALUES = new Set(['sans', 'serif', 'mono', 'rounded', 'casual', 'condensed', 'smallcaps', 'netflix', 'prime']);
+// Same look as content.js _subLook, for the live preview (a test keeps the two in step).
+const SUB_FONTS = {
+  sans: 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',
+  serif: 'Georgia,"Times New Roman",serif',
+  mono: 'ui-monospace,Consolas,"Courier New",monospace',
+  rounded: 'ui-rounded,"SF Pro Rounded","Nunito","Varela Round","Arial Rounded MT Bold",system-ui,sans-serif',
+  casual: '"Comic Neue","Comic Sans MS","Chalkboard SE","Segoe Print",cursive,sans-serif',
+  condensed: '"Roboto Condensed","Arial Narrow","Sofia Sans Condensed","Helvetica Neue",sans-serif',
+  smallcaps: 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',
+  netflix: '"Netflix Sans","Helvetica Neue",Helvetica,Arial,sans-serif',
+  prime: '"Amazon Ember","Segoe UI","Helvetica Neue",Arial,sans-serif',
+};
+const SUB_EDGES = {
+  outline: '0 2px 8px rgba(0,0,0,0.7), 0 0 3px rgba(0,0,0,0.9), 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000',
+  shadow: '2px 2px 3px rgba(0,0,0,0.95), 3px 3px 6px rgba(0,0,0,0.6)',
+  raised: '-1px -1px 0 rgba(255,255,255,0.45), 1px 1px 0 rgba(0,0,0,0.95), 2px 2px 0 rgba(0,0,0,0.6)',
+  depressed: '1px 1px 0 rgba(255,255,255,0.45), -1px -1px 0 rgba(0,0,0,0.95), -2px -2px 0 rgba(0,0,0,0.6)',
+  glow: '0 0 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.85), 0 0 18px rgba(0,0,0,0.6)',
+  none: 'none',
+};
+function subPreview() {
+  const box = $('subPreviewText'); if (!box) return;
+  const v = (id, d) => ($(id) && $(id).value) || d;
+  const font = v('subFont', 'sans'), edge = v('subEdge', 'outline'), bg = Number(v('subBg', 38));
+  const size = Number(v('subFontSize', 18));
+  Object.assign(box.style, {
+    color: v('subColor', '#ffffff'), fontFamily: SUB_FONTS[font] || SUB_FONTS.sans, textShadow: SUB_EDGES[edge] || SUB_EDGES.outline,
+    background: 'rgba(0,0,0,' + (Number.isFinite(bg) ? Math.max(0, Math.min(90, bg)) / 100 : 0.38) + ')',
+    fontWeight: v('subWeight', 'bold') === 'regular' ? '500' : '700', fontVariant: font === 'smallcaps' ? 'small-caps' : 'normal',
+    fontSize: (Number.isFinite(size) ? Math.max(12, Math.min(40, size)) : 18) + 'px',
+  });
+}
+['subFont', 'subEdge', 'subBg', 'subColor', 'subWeight', 'subFontSize'].forEach(id => { $(id)?.addEventListener('input', subPreview); $(id)?.addEventListener('change', subPreview); });
 
 const subFontSizeInput = $('subFontSize');
 if (subFontSizeInput) {
@@ -119,11 +156,15 @@ function cleanSbModes(v) {
   }
   return out;
 }
-br.storage.local.get([S.subColor, S.subBg, S.subFont, S.subOutline, S.subEdge, S.sbModes, S.showTimeline, S.skipNotice]).then(d => {
+br.storage.local.get([S.subColor, S.subBg, S.subFont, S.subOutline, S.subEdge, S.subWeight, S.sbModes, S.showTimeline, S.skipNotice, S.resumeNotice, S.ccButton]).then(d => {
+  if ($('ccButton')) $('ccButton').value = d[S.ccButton] === 'off' ? 'off' : 'on';
+  if ($('resumeNotice')) $('resumeNotice').checked = d[S.resumeNotice] === true;
+  if ($('subWeight')) $('subWeight').value = d[S.subWeight] === 'regular' ? 'regular' : 'bold';
   if ($('subEdge')) $('subEdge').value = SUB_EDGE_VALUES.has(d[S.subEdge]) ? d[S.subEdge] : (d[S.subOutline] === false ? 'none' : 'outline');
   if ($('skipNotice')) $('skipNotice').checked = d[S.skipNotice] === true;
   if ($('subColor')) $('subColor').value = /^#[0-9a-f]{6}$/i.test(d[S.subColor] || '') ? d[S.subColor] : '#ffffff';
-  if ($('subFont')) $('subFont').value = ['sans', 'serif', 'mono'].includes(d[S.subFont]) ? d[S.subFont] : 'sans';
+  if ($('subFont')) $('subFont').value = SUB_FONT_VALUES.has(d[S.subFont]) ? d[S.subFont] : 'sans';
+  setTimeout(subPreview, 0);
   const bg = Number.isFinite(Number(d[S.subBg])) && d[S.subBg] !== undefined ? Number(d[S.subBg]) : 38;
   if ($('subBg')) $('subBg').value = String(bg);
   if ($('subBgValue')) $('subBgValue').textContent = bg + '%';
@@ -134,6 +175,9 @@ br.storage.local.get([S.subColor, S.subBg, S.subFont, S.subOutline, S.subEdge, S
 }).catch(() => {});
 $('subColor')?.addEventListener('change', e => br.storage.local.set({ [S.subColor]: e.target.value }).catch(() => {}));
 $('subFont')?.addEventListener('change', e => br.storage.local.set({ [S.subFont]: e.target.value }).catch(() => {}));
+$('subWeight')?.addEventListener('change', e => br.storage.local.set({ [S.subWeight]: e.target.value === 'regular' ? 'regular' : 'bold' }).catch(() => {}));
+$('ccButton')?.addEventListener('change', e => br.storage.local.set({ [S.ccButton]: e.target.value === 'off' ? 'off' : 'on' }).catch(() => {}));
+$('resumeNotice')?.addEventListener('change', e => br.storage.local.set({ [S.resumeNotice]: !!e.target.checked }).catch(() => {}));
 $('subBg')?.addEventListener('input', e => {
   const v = Math.max(0, Math.min(90, Number.parseInt(e.target.value, 10) || 0));
   if ($('subBgValue')) $('subBgValue').textContent = v + '%';
@@ -514,14 +558,12 @@ async function verifyAll() {
   const dotOsub = $('dot-osub');
   const msgOsub = $('msg-osub');
   if (res?.loggedIn) {
-    const msg = res.downloads_remaining != null
-      ? `Logged in - ${res.downloads_remaining} downloads remaining today`
-      : 'Logged in';
+    const msg = osubQuotaText(res, 'Logged in');
     if (dotOsub) dotOsub.className = 'status-dot ok';
     if (msgOsub) { msgOsub.className = 'status-msg ok'; msgOsub.textContent = msg; }
   } else {
     if (dotOsub) dotOsub.className = 'status-dot warn';
-    if (msgOsub) { msgOsub.className = 'status-msg warn'; msgOsub.textContent = 'Anonymous - 5 downloads/day (login to increase)'; }
+    if (msgOsub) { msgOsub.className = 'status-msg warn'; msgOsub.textContent = 'Not logged in: 5 downloads a day. Log in for 20 a day.'; }
   }
   const d = $('dot-introdb');
   const overall = d?.classList.contains('ok') ? 'ok' :
@@ -558,7 +600,7 @@ async function loadCredentials() {
   if (dotOsub) {
     if (osubStatus?.loggedIn) {
       setDot(dotOsub, 'ok');
-      const msg = osubStatus.downloads_remaining != null ? `Logged in — ${osubStatus.downloads_remaining} downloads remaining today` : 'Logged in';
+      const msg = osubQuotaText(osubStatus, 'Logged in');
       showAlert($('alert-osub'), 'ok', msg);
     } else {
       setDot(dotOsub, '');
@@ -889,6 +931,53 @@ function canonMediaKey(id) {
   return m ? canonHost(m[1]) + (m[2] || '') : String(id || '');
 }
 
+// OpenSubtitles numbers come from OpenSubtitles: the daily allowance at login
+// (free account 20), and what is left after each download.
+function osubQuotaText(r, fallback) {
+  if (r && r.downloads_remaining != null) return 'Logged in: ' + r.downloads_remaining + ' downloads left today';
+  if (r && r.downloads_allowed != null) return 'Logged in: your account allows ' + r.downloads_allowed + ' downloads a day';
+  return fallback;
+}
+
+// Popular sites by name, and each site's own icon (loaded from the site itself).
+const KNOWN_SITE_NAMES = {
+  'youtube.com': 'YouTube', 'youtu.be': 'YouTube', 'netflix.com': 'Netflix', 'primevideo.com': 'Prime Video', 'amazon.com': 'Prime Video',
+  'hotstar.com': 'JioHotstar', 'jiohotstar.com': 'JioHotstar', 'jiocinema.com': 'JioCinema', 'sonyliv.com': 'SonyLIV', 'zee5.com': 'ZEE5',
+  'mxplayer.in': 'MX Player', 'aha.video': 'aha', 'sunnxt.com': 'Sun NXT', 'disneyplus.com': 'Disney+', 'hulu.com': 'Hulu',
+  'max.com': 'Max', 'hbomax.com': 'Max', 'crunchyroll.com': 'Crunchyroll', 'peacocktv.com': 'Peacock', 'paramountplus.com': 'Paramount+',
+  'tv.apple.com': 'Apple TV+', 'tubi.tv': 'Tubi', 'pluto.tv': 'Pluto TV', 'plex.tv': 'Plex', 'vimeo.com': 'Vimeo', 'twitch.tv': 'Twitch',
+  'dailymotion.com': 'Dailymotion', 'spotify.com': 'Spotify', 'soundcloud.com': 'SoundCloud', 'bilibili.com': 'Bilibili', 'viki.com': 'Viki',
+  'mubi.com': 'MUBI', 'hoichoi.tv': 'hoichoi',
+};
+function siteDisplayName(host, siteName) {
+  const h = canonHost(host);
+  for (const [k, name] of Object.entries(KNOWN_SITE_NAMES)) if (h === k || h.endsWith('.' + k)) return name;
+  return String(siteName || '').trim() || h;
+}
+function siteIcon(host, label) {
+  const h = canonHost(host);
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(h)) return null;
+  const img = document.createElement('img');
+  img.className = 'h-site-icon'; img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+  img.addEventListener('error', () => {
+    const b = document.createElement('span');
+    b.className = 'h-site-letter';
+    b.textContent = String(label || h).charAt(0).toUpperCase();
+    img.replaceWith(b);
+  }, { once: true });
+  img.src = 'https://' + h + '/favicon.ico';
+  return img;
+}
+// The device a history row was last played on. Rows from this browser's own
+// cache carry no name: they get this browser's name, as the cloud copy does.
+function myDeviceName() {
+  const n = (($('deviceName') && $('deviceName').value) || '').trim();
+  if (n) return n;
+  const ua = String((typeof navigator !== 'undefined' && navigator.userAgent) || '');
+  return ua.includes('Firefox') ? 'Firefox' : /Edg(A|iOS)?\//.test(ua) ? 'Edge' : 'Chrome';
+}
+function itemDevice(item) { return (item && item.device) || (item && item.fromCloud ? 'Unknown device' : myDeviceName()); }
+
 function getHistoryItems() {
   if (historySource === 'local') return _histLocal;
   if (historySource === 'cloud') return _histCloud;
@@ -1024,11 +1113,13 @@ function renderHistory(items) {
   }
   const search = ($('historySearch') || {}).value || '';
   const filter = ($('historyFilter') || {}).value || '';
+  const devFilter = ($('historyDevice') || {}).value || '';
   const filtered = items.filter(item => {
     const title = (item.title || item.videoTitle || '').toLowerCase();
     const site = canonHost(item.site || item.siteName);
     return (!search || title.includes(search.toLowerCase()))
-      && (!filter || site === filter.toLowerCase());
+      && (!filter || site === filter.toLowerCase())
+      && (!devFilter || itemDevice(item) === devFilter);
   });
 
   if (!filtered.length) {
@@ -1088,7 +1179,11 @@ function renderHistory(items) {
     if (site) {
       const siteEl = document.createElement('span');
       siteEl.className = 'h-site';
-      siteEl.textContent = site;
+      const siteLabel = siteDisplayName(site, item.siteName);
+      const icon = siteIcon(site, siteLabel);
+      if (icon) siteEl.appendChild(icon);
+      siteEl.appendChild(document.createTextNode(siteLabel));
+      siteEl.title = site;
       meta.appendChild(siteEl);
     }
     if (isCloud) {
@@ -1097,10 +1192,10 @@ function renderHistory(items) {
       cloudEl.textContent = 'Cloud';
       meta.appendChild(cloudEl);
     }
-    if (item.device) {
+    if (itemDevice(item)) {
       const deviceEl = document.createElement('span');
       deviceEl.className = 'h-device';
-      deviceEl.textContent = item.device;
+      deviceEl.textContent = itemDevice(item) === myDeviceName() ? itemDevice(item) + ' (this one)' : itemDevice(item);
       meta.appendChild(deviceEl);
     }
     if (posStr) {
@@ -1222,9 +1317,25 @@ async function loadHistory(data) {
     filterEl.appendChild(allOpt);
     sites.forEach(s => {
       const opt = document.createElement('option');
-      opt.value = s; opt.textContent = s;
+      opt.value = s; opt.textContent = siteDisplayName(s, '');
       filterEl.appendChild(opt);
     });
+  }
+
+  const devEl = $('historyDevice');
+  if (devEl) {
+    const keep = devEl.value;
+    const devs = [...new Set((getHistoryItems() || []).map(itemDevice).filter(Boolean))].sort();
+    devEl.replaceChildren();
+    const all = document.createElement('option');
+    all.value = ''; all.textContent = 'All devices';
+    devEl.appendChild(all);
+    devs.forEach(d => {
+      const o = document.createElement('option');
+      o.value = d; o.textContent = d === myDeviceName() ? d + ' (this one)' : d;
+      devEl.appendChild(o);
+    });
+    devEl.value = devs.includes(keep) ? keep : '';
   }
 
   allHistory = getHistoryItems();
@@ -1232,6 +1343,7 @@ async function loadHistory(data) {
 
   if (!historyListenersAttached) {
   historyListenersAttached = true;
+  $('historyDevice')?.addEventListener('change', () => renderHistory(allHistory));
   document.querySelectorAll('.source-pill').forEach(pill => {
     pill.addEventListener('click', () => {
       historySource = pill.dataset.source;
@@ -1323,7 +1435,7 @@ function backupKit(subtle, randomBytes) {
     'autoNextEpisode', 'playbackSpeed', 'animeSkipEnabled', 'skipstream_site_rules', 'deviceName',
     'subtitle_language', 'subtitle_font_size', 'subtitle_enabled', 'subtitle_sync', 'subtitle_drag_pos',
     'skipstream_theme', 'skipstream_seed_color',
-    'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_edge', 'subtitle_offsets', 'sbModes', 'showTimeline', 'skipNotice'];
+    'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_edge', 'subtitle_weight', 'subtitle_offsets', 'sbModes', 'showTimeline', 'skipNotice', 'resumeNotice', 'ccButton', 'subtitle_cc_pos'];
   const STATS = ['skipstream_stats', 'statsSkipsToday', 'statsDate', 'statsTotalSkips', 'statsTotalTimeSaved', 'statsSessions'];
   const SECRETS = ['supabaseUrl', 'supabaseAnonKey', 'introdbApiKey', 'tmdbApiKey', 'animeSkipClientId',
     'animeSkipAuthToken', 'osub_username', 'osub_password'];
@@ -1488,7 +1600,7 @@ if (exportBtn) {
 // -- Import migration shim: handles schema changes from 1.6.5 and earlier --
 // H18: an imported value must have the type the extension reads, or it is skipped.
 const IMPORT_BOOL = new Set([S.animeSkipEnabled, S.skipIntro, S.skipRecap, S.skipOutro, S.resumePlayback,
-  S.autoNextEpisode, S.subEnabled, S.skipEnabled, S.subOutline, S.showTimeline, S.skipNotice]);
+  S.autoNextEpisode, S.subEnabled, S.skipEnabled, S.subOutline, S.showTimeline, S.skipNotice, S.resumeNotice]);
 const IMPORT_MODES = new Set(['off', 'prompt', 'auto-intro', 'auto-recap', 'auto-outro', 'auto-all']);
 function importValueOk(key, v) {
   const num = (x, lo, hi) => typeof x === 'number' && Number.isFinite(x) && x >= lo && x <= hi;
@@ -1505,7 +1617,10 @@ function importValueOk(key, v) {
     case S.themeSeed:    return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
     case S.subColor:     return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
     case S.subBg:        return num(Number(v), 0, 90) && typeof v === 'number';
-    case S.subFont:      return v === 'sans' || v === 'serif' || v === 'mono';
+    case S.subFont:      return SUB_FONT_VALUES.has(v);
+    case S.subWeight:    return v === 'bold' || v === 'regular';
+    case S.ccButton:     return v === 'on' || v === 'off';
+    case 'subtitle_cc_pos': return !!v && typeof v === 'object' && !Array.isArray(v) && num(v.left, 0, 100) && num(v.bottom, 0, 5000);
     case S.subEdge:      return SUB_EDGE_VALUES.has(v);
     case S.sbModes:      return !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 12 && Object.values(v).every(x => SB_MODE_VALUES.has(x));
     case S.subOffsets:   return !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length <= 200 && Object.entries(v).every(([k, x]) => /^tt\d{7,8}$/.test(k) && num(Number(x), -600, 600));
@@ -1745,7 +1860,7 @@ if (saveOsubBtn) {
     const dotOsub = $('dot-osub');
     if (res?.ok) {
       setDot(dotOsub, 'ok');
-      const msg = res.downloads_remaining != null ? `Logged in — ${res.downloads_remaining} downloads remaining today` : 'Logged in successfully.';
+      const msg = osubQuotaText(res, 'Logged in successfully.');
       showAlert($('alert-osub'), 'ok', msg);
     } else {
       setDot(dotOsub, 'err');

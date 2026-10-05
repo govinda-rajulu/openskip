@@ -315,7 +315,8 @@ async function fetchWithRetry(url, options = {}, retries = FETCH_RETRY_COUNT) {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url, options);
-      if ([400, 401, 403, 404, 409, 422].includes(res.status)) return res;
+      // 406: OpenSubtitles' "daily downloads used up". Never temporary, never retried.
+      if ([400, 401, 403, 404, 406, 409, 422].includes(res.status)) return res;
       if (res.ok) return res;
       lastErr = new Error(`Status ${res.status}`);
     } catch (e) { lastErr = e; }
@@ -830,7 +831,7 @@ function osubHost(h) {
 const SYNC_PREF_KEYS = ['skipEnabled', 'skipMode', 'skipIntro', 'skipRecap', 'skipOutro',
   'resumePlayback', 'autoNextEpisode', 'playbackSpeed',
   'subtitle_language', 'subtitle_font_size', 'subtitle_enabled',
-  'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_edge', 'sbModes', 'showTimeline', 'skipNotice'];
+  'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_edge', 'subtitle_weight', 'sbModes', 'showTimeline', 'skipNotice', 'resumeNotice', 'ccButton'];
 
 function pickSyncPrefs(obj) {
   const out = {};
@@ -907,6 +908,11 @@ const OSUB_SUB_CACHE = 'osub_sub_cache'; // file_id → srt text, capped 20 entr
 const OSUB_CACHE_CHARS = 2000000;         // about 2 MB of text; storage is shared with history and settings
 
 let _osubReloginTs = 0;
+// A saved, still valid session only. Never logs in (login is slow and rate limited).
+async function osubCachedSession() {
+  try { const s = (await br.storage.local.get(OSUB_SESS_KEY))[OSUB_SESS_KEY]; return s?.token && s.expiry > Date.now() ? s : null; } catch { return null; }
+}
+
 async function osubGetSession() {
   try {
     const s = await br.storage.local.get([OSUB_SESS_KEY, 'osub_username', 'osub_password']);
@@ -938,11 +944,13 @@ async function osubLogin(username, password) {
     const sess = {
       token:    data.token,
       base_url: osubHost(data.base_url),
-      downloads_remaining: data.user?.allowed_downloads ?? null,
+      // allowed_downloads is the daily allowance (free account: 20), not what is left.
+      downloads_allowed: data.user?.allowed_downloads ?? null,
+      downloads_remaining: null,
       expiry:   Date.now() + 23 * 60 * 60 * 1000,
     };
     await br.storage.local.set({ [OSUB_SESS_KEY]: sess });
-    return { ok: true, downloads_remaining: sess.downloads_remaining };
+    return { ok: true, downloads_remaining: sess.downloads_remaining, downloads_allowed: sess.downloads_allowed };
   } catch (e) { return { ok: false, err: String(e) }; }
 }
 
@@ -1000,13 +1008,13 @@ async function osubDownload(file_id, sess) {
     });
     if (!r.ok) {
       const txt = await r.text().catch(() => '');
-      return { ok: false, err: `HTTP ${r.status}${txt ? ' - ' + txt.slice(0, 120) : ''}` };
+      return { ok: false, status: r.status, err: `HTTP ${r.status}${txt ? ' - ' + txt.slice(0, 120) : ''}` };
     }
     const data = await r.json();
     if (!data.link) return { ok: false, err: 'No download link' };
 
-    // Update remaining downloads in session cache
-    if (data.remaining !== undefined) {
+    // Update remaining downloads in session cache (account downloads only)
+    if (data.remaining !== undefined && sess?.token) {
       try {
         const s = await br.storage.local.get(OSUB_SESS_KEY);
         const sess2 = s[OSUB_SESS_KEY];
@@ -1179,6 +1187,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         ident: String(r.ident || '').slice(0, 120), segs: String(r.segs || '').slice(0, 120),
         subs: String(r.subs || '').slice(0, 120), last: String(r.last || '').slice(0, 120),
         auto: String(r.auto || '').slice(0, 80),
+        started: r.started !== false, error: String(r.error || '').slice(0, 120),
       });
     }
     sendResponse({ ok: true });
@@ -1492,6 +1501,7 @@ if (msg.type === 'OSUB_LOGIN') {
     osubGetSession().then(sess => sendResponse({
       loggedIn: !!sess,
       downloads_remaining: sess?.downloads_remaining ?? null,
+      downloads_allowed: sess?.downloads_allowed ?? null,
     }));
     return true;
   }
@@ -1499,7 +1509,8 @@ if (msg.type === 'OSUB_LOGIN') {
   if (msg.type === 'OSUB_SEARCH_AND_FETCH') {
     (async () => {
       const { imdbId, season, episode, language, query, year } = msg;
-      const sess = await osubGetSession();
+      // Search with a saved session if there is one (searches cost nothing).
+      const sess = await osubCachedSession();
       let result = await osubSearch(imdbId, season, episode, language, sess, query, year);
 
       // Fallback to English if primary language has no results
@@ -1508,8 +1519,15 @@ if (msg.type === 'OSUB_LOGIN') {
       }
 
       if (!result) { sendResponse({ ok: false, err: 'no_results' }); return; }
-      const dl = await osubDownload(result.file_id, sess);
-      sendResponse({ ...dl, file_id: result.file_id, name: result.name });
+      // Download without the account first (5 a day per address), so the account's
+      // own 20 a day are used only when that is refused (owner request, 5 Oct).
+      let dl = await osubDownload(result.file_id, null);
+      let via = 'no account';
+      if (!dl.ok && dl.status && dl.status !== 404) {
+        const acct = await osubGetSession();
+        if (acct?.token) { dl = await osubDownload(result.file_id, acct); via = 'account'; }
+      }
+      sendResponse({ ...dl, via, file_id: result.file_id, name: result.name });
     })();
     return true;
   }

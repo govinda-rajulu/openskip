@@ -8,6 +8,37 @@
 
   const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
+  // ── "Check this page" answers first (1.13) ─────────────────────────────────
+  // Registered before anything else can fail, so every frame answers, and says
+  // whether start-up finished. Up to 1.13 this listener was the last line: a frame
+  // whose start-up stopped early never answered (1Shows showed only the top page).
+  let _ssBootDone = false;
+  function _ssDiagReport() {
+    const base = { frame: (location.hostname || location.protocol) + location.pathname, top: window === window.top, started: _ssBootDone };
+    try {
+      const light = Array.from(document.querySelectorAll('video'));
+      const hidden = _shadowVideos(document, 0, [], 6);
+      let blank = 0;
+      document.querySelectorAll('iframe').forEach(f => {
+        const s = f.getAttribute('src');
+        if (!s || s === 'about:blank' || f.hasAttribute('srcdoc')) blank++;
+      });
+      const attached = light.concat(hidden).filter(v => attachedVideos.has(v)).length;
+      return Object.assign(base, { videos: light.length, hidden: hidden.length, blankFrames: blank, attached,
+        ident: _diag.id, segs: _diag.segs, subs: _diag.subs, last: _diagLast(_diag.last, Date.now()), auto: _diagAuto(_ssEffPrefs || prefs) });
+    } catch (e) {
+      let n = 0; try { n = document.querySelectorAll('video').length; } catch { /* ok */ }
+      return Object.assign(base, { videos: n, error: String(e && e.message || e).slice(0, 100) });
+    }
+  }
+  // Site report (probe.js runs in this same extension world) reads it directly.
+  try { window.__skipstream_diag = _ssDiagReport; } catch { /* ok */ }
+  br.runtime.onMessage.addListener((msg) => {
+    if (!msg || msg.type !== 'SS_DIAG_PING') return false;
+    try { br.runtime.sendMessage({ type: 'SS_DIAG_REPORT', report: _ssDiagReport() }).catch(() => {}); } catch { /* never break the page */ }
+    return false;
+  });
+
   // ── SPA navigation tracking ────────────────────────────────────────────────────
   // Each attached video tracks its own href (see _vidHref in attachVideo), so a
   // URL change is seen by every video, not only the first one to poll.
@@ -133,7 +164,7 @@
 
   // ── User prefs ─────────────────────────────────────────────────────────────
 
-  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipEnabled: true, autoNextEpisode: false, deviceName: '', sbModes: null, showTimeline: true, skipNotice: false };
+  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipEnabled: true, autoNextEpisode: false, deviceName: '', sbModes: null, showTimeline: true, skipNotice: false, resumeNotice: false, ccButton: 'on' };
   let prefs = { ...PREF_DEFAULTS };
 let _ssEffPrefs = null;
 // What this frame found, for the popup's "Check this page" (local only, never sent anywhere).
@@ -365,6 +396,9 @@ function _pageUrl() {
       'paramountplus.com': 'Paramount+',
       'appletv.apple.com': 'Apple TV+',
       'tubi.tv': 'Tubi',
+      'hotstar.com': 'JioHotstar', 'jiohotstar.com': 'JioHotstar', 'jiocinema.com': 'JioCinema',
+      'sonyliv.com': 'SonyLIV', 'zee5.com': 'ZEE5', 'mxplayer.in': 'MX Player', 'aha.video': 'aha',
+      'sunnxt.com': 'Sun NXT', 'pluto.tv': 'Pluto TV', 'twitch.tv': 'Twitch', 'dailymotion.com': 'Dailymotion',
       '1shows.org': '1Shows',
       'fmovies.to': 'FMovies',
       'soap2day.ac': 'Soap2Day',
@@ -784,7 +818,8 @@ function _pageUrl() {
     if (saved.d && saved.p / saved.d > 0.95 && saved.d - saved.p < 60) return;
 
     // Silent resume: seek, then a brief toast once the position holds.
-    _resumeSeek(video, saved.p, mediaId, false, () => showResumeToast(video, saved.p));
+    // "Continued from" is off by default (Settings > Skipping), like the skip notice.
+    _resumeSeek(video, saved.p, mediaId, false, () => { if (prefs.resumeNotice) showResumeToast(video, saved.p); });
   }
 
   // Seek to a saved position and make it stick. YouTube and other players reset
@@ -1911,17 +1946,89 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   let _subState = { enabled: true, language: 'en', fontSize: 18, position: 12, sync: 0, subs: [], loading: false, dragPos: { x: 50, bottom: 10 } };
   let _subOverlay = null;
   let _subCCBtn   = null;
+  // CC button (1.13): only while its video is on the page and big enough; hides
+  // after 5 s without mouse, touch or keys in full screen; drag it on a normal page
+  // (the spot is remembered); Settings > Subtitles can switch it off.
+  const CC_IDLE_MS = 5000;
+  let _ccVideo = null, _ccIdleT = null, _ccWatchT = null;
+  function _ccFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function _ccApplyPos(btn, pos) {
+    if (!btn) return;
+    if (_ccFs() || !pos) { btn.style.left = '3%'; btn.style.bottom = '68px'; return; }
+    const l = Number(pos.left), b = Number(pos.bottom);
+    if (Number.isFinite(l) && Number.isFinite(b)) {
+      btn.style.left = Math.max(0, Math.min(94, l)) + '%';
+      btn.style.bottom = Math.max(0, Math.min((window.innerHeight || 600) - 40, b)) + 'px';
+    }
+  }
+  function _ccSetup(btn, video) {
+    br.storage.local.get('subtitle_cc_pos').then(s => _ccApplyPos(btn, s.subtitle_cc_pos)).catch(() => {});
+    const show = () => {
+      if (!btn.isConnected) return;
+      btn.style.visibility = 'visible';
+      clearTimeout(_ccIdleT);
+      if (_ccFs()) _ccIdleT = setTimeout(() => { if (_ccFs()) btn.style.visibility = 'hidden'; }, CC_IDLE_MS);
+    };
+    if (window._ssCCWake) for (const ev of ['mousemove', 'touchstart', 'keydown']) document.removeEventListener(ev, window._ssCCWake, true);
+    window._ssCCWake = throttle(show, 250);
+    window._ssCCShow = show;
+    for (const ev of ['mousemove', 'touchstart', 'keydown']) document.addEventListener(ev, window._ssCCWake, { capture: true, passive: true });
+    let drag = null;
+    btn.addEventListener('pointerdown', e => {
+      if (_ccFs() || e.button !== 0) return;
+      const r = btn.getBoundingClientRect();
+      drag = { x: e.clientX, y: e.clientY, l: r.left, b: (window.innerHeight || 0) - r.bottom, moved: false };
+      try { btn.setPointerCapture(e.pointerId); } catch { /* ok */ }
+    });
+    btn.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+      drag.moved = true;
+      btn.style.left = Math.max(0, drag.l + dx) + 'px';
+      btn.style.bottom = Math.max(0, drag.b - dy) + 'px';
+    });
+    btn.addEventListener('pointerup', () => {
+      if (drag && drag.moved) {
+        const r = btn.getBoundingClientRect();
+        const pos = { left: Math.round(r.left / (window.innerWidth || 1) * 1000) / 10, bottom: Math.round((window.innerHeight || 0) - r.bottom) };
+        _ccApplyPos(btn, pos);
+        br.storage.local.set({ subtitle_cc_pos: pos }).catch(() => {});
+        btn._ssDragged = Date.now();
+      }
+      drag = null;
+    });
+    clearInterval(_ccWatchT);
+    _ccWatchT = setInterval(() => {
+      if (!btn.isConnected) { clearInterval(_ccWatchT); return; }
+      const r = video.isConnected ? video.getBoundingClientRect() : null;
+      btn.style.display = r && r.width >= 120 && r.height >= 68 ? 'flex' : 'none';
+    }, 1500);
+    show();
+  }
 
   // Subtitle look (Settings > Subtitles): colour, background, font, letter edge.
   // Edge styles as in TV caption settings (and CloudStream): outline, drop
   // shadow, raised, none. Before 1.13 there was only an outline on/off switch
   // (subtitle_outline); it still decides when no edge is saved.
-  let _subStyle = { color: '#ffffff', bg: 38, font: 'sans', outline: true, edge: null };
-  const SUB_FONTS = { sans: 'system-ui,-apple-system,sans-serif', serif: 'Georgia,"Times New Roman",serif', mono: 'ui-monospace,Consolas,monospace' };
+  let _subStyle = { color: '#ffffff', bg: 38, font: 'sans', outline: true, edge: null, weight: 'bold' };
+  const SUB_FONTS = {
+    sans: 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',
+    serif: 'Georgia,"Times New Roman",serif',
+    mono: 'ui-monospace,Consolas,"Courier New",monospace',
+    rounded: 'ui-rounded,"SF Pro Rounded","Nunito","Varela Round","Arial Rounded MT Bold",system-ui,sans-serif',
+    casual: '"Comic Neue","Comic Sans MS","Chalkboard SE","Segoe Print",cursive,sans-serif',
+    condensed: '"Roboto Condensed","Arial Narrow","Sofia Sans Condensed","Helvetica Neue",sans-serif',
+    smallcaps: 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',
+    netflix: '"Netflix Sans","Helvetica Neue",Helvetica,Arial,sans-serif',
+    prime: '"Amazon Ember","Segoe UI","Helvetica Neue",Arial,sans-serif',
+  };
   const SUB_EDGES = {
     outline: '0 2px 8px rgba(0,0,0,0.7), 0 0 3px rgba(0,0,0,0.9), 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000',
     shadow: '2px 2px 3px rgba(0,0,0,0.95), 3px 3px 6px rgba(0,0,0,0.6)',
     raised: '-1px -1px 0 rgba(255,255,255,0.45), 1px 1px 0 rgba(0,0,0,0.95), 2px 2px 0 rgba(0,0,0,0.6)',
+    depressed: '1px 1px 0 rgba(255,255,255,0.45), -1px -1px 0 rgba(0,0,0,0.95), -2px -2px 0 rgba(0,0,0,0.6)',
+    glow: '0 0 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.85), 0 0 18px rgba(0,0,0,0.6)',
     none: 'none',
   };
   function _subEdge(st) {
@@ -1936,6 +2043,8 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     return {
       color, fontFamily: SUB_FONTS[st && st.font] || SUB_FONTS.sans, background: 'rgba(0,0,0,' + bg + ')',
       textShadow: SUB_EDGES[_subEdge(st)],
+      fontWeight: st && st.weight === 'regular' ? '500' : '700',
+      fontVariant: st && st.font === 'smallcaps' ? 'small-caps' : 'normal',
     };
   }
   function _applySubStyle(el) { if (el) Object.assign(el.style, _subLook(_subStyle)); }
@@ -1958,12 +2067,13 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
 
   async function loadSubPrefs() {
     try {
-      const st = await br.storage.local.get(['subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_edge']);
+      const st = await br.storage.local.get(['subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_edge', 'subtitle_weight']);
       if (st.subtitle_color)               _subStyle.color   = st.subtitle_color;
       if (st.subtitle_bg !== undefined)    _subStyle.bg      = Number(st.subtitle_bg);
       if (st.subtitle_font)                _subStyle.font    = st.subtitle_font;
       if (st.subtitle_outline !== undefined) _subStyle.outline = !!st.subtitle_outline;
       if (st.subtitle_edge)                _subStyle.edge    = st.subtitle_edge;
+      if (st.subtitle_weight)              _subStyle.weight  = st.subtitle_weight;
     } catch { /* defaults ok */ }
     try {
       const s = await br.storage.local.get(['subtitle_enabled','subtitle_language','subtitle_font_size','subtitle_sync','subtitle_drag_pos']);
@@ -2128,6 +2238,8 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   }
 
   function ensureCCBtn(video) {
+    _ccVideo = video;
+    if (prefs.ccButton === 'off') { if (_subCCBtn) { _subCCBtn.remove(); _subCCBtn = null; } clearInterval(_ccWatchT); return null; }
     if (_subCCBtn?.isConnected) return _subCCBtn;
     if (_subCCBtn) _subCCBtn.remove();
     const btn = document.createElement('button');
@@ -2174,6 +2286,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     btn.onmouseup = () => { btn.style.transform = 'scale(1)'; };
     btn.addEventListener('click', e => {
       e.preventDefault(); e.stopPropagation();
+      if (btn._ssDragged && Date.now() - btn._ssDragged < 400) return;   // the end of a drag is not a click
       if (!_subState.subs || _subState.subs.length === 0) {
         const inp = document.createElement('input');
         inp.type = 'file';
@@ -2205,7 +2318,14 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     });
     subContainer(video).appendChild(btn);
     _subCCBtn = btn;
-    const onFs = () => { if (!_subCCBtn?.isConnected) return; _subCCBtn.style.position=(document.fullscreenElement||document.webkitFullscreenElement)?'absolute':'fixed'; subContainer(video).appendChild(_subCCBtn); };
+    _ccSetup(btn, video);
+    const onFs = () => {
+      if (!_subCCBtn?.isConnected) return;
+      _subCCBtn.style.position = _ccFs() ? 'absolute' : 'fixed';
+      subContainer(video).appendChild(_subCCBtn);
+      br.storage.local.get('subtitle_cc_pos').then(s => _ccApplyPos(_subCCBtn, s.subtitle_cc_pos)).catch(() => {});
+      if (window._ssCCShow) window._ssCCShow();
+    };
     if (window._ssCCFsHandler) {
       document.removeEventListener('fullscreenchange', window._ssCCFsHandler);
       document.removeEventListener('webkitfullscreenchange', window._ssCCFsHandler);
@@ -2326,6 +2446,8 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     if ('subtitle_font' in changes)    { _subStyle.font = changes.subtitle_font.newValue || 'sans'; restyle = true; }
     if ('subtitle_outline' in changes) { _subStyle.outline = changes.subtitle_outline.newValue !== false; restyle = true; }
     if ('subtitle_edge' in changes)    { _subStyle.edge = changes.subtitle_edge.newValue || null; restyle = true; }
+    if ('subtitle_weight' in changes)  { _subStyle.weight = changes.subtitle_weight.newValue || 'bold'; restyle = true; }
+    if ('ccButton' in changes) { prefs.ccButton = changes.ccButton.newValue; if (prefs.ccButton === 'off') ensureCCBtn(_ccVideo); else if (_ccVideo && _ccVideo.isConnected) { ensureCCBtn(_ccVideo); syncCCBtn(); } }
     if (restyle) _applySubStyle(_subOverlay);
     if ('showTimeline' in changes && _tlVideo) { if (changes.showTimeline.newValue === false) { if (_tlBox) { _tlBox.remove(); _tlBox = null; } } else if (_tlSegs) _renderTimeline(_tlVideo, _tlSegs); }
     if ('subtitle_drag_pos' in changes) {
@@ -2855,24 +2977,6 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
 
   // "Check this page" in the popup: every frame reports what it sees, even one
   // still waiting for a video. Reports go to the background (local only).
-  br.runtime.onMessage.addListener((msg) => {
-    if (!msg || msg.type !== 'SS_DIAG_PING') return false;
-    try {
-      const light = Array.from(document.querySelectorAll('video'));
-      const hidden = _shadowVideos(document, 0, [], 6);
-      let blank = 0;
-      document.querySelectorAll('iframe').forEach(f => {
-        const s = f.getAttribute('src');
-        if (!s || s === 'about:blank' || f.hasAttribute('srcdoc')) blank++;
-      });
-      const attached = light.concat(hidden).filter(v => attachedVideos.has(v)).length;
-      br.runtime.sendMessage({ type: 'SS_DIAG_REPORT', report: {
-        frame: (location.hostname || location.protocol) + location.pathname, top: window === window.top,
-        videos: light.length, hidden: hidden.length, blankFrames: blank, attached,
-        ident: _diag.id, segs: _diag.segs, subs: _diag.subs, last: _diagLast(_diag.last, Date.now()), auto: _diagAuto(_ssEffPrefs || prefs),
-      } }).catch(() => {});
-    } catch { /* never break the page */ }
-    return false;
-  });
+  _ssBootDone = true;   // start-up reached the end (Check this page reports it)
 
 })();

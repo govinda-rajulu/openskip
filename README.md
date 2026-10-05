@@ -33,13 +33,13 @@
 - **Pushes the site's own Skip button** on Netflix, Prime Video, Disney+, Hulu, Max, Crunchyroll and more.
 - **YouTube:** skips [SponsorBlock](https://sponsor.ajay.app) segments. You set each type to Auto, Ask or Off. The segments show on the progress bar, also on m.youtube.com.
 - **Resumes** each video from your last position, also in embedded players. A time in the address (for example `?t=90`) has priority.
-- **Subtitles** from OpenSubtitles or from your own .srt or .vtt file. You can set the colour, font, background, letter edge and size. Right-click CC to fix the timing. SkipStream keeps the timing for each show.
-- **History** keeps your last 300 videos, with posters. It also has stats, per-site rules, speed control and an optional "auto next episode".
+- **Subtitles** from OpenSubtitles or from your own .srt or .vtt file. You can set the colour, font (9 styles, with Netflix and Prime Video styles), weight, background, letter edge and size, with a live preview in Settings. Right-click CC to fix the timing. SkipStream keeps the timing for each show.
+- **History** keeps your last 300 videos, with posters, site names and site icons. You can filter it by site and by the device that played the video last. It also has stats, per-site rules, speed control and an optional "auto next episode".
 - **Backup:** one file with your settings and history. Keys are in the file only if you select this. Then your passphrase encrypts them.
 - **Popup tools:** "Check this page" and "Site report" show what SkipStream finds. Use them in bug reports.
 - **Theme:** light or dark, with any accent colour.
 
-After an automatic skip, SkipStream shows no message. To get "Skipped intro, Undo", switch it on in Settings > Skipping. Alt+Z always undoes the last automatic skip.
+After an automatic skip or a resume, SkipStream shows no message. To get "Skipped intro, Undo" or "Continued from", switch them on in Settings > Skipping. Alt+Z always undoes the last automatic skip.
 
 ## Setup
 
@@ -49,7 +49,7 @@ You do not need an account or a key for skips, SponsorBlock and resume. Settings
 |---|---|---|
 | TMDB key | Posters, and ids for sites that show only a title | [themoviedb.org](https://www.themoviedb.org/settings/api) |
 | Supabase project | History and settings in your own cloud | [supabase.com](https://supabase.com) |
-| OpenSubtitles account | 200 subtitle downloads each day, not 5 | [opensubtitles.com](https://www.opensubtitles.com) |
+| OpenSubtitles account | 20 subtitle downloads each day, not 5 (VIP: more) | [opensubtitles.com](https://www.opensubtitles.com) |
 | Anime Skip client id | More anime skip times | [anime-skip.com](https://anime-skip.com/account/api-clients) |
 
 **Supabase:** use the project URL and the publishable key (`sb_publishable_...`). The legacy anon key also works. Never use a secret key. Settings then shows how to run `supabase_setup.sql` one time. SkipStream cannot run SQL in your project.

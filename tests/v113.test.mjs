@@ -468,7 +468,7 @@ test('notice: "Skipped X, Undo" is off by default and synced, backed up and impo
   assert.match(extractConst(CONTENT, 'PREF_DEFAULTS'), /skipNotice: false/);
   assert.ok(extractConst(BG, 'SYNC_PREF_KEYS').includes("'skipNotice'"));
   assert.ok(extractConst(OPTIONS, 'CLOUD_PREF_ALLOW').includes("'skipNotice'"));
-  assert.match(OPTIONS, /'sbModes', 'showTimeline', 'skipNotice'\];\n\s*const STATS/);
+  assert.match(OPTIONS, /'sbModes', 'showTimeline', 'skipNotice', 'resumeNotice', 'ccButton', 'subtitle_cc_pos'\];\n\s*const STATS/);
   assert.match(OPTIONS, /S\.subOutline, S\.showTimeline, S\.skipNotice/);
   assert.ok(read('options.html').includes('id="skipNotice"'));
 });
@@ -490,7 +490,7 @@ test('subtitles: letter edge is outline, drop shadow, raised or none; old outlin
   assert.equal(look({ outline: false, edge: 'shadow' }), look({ edge: 'shadow' }), 'a saved edge wins');
   assert.equal(look({ edge: 'constructor' }), look({}), 'unknown values fall back to outline');
   const html = read('options.html');
-  assert.match(html, /<select id="subEdge">\s*<option value="outline">Outline<\/option>\s*<option value="shadow">Drop shadow<\/option>\s*<option value="raised">Raised<\/option>\s*<option value="none">None<\/option>/);
+  assert.match(html, /<select id="subEdge">\s*<option value="outline">Outline<\/option>\s*<option value="shadow">Drop shadow<\/option>\s*<option value="raised">Raised<\/option>\s*<option value="depressed">Depressed<\/option>\s*<option value="glow">Soft glow<\/option>\s*<option value="none">None<\/option>/);
   assert.ok(html.includes('id="subFontSize"'), 'text size slider is still there');
 });
 
@@ -498,11 +498,11 @@ test('subtitles: edge is saved with the old switch kept in step, synced, backed 
   assert.match(OPTIONS, /br\.storage\.local\.set\(\{ \[S\.subEdge\]: v, \[S\.subOutline\]: v !== 'none' \}\)/);
   assert.ok(extractConst(BG, 'SYNC_PREF_KEYS').includes("'subtitle_edge'"));
   assert.ok(extractConst(OPTIONS, 'CLOUD_PREF_ALLOW').includes("'subtitle_edge'"));
-  assert.match(OPTIONS, /'subtitle_outline', 'subtitle_edge', 'subtitle_offsets'/);
+  assert.match(OPTIONS, /'subtitle_outline', 'subtitle_edge', 'subtitle_weight', 'subtitle_offsets'/);
   const code = extractConst(OPTIONS, 'SUB_EDGE_VALUES') + '\nconst S = { subEdge: "subtitle_edge" }; const IMPORT_BOOL = new Set();\n' + extractFunction(OPTIONS, 'importValueOk') + '\n;importValueOk';
   const ok = vm.runInNewContext(code);
   assert.equal(ok('subtitle_edge', 'raised'), true);
-  assert.equal(ok('subtitle_edge', 'glow'), false);
+  assert.equal(ok('subtitle_edge', 'sparkle'), false);
   assert.match(CONTENT, /if \('subtitle_edge' in changes\)/);
 });
 
@@ -664,4 +664,190 @@ test('sites: History shows one entry and one filter name for www., m. and deskto
   assert.match(OPTIONS, /site: {5}canonHost\(entry\.site\),/);
   assert.match(OPTIONS, /site: {5}canonHost\(row\.site\) \|\| row\.site_name \|\| '',/);
   assert.match(OPTIONS, /map\(i => canonHost\(i\.site \|\| i\.siteName\)\)/);
+});
+
+// ── Device test round 1 (5 Oct): notices, OpenSubtitles numbers, History, subtitles ──
+test('resume: "Continued from" is off by default, a switch in Settings, synced and backed up', () => {
+  assert.match(extractConst(CONTENT, 'PREF_DEFAULTS'), /resumeNotice: false/);
+  assert.match(CONTENT, /_resumeSeek\(video, saved\.p, mediaId, false, \(\) => \{ if \(prefs\.resumeNotice\) showResumeToast\(video, saved\.p\); \}\);/);
+  assert.ok(read('options.html').includes('id="resumeNotice"'));
+  for (const list of [extractConst(BG, 'SYNC_PREF_KEYS'), extractConst(OPTIONS, 'CLOUD_PREF_ALLOW')]) for (const k of ['resumeNotice', 'subtitle_weight']) assert.ok(list.includes("'" + k + "'"), k);
+  assert.match(OPTIONS, /S\.skipNotice, S\.resumeNotice\]\);/, 'import checks it is a true/false value');
+});
+
+test('opensubtitles: the texts match OpenSubtitles (5 without an account, 20 with a free one); live numbers win', () => {
+  const html = read('options.html');
+  assert.match(html, /Without an account: 5 downloads a day\. With a <a [^>]+>free account<\/a>: 20 a day\./);
+  for (const src of [html, OPTIONS, read('README.md')]) assert.doesNotMatch(src, /200\/day|up to 200|200 subtitle downloads/);
+  assert.match(BG, /downloads_allowed: data\.user\?\.allowed_downloads \?\? null,\n\s*downloads_remaining: null,/, 'the allowance is not "remaining"');
+  const q = vm.runInNewContext(extractFunction(OPTIONS, 'osubQuotaText') + ';osubQuotaText');
+  assert.equal(q({ downloads_remaining: 17, downloads_allowed: 20 }, 'x'), 'Logged in: 17 downloads left today');
+  assert.equal(q({ downloads_remaining: null, downloads_allowed: 20 }, 'x'), 'Logged in: your account allows 20 downloads a day');
+  assert.equal(q({}, 'Logged in'), 'Logged in');
+  assert.doesNotMatch(OPTIONS, /downloads remaining today/);
+});
+
+function histKit(deviceName = '', ua = 'Mozilla/5.0 Firefox/142.0') {
+  const made = [];
+  const doc = { createElement: (t) => { const e = { tag: t, _l: {}, addEventListener(n, f) { this._l[n] = f; }, replaceWith(x) { this.replaced = x; } }; made.push(e); return e; } };
+  const code = ['canonHost', 'siteDisplayName', 'siteIcon', 'myDeviceName', 'itemDevice'].map((n) => extractFunction(OPTIONS, n)).join('\n')
+    + '\n' + OPTIONS.slice(OPTIONS.indexOf('const KNOWN_SITE_NAMES'), OPTIONS.indexOf('function siteDisplayName')) + ';({ siteDisplayName, siteIcon, itemDevice, myDeviceName })';
+  return { made, ...vm.runInNewContext(code, { document: doc, navigator: { userAgent: ua }, $: (id) => (id === 'deviceName' ? { value: deviceName } : null) }) };
+}
+
+test('history: popular sites by name (JioHotstar, YouTube), others by their own name', () => {
+  const k = histKit();
+  assert.equal(k.siteDisplayName('m.youtube.com', 'Youtube'), 'YouTube');
+  assert.equal(k.siteDisplayName('www.hotstar.com', 'Hotstar'), 'JioHotstar');
+  assert.equal(k.siteDisplayName('tv.apple.com', ''), 'Apple TV+');
+  assert.equal(k.siteDisplayName('www.1shows.cx', '1shows'), '1shows');
+  assert.equal(k.siteDisplayName('obscure.example', ''), 'obscure.example');
+  assert.match(OPTIONS, /opt\.value = s; opt\.textContent = siteDisplayName\(s, ''\);/, 'the site filter shows names');
+});
+
+test('history: each site shows its own icon from the site; a missing icon becomes a letter', () => {
+  const k = histKit();
+  const img = k.siteIcon('m.youtube.com', 'YouTube');
+  assert.equal(img.src, 'https://youtube.com/favicon.ico');
+  assert.equal(img.referrerPolicy, 'no-referrer');
+  img._l.error();
+  assert.equal(img.replaced.textContent, 'Y');
+  assert.equal(img.replaced.className, 'h-site-letter');
+  assert.equal(k.siteIcon('YouTube', 'YouTube'), null, 'a name is not a host: no request');
+});
+
+test('history: rows show and filter by the device that played them last', () => {
+  const k = histKit('Govind laptop');
+  assert.equal(k.itemDevice({ device: 'Pixel 8', fromCloud: true }), 'Pixel 8');
+  assert.equal(k.itemDevice({ fromCloud: false }), 'Govind laptop', 'this browser\'s own rows use its device name');
+  assert.equal(k.itemDevice({ fromCloud: true }), 'Unknown device', 'technical data off on the other device');
+  assert.equal(histKit('', 'Mozilla/5.0 (Android) EdgA/120').myDeviceName(), 'Edge');
+  assert.ok(read('options.html').includes('<select id="historyDevice" class="hist-select" aria-label="Device">'));
+  assert.match(OPTIONS, /&& \(!devFilter \|\| itemDevice\(item\) === devFilter\);/);
+  assert.match(OPTIONS, /\$\('historyDevice'\)\?\.addEventListener\('change', \(\) => renderHistory\(allHistory\)\);/);
+});
+
+test('subtitles: more fonts (rounded, casual, condensed, small capitals), weight, two more edges, colours', () => {
+  const { _subLook } = contentFns(['_subLook', '_subEdge'], ['SUB_FONTS', 'SUB_EDGES'], { Math, Number, String, Object });
+  assert.match(_subLook({ font: 'rounded' }).fontFamily, /ui-rounded/);
+  assert.match(_subLook({ font: 'casual' }).fontFamily, /Comic/);
+  assert.match(_subLook({ font: 'condensed' }).fontFamily, /Condensed/);
+  assert.equal(_subLook({ font: 'smallcaps' }).fontVariant, 'small-caps');
+  assert.equal(_subLook({}).fontWeight, '700', 'bold stays the default look');
+  assert.equal(_subLook({ weight: 'regular' }).fontWeight, '500');
+  assert.match(_subLook({ edge: 'glow' }).textShadow, /0 0 18px/);
+  assert.match(_subLook({ edge: 'depressed' }).textShadow, /^1px 1px 0 rgba\(255,255,255/);
+  const html = read('options.html');
+  for (const v of ['rounded', 'casual', 'condensed', 'smallcaps']) assert.ok(html.includes('<option value="' + v + '">'), v);
+  for (const v of ['#ffb74d', '#ff9be0']) assert.ok(html.includes('<option value="' + v + '">'), v);
+  assert.ok(html.includes('id="subWeight"') && html.includes('id="subPreview"'));
+});
+
+test('subtitles: the Settings preview uses exactly the same fonts and edges as the video', () => {
+  const ev = (src, name) => JSON.stringify(vm.runInNewContext(extractConst(src, name) + ';' + name));
+  assert.equal(ev(OPTIONS, 'SUB_FONTS'), ev(CONTENT, 'SUB_FONTS'));
+  assert.equal(ev(OPTIONS, 'SUB_EDGES'), ev(CONTENT, 'SUB_EDGES'));
+  const vals = vm.runInNewContext(extractConst(OPTIONS, 'SUB_FONT_VALUES') + ';[...SUB_FONT_VALUES]');
+  assert.deepEqual(j(vals).sort(), Object.keys(JSON.parse(ev(CONTENT, 'SUB_FONTS'))).sort());
+  const code = extractConst(OPTIONS, 'SUB_EDGE_VALUES') + extractConst(OPTIONS, 'SUB_FONT_VALUES') + '\nconst S = { subEdge: "subtitle_edge", subFont: "subtitle_font", subWeight: "subtitle_weight" }; const IMPORT_BOOL = new Set();\n' + extractFunction(OPTIONS, 'importValueOk') + '\n;importValueOk';
+  const ok = vm.runInNewContext(code);
+  assert.deepEqual([ok('subtitle_font', 'casual'), ok('subtitle_font', 'comic'), ok('subtitle_weight', 'regular'), ok('subtitle_weight', 'heavy'), ok('subtitle_edge', 'glow')], [true, false, true, false, true]);
+});
+
+test('site report: long random path parts (tokens) are hidden; YouTube trailer embeds are not listed', () => {
+  const doc = { title: 'T', referrer: '', querySelector: () => null,
+    querySelectorAll: (s) => (s === 'script:not([src])' ? [{ textContent: 'a="https://www.youtube.com/embed/L0fw0WzFaBM";b="https://cdn1.example/e/DwYRNhFGQkNR/master.m3u8"' }] : []) };
+  const ctx = vm.createContext({ document: doc, location: { href: 'https://srv.example/aes/0/c071ea7831662d08935948f3c55a42e7/x.m3u8' }, URL,
+    performance: { getEntriesByType: () => [{ name: 'https://srv308.example/aes/0/c071ea7831662d08935948f3c55a42e7/GRh6sY0xcroQVm3IcQR6HQ/1/seg.m3u8', initiatorType: 'xmlhttprequest' }] } });
+  ctx.window = ctx; ctx.top = ctx;
+  const r = j(vm.runInContext(read('content-scripts/probe.js'), ctx));
+  assert.equal(r.frame, 'srv.example/aes/0/<id>/x.m3u8');
+  assert.deepEqual(r.loaded, ['srv308.example/aes/0/<id>/GRh6sY0xcroQVm3IcQR6HQ/1/seg.m3u8 (xmlhttprequest)']);
+  assert.deepEqual(r.inScripts, ['cdn1.example/e/DwYRNhFGQkNR/master.m3u8']);
+});
+
+// ── Device test round 1, part 2 (5 Oct) ───────────────────────────────────────
+const OSUB_RES = { data: [{ attributes: { files: [{ file_id: 7, file_name: 'x.srt' }] } }] };
+function osubBg(downloadStatus) {
+  const calls = [];
+  const bg = loadBackground({ storage: { osub_session: { token: 'tok', base_url: 'api.opensubtitles.com', expiry: Date.now() + 1e8 } },
+    fetchImpl: (url, opts) => {
+      if (url.includes('/subtitles?')) return fakeResponse(200, OSUB_RES);
+      if (url.endsWith('/download')) { const auth = !!(opts.headers && opts.headers.Authorization); calls.push(auth); return auth || downloadStatus === 200 ? fakeResponse(200, { link: 'https://dl.example/x.srt', remaining: auth ? 19 : 4 }) : fakeResponse(downloadStatus, { message: 'quota' }); }
+      if (url === 'https://dl.example/x.srt') return { ok: true, status: 200, text: async () => '1\n00:00:01,000 --> 00:00:02,000\nHi\n' };
+      return fakeResponse(404, {});
+    } });
+  return { bg, calls };
+}
+
+test('opensubtitles: downloads without the account first; the account is used only when that is refused', async () => {
+  const a = osubBg(200);
+  const r = await a.bg.send({ type: 'OSUB_SEARCH_AND_FETCH', imdbId: 'tt0133093', language: 'en' });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(a.calls, [false], 'one download, without Authorization');
+  assert.equal(r.via, 'no account');
+  assert.equal(a.bg.storage.osub_session.downloads_remaining, undefined, 'the no-account count is not shown as the account\'s');
+  const b = osubBg(406);
+  const r2 = await b.bg.send({ type: 'OSUB_SEARCH_AND_FETCH', imdbId: 'tt0133093', language: 'en' });
+  assert.equal(r2.ok, true);
+  assert.deepEqual(b.calls, [false, true], 'refused without the account, then with it');
+  assert.equal(r2.via, 'account');
+  assert.equal(b.bg.storage.osub_session.downloads_remaining, 19);
+});
+
+test('page check: every frame answers, even if SkipStream stopped while starting there', () => {
+  const early = CONTENT.indexOf("msg.type !== 'SS_DIAG_PING'");
+  assert.ok(early > 0 && early < CONTENT.indexOf('const PREF_DEFAULTS'), 'the listener comes first');
+  assert.equal(CONTENT.split("msg.type !== 'SS_DIAG_PING'").length, 2, 'only one listener');
+  assert.match(CONTENT, /_ssBootDone = true;[^\n]*\n\n\}\)\(\);\s*$/, 'start-up marks itself finished at the very end');
+  assert.match(extractFunction(CONTENT, '_ssDiagReport'), /catch \(e\) \{[\s\S]*error: String\(e && e\.message \|\| e\)/);
+  assert.match(BG, /started: r\.started !== false, error: String\(r\.error \|\| ''\)\.slice\(0, 120\),/);
+  const diagText = vm.runInNewContext('(' + extractFunction(read('popup.js'), 'diagText') + ')', { Array });
+  const t = diagText({ ok: true, frames: [{ frame: 'www.viduki.net/1/movie/603', top: false, videos: 1, started: false, error: 'x is not defined' }] });
+  assert.ok(t.includes('SkipStream did not finish starting in this frame: x is not defined'), t);
+});
+
+test('site report: each frame also shows what SkipStream itself sees, and the video position', () => {
+  const ctx = vm.createContext({ document: { title: 'T', referrer: '', querySelector: () => null,
+    querySelectorAll: (s) => (s === 'video' ? [{ getBoundingClientRect: () => ({ width: 1792, height: 947 }), currentSrc: 'blob:x', duration: 8181, paused: false, currentTime: 612.4, readyState: 4, textTracks: [], querySelector: () => null }] : []) },
+    location: { href: 'https://www.viduki.net/1/movie/603' }, URL });
+  ctx.window = ctx; ctx.top = ctx;
+  ctx.__skipstream_diag = () => ({ started: true, attached: 1, ident: 'movie tt0133093', segs: 'intro, outro' });
+  const r = j(vm.runInContext(read('content-scripts/probe.js'), ctx));
+  assert.deepEqual(r.ss, { started: true, attached: 1, ident: 'movie tt0133093', segs: 'intro, outro' });
+  assert.equal(r.videos[0].at, 612);
+  const siteReportText = vm.runInNewContext('(' + extractFunction(read('popup.js'), 'siteReportText') + ')', { Array });
+  const t = siteReportText({ ok: true, frames: [{ frame: 'www.viduki.net/1/movie/603', top: false, skipstream: true, ...r }] }, 'v1.13.0');
+  assert.ok(t.includes('  SkipStream: running, 1 video(s) in use, what: movie tt0133093, skips: intro, outro'), t);
+  assert.ok(t.includes('8181 s, playing at 612 s'), t);
+});
+
+test('subtitles: Netflix and Prime Video styles use their fonts only if the device has them', () => {
+  const { _subLook } = contentFns(['_subLook', '_subEdge'], ['SUB_FONTS', 'SUB_EDGES'], { Math, Number, String, Object });
+  assert.match(_subLook({ font: 'netflix' }).fontFamily, /^"Netflix Sans",.*Arial,sans-serif$/);
+  assert.match(_subLook({ font: 'prime' }).fontFamily, /^"Amazon Ember",.*sans-serif$/);
+  const html = read('options.html');
+  assert.ok(html.includes('<option value="netflix">Streaming: Netflix style</option>') && html.includes('<option value="prime">Streaming: Prime Video style</option>'));
+  assert.match(html, /SkipStream cannot include them/);
+  assert.doesNotMatch(read('manifest.json') + read('options.css'), /@font-face|fonts\.googleapis/, 'no font is downloaded');
+});
+
+test('cc button: a Settings switch; hides after 5 s in full screen; drag on a normal page; only with a visible video', () => {
+  assert.match(extractConst(CONTENT, 'PREF_DEFAULTS'), /ccButton: 'on'/);
+  const ensure = extractFunction(CONTENT, 'ensureCCBtn');
+  assert.match(ensure, /if \(prefs\.ccButton === 'off'\) \{ if \(_subCCBtn\) \{ _subCCBtn\.remove\(\); _subCCBtn = null; \}/);
+  assert.match(ensure, /_ccSetup\(btn, video\);/);
+  assert.match(ensure, /if \(btn\._ssDragged && Date\.now\(\) - btn\._ssDragged < 400\) return;/);
+  const setup = extractFunction(CONTENT, '_ccSetup');
+  assert.match(CONTENT, /const CC_IDLE_MS = 5000;/);
+  assert.match(setup, /if \(_ccFs\(\)\) _ccIdleT = setTimeout\(\(\) => \{ if \(_ccFs\(\)\) btn\.style\.visibility = 'hidden'; \}, CC_IDLE_MS\);/);
+  assert.match(setup, /br\.storage\.local\.set\(\{ subtitle_cc_pos: pos \}\)/);
+  assert.match(setup, /btn\.style\.display = r && r\.width >= 120 && r\.height >= 68 \? 'flex' : 'none';/);
+  const { _ccApplyPos } = contentFns(['_ccApplyPos', '_ccFs'], [], { document: {}, window: { innerHeight: 800 }, Number, Math });
+  const b = { style: {} };
+  _ccApplyPos(b, { left: 50, bottom: 120 }); assert.deepEqual(j(b.style), { left: '50%', bottom: '120px' });
+  _ccApplyPos(b, { left: 400, bottom: 9000 }); assert.deepEqual(j(b.style), { left: '94%', bottom: '760px' }, 'kept on screen');
+  _ccApplyPos(b, null); assert.deepEqual(j(b.style), { left: '3%', bottom: '68px' });
+  assert.ok(read('options.html').includes('<select id="ccButton">'));
+  for (const list of [extractConst(BG, 'SYNC_PREF_KEYS'), extractConst(OPTIONS, 'CLOUD_PREF_ALLOW')]) assert.ok(list.includes("'ccButton'"));
 });
