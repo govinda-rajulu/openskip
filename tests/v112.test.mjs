@@ -91,13 +91,13 @@ test('timeline: segments become percentage spans; the highlight is a thin mark',
   ]);
   assert.deepEqual(j(_timelineSpans({ intro: { start_sec: 700, end_sec: 800 } }, 600)), []);
   assert.deepEqual(j(_timelineSpans(null, 600)), []);
-  assert.match(CONTENT, /document\.querySelector\('\.ytp-progress-bar'\)/);
+  assert.match(CONTENT, /const ytBar = yt \? _ytBar\(\) : null;/);
   assert.match(CONTENT, /if \(!prefs\.showTimeline \|\| !video \|\| !video\.isConnected\) return;/);
 });
 
 // ── Subtitles ─────────────────────────────────────────────────────────────────
 test('subtitles: colour, background, font and outline come from Settings, bad values fall back', () => {
-  const { _subLook } = contentFns(['_subLook'], ['SUB_FONTS'], { Math, Number, String });
+  const { _subLook } = contentFns(['_subLook', '_subEdge'], ['SUB_FONTS', 'SUB_EDGES'], { Math, Number, String });
   const a = _subLook({ color: '#ffeb3b', bg: 60, font: 'serif', outline: false });
   assert.equal(a.color, '#ffeb3b'); assert.equal(a.background, 'rgba(0,0,0,0.6)'); assert.match(a.fontFamily, /Georgia/); assert.equal(a.textShadow, 'none');
   const b = _subLook({ color: 'red;x', bg: 500, font: 'comic' });
@@ -119,8 +119,8 @@ test('settings: new keys are backed up, synced and checked on import', () => {
   const bg = read('background.js');
   for (const k of ['subtitle_color', 'sbModes', 'showTimeline']) assert.ok(extractConst(bg, 'SYNC_PREF_KEYS').includes("'" + k + "'"), 'sync ' + k);
   const html = read('options.html');
-  for (const id of ['subColor', 'subFont', 'subBg', 'subOutline', 'showTimeline', 'sbm-sponsor', 'sbm-filler']) assert.ok(html.includes('id="' + id + '"'), id);
-  assert.match(html, /SkipDB<\/a>, data licensed <a href="https:\/\/opendatacommons\.org\/licenses\/odbl\/1-0\/"/);
+  for (const id of ['subColor', 'subFont', 'subBg', 'subEdge', 'showTimeline', 'sbm-sponsor', 'sbm-filler']) assert.ok(html.includes('id="' + id + '"'), id);
+  assert.match(html, /SkipDB<\/strong><\/a> &middot; data <a href="https:\/\/opendatacommons\.org\/licenses\/odbl\/1-0\/"/);   // Sources page (1.13)
 });
 
 // ── Site report ───────────────────────────────────────────────────────────────

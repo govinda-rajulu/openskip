@@ -69,8 +69,8 @@ test('undo: an undone segment is left alone until it has played past, same video
   assert.equal(_skipUndone(w, 'intro', 95, 'tv/1'), false, 'played past');
 });
 
-test('undo: automatic skips show the notice, and prompt-mode Undo no longer restarts the countdown', () => {
-  assert.match(CONTENT, /recordSkipStat\(segment\.end_sec - prevTime\);\n\s*_diag\.last = [^\n]*\n\s*showSkippedNotice\(segKey, segment, video, prevTime\);/);
+test('undo: automatic skips show the notice only when asked (1.13), and prompt-mode Undo no longer restarts the countdown', () => {
+  assert.match(CONTENT, /recordSkipStat\(segment\.end_sec - prevTime\);\n\s*_diag\.last = [^\n]*\n\s*video\._ssLastSkip = [^\n]*\n[^\n]*\n\s*if \(prefs\.skipNotice\) showSkippedNotice\(segKey, segment, video, prevTime\);/);
   assert.match(CONTENT, /toast\.remove\(\);\n\s*\/\/ Without this[^\n]*\n\s*video\._ssUndone = /);
 });
 

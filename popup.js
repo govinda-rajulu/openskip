@@ -1,4 +1,4 @@
-/* SkipStream - popup v1.12.0 */
+/* SkipStream - popup v1.13.0 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
@@ -83,7 +83,7 @@ async function detectDomain() {
 const MODE_LABELS = {
   off: 'Disabled', prompt: 'Prompt',
   'auto-intro': 'Auto Intros', 'auto-recap': 'Auto Recaps',
-  'auto-outro': 'Auto Outros', 'auto-all': 'Auto All',
+  'auto-outro': 'Auto Outros', 'auto-ir': 'Intros + Recaps', 'auto-all': 'Auto All',
 };
 
 // -- Mode <-> Toggle bidirectional mapping --
@@ -93,13 +93,30 @@ const MODE_TO_SEGS = {
   'auto-intro': { i: true,  r: false, o: false },
   'auto-recap': { i: false, r: true,  o: false },
   'auto-outro': { i: false, r: false, o: true  },
+  'auto-ir':    { i: true,  r: true,  o: false },
   'auto-all':   { i: true,  r: true,  o: true  },
 };
+// What the player really does comes from skipIntro / skipRecap / skipOutro, so the
+// shown mode is read from them. Up to 1.13 round 3 a fresh install showed "Auto
+// all" while outros only asked (skipOutro is off by default): picking "Auto all"
+// changed nothing, because it already looked picked. "auto-ir" is that default.
+function modeFromPrefs(d) {
+  if (!d || d.skipEnabled === false) return 'off';
+  const i = d.skipIntro !== false, r = d.skipRecap !== false, o = d.skipOutro === true;
+  if (!i && !r && !o) return 'prompt';
+  if (i && r && o) return 'auto-all';
+  if (i && r) return 'auto-ir';
+  if (i && !r && !o) return 'auto-intro';
+  if (!i && r && !o) return 'auto-recap';
+  if (!i && !r && o) return 'auto-outro';
+  return MODE_TO_SEGS[d.skipMode] ? d.skipMode : 'auto-all';
+}
 
 function inferMode(i, r, o) {
   if (!i && !r && !o) return 'prompt';
   if (i  && !r && !o) return 'auto-intro';
   if (!i && r  && !o) return 'auto-recap';
+  if (i  && r  && !o) return 'auto-ir';
   if (!i && !r && o)  return 'auto-outro';
   return 'auto-all';
 }
@@ -241,7 +258,7 @@ $('masterToggle')?.addEventListener('change', () => {
 async function loadState() {
   const data = await br.storage.local.get(Object.values(KEYS));
   const enabled  = data[KEYS.enabled] !== false;
-  const mode     = data[KEYS.skipMode] || 'auto-all';
+  const mode     = modeFromPrefs(data);
   currentTheme   = data[KEYS.theme] || ssSystemMode();
   currentSeedHex = data[KEYS.seedColor] || '#57A860';
 
@@ -315,7 +332,8 @@ function diagText(r) {
     + (x.attached && x.segs ? '\n  skips found: ' + x.segs : '')
     + (x.attached && x.auto ? '\n  mode: ' + x.auto : '')
     + (x.attached && x.last ? '\n  last skip: ' + x.last : '')
-    + (x.attached && x.subs ? '\n  subtitles: ' + x.subs : ''));
+    + (x.attached && x.subs ? '\n  subtitles: ' + x.subs : '')
+    + (x.started === false ? '\n  SkipStream did not finish starting in this frame' + (x.error ? ': ' + x.error : '') : (x.error ? '\n  error: ' + x.error : '')));
   const head = f.some(x => x.attached) ? 'SkipStream is watching a video here.'
     : 'No video in use yet. Press play first (on movie sites pick a source), then check again while it plays.';
   return head + '\n' + lines.join('\n');
@@ -336,11 +354,20 @@ function siteReportText(r, version) {
     if (x.players && x.players.length) L.push('  players: ' + x.players.join(', '));
     if (x.libs && x.libs.length) L.push('  scripts: ' + x.libs.join(', '));
     for (const v of x.videos || []) {
-      L.push('  video ' + v.size + ', ' + v.kind + (v.source ? ' (' + v.source + ')' : '') + ', ' + (v.duration ? v.duration + ' s' : 'no length') + (v.playing ? ', playing' : ', paused') + (v.inShadow ? ', inside a player component' : ''));
+      L.push('  video ' + v.size + ', ' + v.kind + (v.source ? ' (' + v.source + ')' : '') + ', ' + (v.duration ? v.duration + ' s' : 'no length') + (v.playing ? ', playing' : ', paused') + (v.at ? ' at ' + v.at + ' s' : '') + (v.inShadow ? ', inside a player component' : ''));
       if (v.tracks && v.tracks.length) L.push('    subtitle tracks: ' + v.tracks.join('; '));
     }
     for (const fr of x.iframes || []) L.push('  iframe ' + fr.src + ' ' + fr.size + (fr.sandbox ? ' sandbox=' + fr.sandbox : ''));
     if (x.ids && x.ids.length) L.push('  ids: ' + x.ids.join(', '));
+    if (x.ss) L.push('  SkipStream: ' + (x.ss.started === false ? 'did not finish starting' : 'running') + ', ' + (Number(x.ss.attached) || 0) + ' video(s) in use'
+      + (x.ss.ident ? ', what: ' + x.ss.ident : '') + (x.ss.segs ? ', skips: ' + x.ss.segs : '') + (x.ss.error ? ', error: ' + x.ss.error : ''));
+    if (x.globals && x.globals.length) L.push('  page player code: ' + x.globals.join(', '));
+    const many = (head, list) => { if (list && list.length) { L.push('  ' + head + ' (' + list.length + '):'); for (const s of list) L.push('    ' + s); } };
+    many('source buttons', x.sources);
+    many('lazy frames', x.lazyFrames);
+    many('subtitle files', x.trackFiles);
+    many('media loaded', x.loaded);
+    many('media in scripts', x.inScripts);
     if (x.error) L.push('  error: ' + x.error);
   }
   return L.join('\n');
@@ -396,6 +423,8 @@ $('subLangSelect')?.addEventListener('change', async () => {
 $('settingsBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') }));
 $('historyBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') + '#history' }));
 $('statsBtn').addEventListener('click', () => br.tabs.create({ url: br.runtime.getURL('options.html') + '#stats' }));
+// Sources and logins live in Settings (1.13 5S); the accent colour moved to Settings > Customise.
+$('sourcesLink')?.addEventListener('click', (e) => { e.preventDefault(); br.tabs.create({ url: br.runtime.getURL('options.html') + '#sources' }); });
 
 // -- Live stats --
 br.storage.onChanged.addListener((changes, area) => {

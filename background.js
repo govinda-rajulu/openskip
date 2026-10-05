@@ -38,6 +38,7 @@ Promise.resolve(br.alarms.get(ALARM_QUEUE_FLUSH))
 br.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === ALARM_QUEUE_FLUSH) {
     await flushOfflineQueue();
+    await pushUnsyncedHistory();
     await cleanupOldData();
   }
 });
@@ -83,8 +84,34 @@ function _looseTitle(pageTitle, workTitle) {
 }
 // "Watch The Matrix (1999) Online Free | 1Shows" -> { q: "The Matrix", year: 1999, tv: false }
 // "Dark - S01E02 - Lies" -> { q: "Dark", year: null, tv: true }
+// Release and streaming tags that are never part of a film's name.
+const _RELEASE_JUNK = /\s*(?:\b(?:2160p|1080p|720p|480p|360p|4k|uhd|hdr10\+?|hdr|hdrip|hdtv|web-?dl|web-?rip|blu-?ray|brrip|bdrip|dvdrip|dvdscr|hdcam|camrip|x26[45]|h\.?26[45]|hevc|10bit|aac(?:2\.0)?|dd[p+]?5\.1|dual[\s-]audio|multi[\s-]audio|esubs?|(?:english|eng)[\s-]sub(?:bed|s|titled)?|subbed|dubbed|(?:hindi|english|tamil|telugu|japanese)[\s-]dub(?:bed)?|full[\s-]movie|full[\s-]episodes?|watch[\s-]online|free[\s-]download)\b)/gi;
+const _RELEASE_JUNK_1 = new RegExp(_RELEASE_JUNK.source, 'i');
+function _stripRelease(t) {
+  return String(t || '')
+    .replace(/\[[^\]]{0,60}\]/g, ' ')                                             // [1080p] [Eng Sub]
+    .replace(/\((?![^)]*\b(?:19|20)\d{2}\b)[^)]{0,40}\)/g, m => (/[a-z]{3}/i.test(m) && !_RELEASE_JUNK_1.test(m) ? m : ' ')) // (HD), keeps (1999)
+    .replace(_RELEASE_JUNK, ' ')
+    .replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, ' ')                          // emoji
+    .replace(/(?:\s+(?:hd|online|free|watch|streaming|now))+\s*$/i, '')
+    .replace(/\s+/g, ' ').trim();
+}
+// Letter-pair similarity (Dice), 0..1, on normalised titles.
+function _titleSim(a, b) {
+  const x = _normTitle(a).replace(/^the /, ''), y = _normTitle(b).replace(/^the /, '');
+  if (!x || !y) return 0;
+  if (x === y) return 1;
+  const pairs = s => { const m = new Map(); for (let i = 0; i < s.length - 1; i++) { const p = s.slice(i, i + 2); m.set(p, (m.get(p) || 0) + 1); } return m; };
+  const px = pairs(x), py = pairs(y);
+  let hit = 0, n = 0;
+  for (const [p, c] of px) { n += c; if (py.has(p)) hit += Math.min(c, py.get(p)); }
+  for (const c of py.values()) n += c;
+  return n ? (2 * hit) / n : 0;
+}
+function _yearOf(x) { const m = String((x && (x.release_date || x.first_air_date)) || '').match(/^(\d{4})/); return m ? Number(m[1]) : null; }
+
 function cleanMediaTitle(raw) {
-  let t = String(raw || '').slice(0, 300).replace(/\s+/g, ' ').trim();
+  let t = _stripRelease(String(raw || '').slice(0, 300).replace(/\s+/g, ' ').trim());
   let tv = false, year = null;
   t = t.split(/\s+\|\s+/)[0];
   t = t.replace(/^\s*watch\s+/i, '');
@@ -115,7 +142,7 @@ async function tmdbFindTitle(title, year, kind, key) {
   const k = kind === 'movie' || kind === 'tv' ? kind : (c.tv ? 'tv' : '');
   if (!q || q.length < 2) return { answered: true, imdbId: null };
   let answered = true;
-  const hits = [];
+  const hits = [], fuzzy = [];
   for (const kd of (k ? [k] : ['movie', 'tv'])) {
     const r = await tmdbFetch(`/search/${kd}?query=${encodeURIComponent(q)}&page=1&include_adult=false${_tmdbYearParam(kd, y)}`, key);
     if (!r.ok) { answered = false; continue; }
@@ -123,9 +150,12 @@ async function tmdbFindTitle(title, year, kind, key) {
     for (const x of (d.results || []).slice(0, 10)) {
       if ([x.title, x.name, x.original_title, x.original_name].some(n => _sameTitle(n, q))) {
         hits.push({ kind: kd, id: x.id, pop: Number(x.popularity) || 0 });
+      } else if (y && _yearOf(x) === y && [x.title, x.name].some(n => _titleSim(n, q) >= 0.9)) {
+        fuzzy.push({ kind: kd, id: x.id, pop: Number(x.popularity) || 0 });
       }
     }
   }
+  if (!hits.length && y && fuzzy.length === 1) hits.push(fuzzy[0]);
   if (!hits.length) return { answered, imdbId: null };
   hits.sort((a, b) => b.pop - a.pop);
   if (hits.length > 1 && !y && hits[0].pop < hits[1].pop * 3) return { answered, imdbId: null, ambiguous: true };
@@ -153,7 +183,7 @@ async function tmdbPoster(mediaId, title, key) {
     } else if (r.status !== 404) allOk = false;
   }
   if (!c.q) return { path: null, allOk };
-  let first = null;
+  let best = null, bestSim = 0;
   for (const kd of (c.tv ? ['tv', 'movie'] : ['movie', 'tv'])) {
     const r = await tmdbFetch(`/search/${kd}?query=${encodeURIComponent(c.q)}&page=1${_tmdbYearParam(kd, c.year)}`, key);
     if (!r.ok) { allOk = false; continue; }
@@ -161,9 +191,14 @@ async function tmdbPoster(mediaId, title, key) {
     const res = (d.results || []).filter(x => pick(x));
     const exact = res.find(x => [x.title, x.name, x.original_title, x.original_name].some(n => _sameTitle(n, c.q)));
     if (exact) return { path: pick(exact), allOk };
-    if (!first && res[0]) first = res[0];
+    for (const x of res.slice(0, 10)) {
+      if (c.year && _yearOf(x) && Math.abs(_yearOf(x) - c.year) > 1) continue;
+      const sim = Math.max(...[x.title, x.name, x.original_title, x.original_name].map(n => _titleSim(n, c.q)));
+      if (sim > bestSim) { bestSim = sim; best = x; }
+    }
   }
-  return { path: pick(first), allOk };
+  // Closest name only when it is close: no artwork beats the wrong film's poster.
+  return { path: bestSim >= 0.75 ? pick(best) : null, allOk };
 }
 
 async function getTmdbCache() {
@@ -280,7 +315,8 @@ async function fetchWithRetry(url, options = {}, retries = FETCH_RETRY_COUNT) {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(url, options);
-      if ([400, 401, 403, 404, 409, 422].includes(res.status)) return res;
+      // 406: OpenSubtitles' "daily downloads used up". Never temporary, never retried.
+      if ([400, 401, 403, 404, 406, 409, 422].includes(res.status)) return res;
       if (res.ok) return res;
       lastErr = new Error(`Status ${res.status}`);
     } catch (e) { lastErr = e; }
@@ -338,6 +374,14 @@ function isValidSupabaseUrl(url) {
 
 // ── Supabase upsert ───────────────────────────────────────────────────────────
 
+// Supabase keys (1.13): legacy anon keys are JWTs and go in apikey and as Bearer.
+// New publishable keys (sb_publishable_...) are not JWTs. Supabase says: send
+// them in apikey only, never as a Bearer token.
+function sbAuth(key) {
+  const k = String(key || '').trim();
+  return /^[\w-]+\.[\w-]+\.[\w-]+$/.test(k) && !k.startsWith('sb_') ? { apikey: k, Authorization: `Bearer ${k}` } : { apikey: k };
+}
+
 async function supabaseUpsert(body, { keepalive = false } = {}) {
   const { supabaseUrl, supabaseAnonKey } = await getConfig();
   if (!supabaseUrl || !supabaseAnonKey) return { ok: false, err: 'not_configured' };
@@ -350,7 +394,7 @@ async function supabaseUpsert(body, { keepalive = false } = {}) {
         method: 'POST',
         keepalive,
         headers: {
-          apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
+          ...sbAuth(supabaseAnonKey),
           'Content-Type': 'application/json',
           Prefer: 'resolution=merge-duplicates,return=minimal',
         },
@@ -402,6 +446,41 @@ async function flushOfflineQueue() {
   }
 }
 
+// Every 5 minutes: positions saved on this device since the last run go to the
+// cloud too, so a phone that closed the tab mid-video (no pause, no pagehide)
+// still reaches the other devices. Newer wins on the server (updated_at).
+const LAST_PUSH_KEY = 'skipstream_last_push_t';
+let _pushingHistory = false;
+async function pushUnsyncedHistory() {
+  if (_pushingHistory) return { pushed: 0 };
+  _pushingHistory = true;
+  try {
+    const { supabaseUrl, supabaseAnonKey } = await getConfig();
+    if (!supabaseUrl || !supabaseAnonKey || !isValidSupabaseUrl(supabaseUrl)) return { pushed: 0 };
+    const userId = await getDerivedUserId();
+    if (!userId) return { pushed: 0 };
+    const st = await br.storage.local.get(['skipstream_cache', LAST_PUSH_KEY, 'deviceName']);
+    const cache = st.skipstream_cache || {};
+    const since = Number(st[LAST_PUSH_KEY]) || 0;
+    const due = Object.entries(cache)
+      .filter(([, e]) => e && Number(e.t) > since && Number(e.p) >= 10 && e.title)
+      .sort((a, b) => (Number(a[1].t) || 0) - (Number(b[1].t) || 0)).slice(0, 25);
+    let pushed = 0, mark = since;
+    for (const [mediaId, e] of due) {
+      const r = await supabaseUpsert({
+        user_id: userId, media_id: mediaId, playback_time: Math.floor(e.p), duration: e.d || 0,
+        site: e.site || '', site_name: e.site_name || e.site || '', video_title: e.title || '', page_url: e.url || '',
+        device_name: st.deviceName || null, updated_at: new Date(Math.min(Number(e.t), Date.now())).toISOString(),
+      });
+      if (!r.ok) break;              // offline or not set up: try again next run
+      pushed++; mark = Number(e.t);
+    }
+    if (mark > since) await br.storage.local.set({ [LAST_PUSH_KEY]: mark, skipstream_last_sync: Date.now() });
+    return { pushed };
+  } catch (e) { logError('push_history', e); return { pushed: 0 }; }
+  finally { _pushingHistory = false; }
+}
+
 async function cleanupOldData() {
   const { supabaseUrl, supabaseAnonKey } = await getConfig();
   if (!supabaseUrl || !supabaseAnonKey) return;
@@ -416,8 +495,7 @@ async function cleanupOldData() {
       {
         method: 'POST',
         headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${supabaseAnonKey}`,
+          ...sbAuth(supabaseAnonKey),
           'Content-Type': 'application/json',
           Prefer: 'return=minimal',
         },
@@ -553,11 +631,13 @@ function animeSkipSegments(timestamps) {
 
 // SkipDB (api.skipdb.tv, ODbL 1.0): public intro/recap/outro/preview by IMDb id.
 // Used where IntroDB has nothing; IntroDB wins when both answer.
-async function providerSkipDB(imdbId, season, episode, isMovie) {
+async function providerSkipDB(imdbId, season, episode, isMovie, durationSec) {
   if (!/^tt\d{7,8}$/.test(String(imdbId || ''))) return null;
   try {
     const params = new URLSearchParams({ imdb_id: imdbId });
     if (!isMovie) { params.set('season', String(season)); params.set('episode', String(episode)); }
+    // The stream length lets SkipDB pick, and shift, the times made for this release.
+    if (durationSec > 0) params.set('duration', String(Math.round(durationSec)));
     const r = await fetchWithRetry(`https://api.skipdb.tv/api/segments?${params}`);
     if (!r.ok) return null;
     return skipDbSegments(await r.json());
@@ -594,7 +674,8 @@ function sponsorBlockSegments(rows) {
     if (!Number.isFinite(start)) continue;
     if (action === 'poi' || key === 'poi_highlight') { segments.poi_highlight = [{ start_sec: start, end_sec: start, action: 'poi' }]; continue; }
     if (!Number.isFinite(end) || end <= start) continue;
-    (segments[key] ||= []).push({ start_sec: start, end_sec: end, action, votes: Number(seg.votes) || 0 });
+    (segments[key] ||= []).push({ start_sec: start, end_sec: end, action, votes: Number(seg.votes) || 0,
+      ...(Number(seg.videoDuration) > 0 ? { video_duration: Number(seg.videoDuration) } : {}) });
   }
   return Object.keys(segments).length ? segments : null;
 }
@@ -610,7 +691,7 @@ async function providerSponsorBlock(videoId) {
     const prefix = hex.slice(0, 4);
 
     const r = await fetchWithRetry(
-      `https://sponsor.ajay.app/api/skipSegments/${prefix}?categories=${encodeURIComponent(JSON.stringify(SB_CATEGORIES))}&actionTypes=${encodeURIComponent(JSON.stringify(SB_ACTIONS))}`
+      `https://sponsor.ajay.app/api/skipSegments/${prefix}?categories=${encodeURIComponent(JSON.stringify(SB_CATEGORIES))}&actionTypes=${encodeURIComponent(JSON.stringify(SB_ACTIONS))}&service=YouTube`
     );
     if (!r.ok) return null;
     const results = await r.json();
@@ -623,16 +704,155 @@ async function providerSponsorBlock(videoId) {
   } catch { return null; }
 }
 
-async function fetchSegmentsMulti(imdbId, season, episode, isMovie) {
+// TheIntroDB (theintrodb.org, API v3): intro, recap, credits, preview by TMDB id,
+// or by IMDb id when no TMDB id is known; reads need no key. Up to 1.13 rounds
+// 1-2 this asked v1, which no longer answers, so TheIntroDB never gave a skip.
+// A start of null means "from the beginning"; a credits/preview end of null
+// means "to the end of the video". A kind can have more than one entry (two
+// recaps, credits with a scene between): all are kept.
+async function providerTheIntroDB(tmdbId, season, episode, isMovie, durationSec, imdbId) {
+  const byTmdb = /^\d{1,9}$/.test(String(tmdbId || ''));
+  if (!byTmdb && !/^tt\d{7,8}$/.test(String(imdbId || ''))) return null;
+  try {
+    const params = new URLSearchParams(byTmdb ? { tmdb_id: String(tmdbId) } : { imdb_id: String(imdbId) });
+    if (!isMovie) { params.set('season', String(season)); params.set('episode', String(episode)); }
+    if (durationSec > 0) params.set('duration_ms', String(Math.round(durationSec * 1000)));
+    const r = await fetchWithRetry(`https://api.theintrodb.org/v3/media?${params}`, {}, 1);
+    if (!r.ok) return null;
+    return theIntroDbSegments(await r.json(), durationSec);
+  } catch { return null; }
+}
+function theIntroDbSegments(data, durationSec) {
+  if (!data || typeof data !== 'object') return null;
+  const out = {};
+  for (const [src, key] of [['intro', 'intro'], ['recap', 'recap'], ['credits', 'outro'], ['preview', 'preview']]) {
+    const list = Array.isArray(data[src]) ? data[src] : (data[src] && typeof data[src] === 'object' ? [data[src]] : []);
+    for (const sg of list) {
+      if (!sg || typeof sg !== 'object') continue;
+      const a = sg.start_ms != null ? Number(sg.start_ms) / 1000 : (sg.start_sec != null ? Number(sg.start_sec) : 0);
+      let b = sg.end_ms != null ? Number(sg.end_ms) / 1000 : (sg.end_sec != null ? Number(sg.end_sec) : NaN);
+      if (!Number.isFinite(b) && (key === 'outro' || key === 'preview')) b = durationSec > a ? durationSec : a + 600;
+      if (!Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b <= a) continue;
+      (out[key] ||= []).push({ start_sec: a, end_sec: b });
+    }
+  }
+  for (const k of Object.keys(out)) out[k].sort((x, y) => x.start_sec - y.start_sec);
+  return Object.keys(out).length ? out : null;
+}
+
+// AniSkip (api.aniskip.com, open CORS): anime openings, endings and recaps by
+// MyAnimeList id and episode number. episodeLength picks timings made for a
+// release of the same length (0 = any).
+async function providerAniSkip(malId, episode, durationSec) {
+  if (!/^\d{1,7}$/.test(String(malId || '')) || !(Number(episode) > 0)) return null;
+  try {
+    const types = ['op', 'ed', 'mixed-op', 'mixed-ed', 'recap'].map(t => 'types[]=' + t).join('&');
+    const len = durationSec > 0 ? Math.round(durationSec) : 0;
+    const r = await fetchWithRetry(`https://api.aniskip.com/v2/skip-times/${malId}/${Number(episode)}?${types}&episodeLength=${len}`, {}, 1);
+    if (!r.ok) return null;
+    return aniSkipSegments(await r.json());
+  } catch { return null; }
+}
+const ANISKIP_KEY = { op: 'intro', 'mixed-op': 'intro', ed: 'outro', 'mixed-ed': 'outro', recap: 'recap' };
+function aniSkipSegments(data) {
+  if (!data || !data.found || !Array.isArray(data.results)) return null;
+  const out = {};
+  for (const r of data.results) {
+    const key = ANISKIP_KEY[r && r.skipType];
+    const a = Number(r && r.interval && r.interval.startTime), b = Number(r && r.interval && r.interval.endTime);
+    if (!key || out[key] || !Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b <= a) continue;
+    out[key] = { start_sec: a, end_sec: b };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// Anime title -> MyAnimeList id (Jikan, the public MyAnimeList API): only an exact
+// title match counts, and two different shows with that name give no answer.
+const _malCache = new Map();
+async function jikanMalId(title) {
+  const q = cleanMediaTitle(title).q;
+  if (!q || q.length < 2) return null;
+  const ck = _normTitle(q);
+  if (_malCache.has(ck)) return _malCache.get(ck);
+  try {
+    const r = await fetchWithRetry(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(q)}&limit=10&sfw=true`, {}, 1);
+    if (!r.ok) return null;
+    const d = await r.json();
+    const ids = new Set();
+    for (const x of (d && Array.isArray(d.data) ? d.data : [])) {
+      const names = [x.title, x.title_english, x.title_japanese, ...((x.titles || []).map(t => t && t.title)), ...((x.title_synonyms) || [])];
+      if (names.some(n => _sameTitle(n, q))) ids.add(x.mal_id);
+    }
+    const id = ids.size === 1 ? [...ids][0] : null;
+    _malCache.set(ck, id);
+    if (_malCache.size > 200) _malCache.delete(_malCache.keys().next().value);
+    return id;
+  } catch { return null; }
+}
+
+// IMDb id -> TMDB id, only with the user's own TMDB key (for TheIntroDB).
+async function tmdbIdFromImdb(imdbId, isMovie) {
+  const { tmdbApiKey } = await getConfig();
+  if (!tmdbApiKey || !/^tt\d{7,8}$/.test(String(imdbId || ''))) return null;
+  try {
+    const r = await tmdbFetch(`/find/${imdbId}?external_source=imdb_id`, tmdbApiKey);
+    if (!r.ok) return null;
+    const d = await r.json();
+    const hit = (isMovie ? d.movie_results : d.tv_results || d.tv_episode_results) || [];
+    return hit[0] && hit[0].id ? hit[0].id : null;
+  } catch { return null; }
+}
+
+// Every skip source answers on its own; mergeSkipSources makes one list.
+// Kinds (intro, recap, outro, preview) combine across sources: if IntroDB has
+// the intro and SkipDB the credits, both are used. Inside one kind, ONE source
+// gives all its parts: the first in this order that has that kind: IntroDB,
+// TheIntroDB, SkipDB, AniSkip, Anime Skip. Parts from two sources are never
+// mixed in one kind: their times can come from different releases of the same
+// video, and a mix could skip the same intro twice, plus real content between.
+// A source can give two or more parts of a kind (two recaps; credits with a
+// scene between): all are kept. Each part keeps "src", the source's name. One
+// part stays an object (as before 1.13); two or more become a list by start.
+const SKIP_SOURCE_ORDER = ['IntroDB', 'TheIntroDB', 'SkipDB', 'AniSkip', 'Anime Skip'];
+function mergeSkipSources(bySource) {
+  const out = {};
+  for (const src of SKIP_SOURCE_ORDER) {
+    const segs = bySource && bySource[src];
+    if (!segs || typeof segs !== 'object') continue;
+    for (const [k, v] of Object.entries(segs)) {
+      if (out[k]) continue;   // a higher source already gave this kind
+      const parts = [];
+      for (const sg of [].concat(v)) {
+        const a = Number(sg && sg.start_sec), b = Number(sg && sg.end_sec);
+        if (!Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b <= a) continue;
+        parts.push(Object.assign({}, sg, { start_sec: a, end_sec: b, src }));
+      }
+      if (!parts.length) continue;
+      parts.sort((x, y) => x.start_sec - y.start_sec);
+      out[k] = parts.length === 1 ? parts[0] : parts;
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// One lookup, every source (see mergeSkipSources for who wins).
+async function fetchSegmentsMulti(imdbId, season, episode, isMovie, extra = {}) {
   const config = await getConfig();
-  const [introdb, animeskip, skipdb] = await Promise.all([
-    providerIntroDB(imdbId, season, episode, config, isMovie),
-    isMovie ? null : providerAnimeSkip(imdbId, season, episode, config),
-    providerSkipDB(imdbId, season, episode, isMovie),
+  const imdb = /^tt\d{7,8}$/.test(String(imdbId || '')) ? imdbId : null;
+  const dur = Number(extra.durationSec) > 0 ? Number(extra.durationSec) : 0;
+  let tmdbId = /^\d{1,9}$/.test(String(extra.tmdbId || '')) ? Number(extra.tmdbId) : null;
+  if (!tmdbId && imdb) tmdbId = await tmdbIdFromImdb(imdb, isMovie);
+  let malId = /^\d{1,7}$/.test(String(extra.malId || '')) ? Number(extra.malId) : null;
+  if (!malId && extra.anime && extra.title && Number(episode) > 0) malId = await jikanMalId(extra.title);
+  const [introdb, animeskip, skipdb, tidb, aniskip] = await Promise.all([
+    imdb ? providerIntroDB(imdb, season, episode, config, isMovie) : null,
+    isMovie || !imdb ? null : providerAnimeSkip(imdb, season, episode, config),
+    imdb ? providerSkipDB(imdb, season, episode, isMovie, dur) : null,
+    (tmdbId || imdb) && (isMovie || (season && episode)) ? providerTheIntroDB(tmdbId, season, episode, isMovie, dur, imdb) : null,
+    malId && !isMovie ? providerAniSkip(malId, episode, dur) : null,
   ]);
-  if (!introdb && !animeskip && !skipdb) return null;
-  const merged = Object.assign({}, animeskip || {}, skipdb || {}, introdb || {});
-  return Object.keys(merged).length ? merged : null;
+  if (!introdb && !animeskip && !skipdb && !tidb && !aniskip) return null;
+  return mergeSkipSources({ IntroDB: introdb, TheIntroDB: tidb, SkipDB: skipdb, AniSkip: aniskip, 'Anime Skip': animeskip });
 }
 
 // OpenSubtitles returns a base_url after login; the session bearer token is sent
@@ -650,7 +870,7 @@ function osubHost(h) {
 const SYNC_PREF_KEYS = ['skipEnabled', 'skipMode', 'skipIntro', 'skipRecap', 'skipOutro',
   'resumePlayback', 'autoNextEpisode', 'playbackSpeed',
   'subtitle_language', 'subtitle_font_size', 'subtitle_enabled',
-  'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'sbModes', 'showTimeline'];
+  'subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_edge', 'subtitle_weight', 'sbModes', 'showTimeline', 'skipNotice', 'resumeNotice', 'ccButton'];
 
 function pickSyncPrefs(obj) {
   const out = {};
@@ -689,7 +909,7 @@ br.storage.onChanged.addListener((changes, area) => {
       const snap = await settingsSnapshot({});
       const res = await fetchWithRetry(`${supabaseUrl}/rest/v1/rpc/ss_put_settings`, {
         method: 'POST',
-        headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
+        headers: { ...sbAuth(supabaseAnonKey), 'Content-Type': 'application/json' },
         body: JSON.stringify({ p_user_id: userId, p_stats: snap.stats, p_prefs: snap.prefs, p_site_rules: snap.site_rules, p_theme: snap.theme }),
       });
       if (!res.ok) logError('settings_push', new Error('HTTP ' + res.status));
@@ -705,7 +925,7 @@ async function checkSupabase(supabaseUrl, supabaseAnonKey) {
   try {
     const res = await fetch(`${supabaseUrl}/rest/v1/rpc/ss_verify_setup`, {
       method: 'POST',
-      headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
+      headers: { ...sbAuth(supabaseAnonKey), 'Content-Type': 'application/json' },
       body: '{}',
     });
     if (res.ok) return { ok: true, message: 'Connected' };
@@ -727,6 +947,11 @@ const OSUB_SUB_CACHE = 'osub_sub_cache'; // file_id → srt text, capped 20 entr
 const OSUB_CACHE_CHARS = 2000000;         // about 2 MB of text; storage is shared with history and settings
 
 let _osubReloginTs = 0;
+// A saved, still valid session only. Never logs in (login is slow and rate limited).
+async function osubCachedSession() {
+  try { const s = (await br.storage.local.get(OSUB_SESS_KEY))[OSUB_SESS_KEY]; return s?.token && s.expiry > Date.now() ? s : null; } catch { return null; }
+}
+
 async function osubGetSession() {
   try {
     const s = await br.storage.local.get([OSUB_SESS_KEY, 'osub_username', 'osub_password']);
@@ -758,11 +983,13 @@ async function osubLogin(username, password) {
     const sess = {
       token:    data.token,
       base_url: osubHost(data.base_url),
-      downloads_remaining: data.user?.allowed_downloads ?? null,
+      // allowed_downloads is the daily allowance (free account: 20), not what is left.
+      downloads_allowed: data.user?.allowed_downloads ?? null,
+      downloads_remaining: null,
       expiry:   Date.now() + 23 * 60 * 60 * 1000,
     };
     await br.storage.local.set({ [OSUB_SESS_KEY]: sess });
-    return { ok: true, downloads_remaining: sess.downloads_remaining };
+    return { ok: true, downloads_remaining: sess.downloads_remaining, downloads_allowed: sess.downloads_allowed };
   } catch (e) { return { ok: false, err: String(e) }; }
 }
 
@@ -820,13 +1047,13 @@ async function osubDownload(file_id, sess) {
     });
     if (!r.ok) {
       const txt = await r.text().catch(() => '');
-      return { ok: false, err: `HTTP ${r.status}${txt ? ' - ' + txt.slice(0, 120) : ''}` };
+      return { ok: false, status: r.status, err: `HTTP ${r.status}${txt ? ' - ' + txt.slice(0, 120) : ''}` };
     }
     const data = await r.json();
     if (!data.link) return { ok: false, err: 'No download link' };
 
-    // Update remaining downloads in session cache
-    if (data.remaining !== undefined) {
+    // Update remaining downloads in session cache (account downloads only)
+    if (data.remaining !== undefined && sess?.token) {
       try {
         const s = await br.storage.local.get(OSUB_SESS_KEY);
         const sess2 = s[OSUB_SESS_KEY];
@@ -918,7 +1145,7 @@ async function adoptInstallId(newId) {
     try {
       const r = await fetchWithRetry(`${supabaseUrl}/rest/v1/rpc/ss_get_playback_all`, {
         method: 'POST',
-        headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
+        headers: { ...sbAuth(supabaseAnonKey), 'Content-Type': 'application/json' },
         body: JSON.stringify({ p_user_id: oldId }),
       });
       if (!r.ok) return { ok: false, err: 'move_failed' };
@@ -999,6 +1226,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         ident: String(r.ident || '').slice(0, 120), segs: String(r.segs || '').slice(0, 120),
         subs: String(r.subs || '').slice(0, 120), last: String(r.last || '').slice(0, 120),
         auto: String(r.auto || '').slice(0, 80),
+        started: r.started !== false, error: String(r.error || '').slice(0, 120),
       });
     }
     sendResponse({ ok: true });
@@ -1023,7 +1251,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!tmdbApiKey || !title) { sendResponse({ answered: false, imdbId: null }); return; }
       try {
         const r = await tmdbFindTitle(title, year, kind, tmdbApiKey);
-        if (r.answered) await setTmdbCache(cacheKey, r.imdbId ? { imdbId: r.imdbId, kind: r.kind } : null);
+        if (r.answered) await setTmdbCache(cacheKey, r.imdbId ? { imdbId: r.imdbId, kind: r.kind, tmdbId: r.tmdbId || null } : null);
         sendResponse(r);
       } catch { sendResponse({ answered: false, imdbId: null }); }
     });
@@ -1071,7 +1299,8 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (msg.type === 'FETCH_SEGMENTS') {
-    fetchSegmentsMulti(msg.imdbId, msg.season, msg.episode, !!msg.isMovie)
+    fetchSegmentsMulti(msg.imdbId, msg.season, msg.episode, !!msg.isMovie,
+      { tmdbId: msg.tmdbId, malId: msg.malId, anime: !!msg.anime, title: msg.title, durationSec: msg.durationSec })
       .then(data => {
         const tabId = sender?.tab?.id;
         if (tabId && badgeAPI?.setBadgeText) {
@@ -1134,7 +1363,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!isValidSupabaseUrl(supabaseUrl)) { sendResponse({ data: null, err: 'invalid_url' }); return; }
       fetchWithRetry(`${supabaseUrl}/rest/v1/rpc/ss_get_playback`, {
         method: 'POST',
-        headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
+        headers: { ...sbAuth(supabaseAnonKey), 'Content-Type': 'application/json' },
         body: JSON.stringify({ p_user_id: msg.userId, p_media_id: msg.mediaId }),
       })
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -1159,7 +1388,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
           {
             method: 'POST',
             headers: {
-              apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
+              ...sbAuth(supabaseAnonKey),
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -1192,7 +1421,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
           {
             method: 'POST',
             headers: {
-              apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
+              ...sbAuth(supabaseAnonKey),
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
@@ -1218,7 +1447,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!isValidSupabaseUrl(supabaseUrl)) { sendResponse({ data: null, err: 'invalid_url' }); return; }
       fetchWithRetry(`${supabaseUrl}/rest/v1/rpc/ss_get_playback_all`, {
         method: 'POST',
-        headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
+        headers: { ...sbAuth(supabaseAnonKey), 'Content-Type': 'application/json' },
         body: JSON.stringify({ p_user_id: msg.userId }),
       })
         .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -1273,7 +1502,7 @@ br.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const res = await fetchWithRetry(`${supabaseUrl}/rest/v1/rpc/ss_verify_setup`, {
           method: 'POST',
           headers: {
-            apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`,
+            ...sbAuth(supabaseAnonKey),
             'Content-Type': 'application/json',
           },
           body: '{}',
@@ -1311,6 +1540,7 @@ if (msg.type === 'OSUB_LOGIN') {
     osubGetSession().then(sess => sendResponse({
       loggedIn: !!sess,
       downloads_remaining: sess?.downloads_remaining ?? null,
+      downloads_allowed: sess?.downloads_allowed ?? null,
     }));
     return true;
   }
@@ -1318,7 +1548,8 @@ if (msg.type === 'OSUB_LOGIN') {
   if (msg.type === 'OSUB_SEARCH_AND_FETCH') {
     (async () => {
       const { imdbId, season, episode, language, query, year } = msg;
-      const sess = await osubGetSession();
+      // Search with a saved session if there is one (searches cost nothing).
+      const sess = await osubCachedSession();
       let result = await osubSearch(imdbId, season, episode, language, sess, query, year);
 
       // Fallback to English if primary language has no results
@@ -1327,8 +1558,15 @@ if (msg.type === 'OSUB_LOGIN') {
       }
 
       if (!result) { sendResponse({ ok: false, err: 'no_results' }); return; }
-      const dl = await osubDownload(result.file_id, sess);
-      sendResponse({ ...dl, file_id: result.file_id, name: result.name });
+      // Download without the account first (5 a day per address), so the account's
+      // own 20 a day are used only when that is refused (owner request, 5 Oct).
+      let dl = await osubDownload(result.file_id, null);
+      let via = 'no account';
+      if (!dl.ok && dl.status && dl.status !== 404) {
+        const acct = await osubGetSession();
+        if (acct?.token) { dl = await osubDownload(result.file_id, acct); via = 'account'; }
+      }
+      sendResponse({ ...dl, via, file_id: result.file_id, name: result.name });
     })();
     return true;
   }

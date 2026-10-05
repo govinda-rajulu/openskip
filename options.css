@@ -1148,3 +1148,27 @@ ol.help li{ margin: 2px 0; }
 }
 body.ss-party .brand-logo{ animation: ssSpin 1.2s cubic-bezier(.22,1,.36,1) infinite; }
 @keyframes ssSpin{ to{ transform: rotate(360deg); } }
+
+/* 1.13: Supabase one-time setup helper */
+[hidden]{ display: none !important; }
+.sb-setup{ margin-top: 12px; padding: 12px 14px; border: 1px solid var(--card-border); border-radius: 14px; background: var(--surface); }
+.sb-setup ol.help{ padding-left: 20px; }
+a.btn-primary, a.btn-ghost{ display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+
+/* 1.13: History site icons, subtitle preview */
+.h-site{ display: inline-flex; align-items: center; gap: 5px; }
+.h-site-icon{ width: 14px; height: 14px; border-radius: 3px; object-fit: contain; flex-shrink: 0; }
+.h-site-letter{ display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 3px;
+  background: var(--accent, #57A860); color: #fff; font-size: 9px; font-weight: 700; flex-shrink: 0; }
+.sub-preview{ margin: 8px 0 12px; min-height: 92px; border-radius: 14px; display: flex; align-items: flex-end; justify-content: center;
+  padding: 14px; background: linear-gradient(135deg, #2b3a55 0%, #8a6d3b 55%, #e9d8a6 100%); overflow: hidden; }
+.sub-preview span{ padding: 2px 8px; border-radius: 4px; text-align: center; line-height: 1.35; }
+
+/* 1.13 Sources page */
+.src-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 10px; }
+.src-row { display: flex; gap: 10px; align-items: flex-start; }
+.src-logo { width: 20px; height: 20px; border-radius: 4px; flex: 0 0 20px; margin-top: 1px; }
+.src-text { min-width: 0; }
+.src-text .help { margin: 2px 0 0; }
+.card-icon .acct-logo { width: 18px; height: 18px; border-radius: 4px; }
+.card-title .tag { font-size: 10px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: .04em; margin-left: 6px; }

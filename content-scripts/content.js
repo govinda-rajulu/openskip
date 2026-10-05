@@ -8,6 +8,37 @@
 
   const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
 
+  // ── "Check this page" answers first (1.13) ─────────────────────────────────
+  // Registered before anything else can fail, so every frame answers, and says
+  // whether start-up finished. Up to 1.13 this listener was the last line: a frame
+  // whose start-up stopped early never answered (1Shows showed only the top page).
+  let _ssBootDone = false;
+  function _ssDiagReport() {
+    const base = { frame: (location.hostname || location.protocol) + location.pathname, top: window === window.top, started: _ssBootDone };
+    try {
+      const light = Array.from(document.querySelectorAll('video'));
+      const hidden = _shadowVideos(document, 0, [], 6);
+      let blank = 0;
+      document.querySelectorAll('iframe').forEach(f => {
+        const s = f.getAttribute('src');
+        if (!s || s === 'about:blank' || f.hasAttribute('srcdoc')) blank++;
+      });
+      const attached = light.concat(hidden).filter(v => attachedVideos.has(v)).length;
+      return Object.assign(base, { videos: light.length, hidden: hidden.length, blankFrames: blank, attached,
+        ident: _diag.id, segs: _diag.segs, subs: _diag.subs, last: _diagLast(_diag.last, Date.now()), auto: _diagAuto(_ssEffPrefs || prefs) });
+    } catch (e) {
+      let n = 0; try { n = document.querySelectorAll('video').length; } catch { /* ok */ }
+      return Object.assign(base, { videos: n, error: String(e && e.message || e).slice(0, 100) });
+    }
+  }
+  // Site report (probe.js runs in this same extension world) reads it directly.
+  try { window.__skipstream_diag = _ssDiagReport; } catch { /* ok */ }
+  br.runtime.onMessage.addListener((msg) => {
+    if (!msg || msg.type !== 'SS_DIAG_PING') return false;
+    try { br.runtime.sendMessage({ type: 'SS_DIAG_REPORT', report: _ssDiagReport() }).catch(() => {}); } catch { /* never break the page */ }
+    return false;
+  });
+
   // ── SPA navigation tracking ────────────────────────────────────────────────────
   // Each attached video tracks its own href (see _vidHref in attachVideo), so a
   // URL change is seen by every video, not only the first one to poll.
@@ -133,11 +164,12 @@
 
   // ── User prefs ─────────────────────────────────────────────────────────────
 
-  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipEnabled: true, autoNextEpisode: false, deviceName: '', sbModes: null, showTimeline: true };
+  const PREF_DEFAULTS = { skipIntro: true, skipRecap: true, skipOutro: false, resumePlayback: true, skipEnabled: true, autoNextEpisode: false, deviceName: '', sbModes: null, showTimeline: true, skipNotice: false, resumeNotice: false, ccButton: 'on' };
   let prefs = { ...PREF_DEFAULTS };
 let _ssEffPrefs = null;
 // What this frame found, for the popup's "Check this page" (local only, never sent anywhere).
 const _diag = { id: '', segs: '', last: null, subs: '' };
+let _diagChapters = null;   // the page's own chapter list, when that is the source
 
   async function loadPrefs() {
     try {
@@ -203,6 +235,11 @@ const _diag = { id: '', segs: '', last: null, subs: '' };
     for (const [domain, m] of Object.entries(rules)) {
       if (host === domain || host.endsWith('.' + domain)) return m;
     }
+    // Same site on a new address (1shows.cx -> 1shows.to): same name before the ending.
+    const fam = _siteFamily(host);
+    for (const [domain, m] of Object.entries(rules)) {
+      if (fam && fam === _siteFamily(domain)) return m;
+    }
     return null;
   }
 
@@ -224,6 +261,28 @@ const _diag = { id: '', segs: '', last: null, subs: '' };
 
   // ── Media ID ───────────────────────────────────────────────────────────────
 
+  // One site, one name (1.13): "www.", "m." and "mobile." hosts are the same site.
+  // History showed m.youtube.com and youtube.com as two sites.
+  function _canonHost(h) {
+    let x = String(h || '').toLowerCase().trim();
+    for (;;) {
+      const y = x.replace(/^(?:www\d?|m|mobile|mbasic|touch)\./, '');
+      if (y === x || !y.includes('.')) return x;
+      x = y;
+    }
+  }
+
+  // The site's name without www./m. and without its ending: 1shows.cx and
+  // 1shows.to are both "1shows", news.bbc.co.uk is "bbc". Streaming sites move to
+  // a new ending often; rules, History and resume use this to stay with the site.
+  function _siteFamily(h) {
+    const x = _canonHost(h);
+    const parts = x.split('.').filter(Boolean);
+    if (parts.length < 2) return x;
+    const two = parts.length >= 3 && /^(?:co|com|net|org|gov|edu|ac)$/.test(parts[parts.length - 2]) && parts[parts.length - 1].length === 2;
+    return parts[parts.length - (two ? 3 : 2)];
+  }
+
   function getMediaId() {
     const url = location.href;
     // YouTube ids only on YouTube hosts: any other site's ?v= is not a YouTube video.
@@ -239,8 +298,17 @@ const _diag = { id: '', segs: '', last: null, subs: '' };
     const sp = new URLSearchParams(location.search);
     const parts = [];
     for (const k of paramKeys) { const v = sp.get(k); if (v) parts.push(`${k}=${v}`); }
-    const base = location.hostname + location.pathname;
+    const base = _canonHost(location.hostname) + location.pathname;
     return parts.length ? `${base}?${parts.join('&')}` : base;
+  }
+  // The id this page had before 1.13 (raw host). Resume still finds positions
+  // saved under it. null when it is the same as the new id.
+  function _legacyMediaId(id) {
+    const cur = id || getMediaId();
+    const h = String(location.hostname || '').toLowerCase();
+    const canon = _canonHost(h);
+    if (h === canon || !cur.startsWith(canon + '/')) return null;
+    return h + cur.slice(canon.length);
   }
 
   // ── Human-readable site name ───────────────────────────────────────────────
@@ -276,7 +344,7 @@ const _diag = { id: '', segs: '', last: null, subs: '' };
     return location.hostname.replace(/^www\./, '');
   }
 
-  function getSiteHostname() { return _siteHost(); }
+  function getSiteHostname() { return _canonHost(_siteHost()); }
 
   // YouTube video id from watch / embed / shorts / live URLs on YouTube hosts only.
   function _youtubeVideoId() {
@@ -286,6 +354,44 @@ const _diag = { id: '', segs: '', last: null, subs: '' };
     if (v && /^[A-Za-z0-9_-]{11}$/.test(v)) return v;
     const m = location.pathname.match(/^\/(?:embed|shorts|live)\/([A-Za-z0-9_-]{11})/);
     return m ? m[1] : null;
+  }
+
+  // YouTube ads play in the same <video> element. While one shows, nothing is
+  // saved, skipped, drawn or resumed: its time and length are not the video's.
+  function _ytAdShowing() {
+    if (!_youtubeVideoId()) return false;
+    try {
+      const pl = document.querySelector('#movie_player, .html5-video-player');
+      if (pl && (pl.classList.contains('ad-showing') || pl.classList.contains('ad-interrupting'))) return true;
+      return !!document.querySelector('.ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytp-ad-preview-container, .ytp-skip-ad-button, .ytp-ad-skip-button-modern');
+    } catch { return false; }
+  }
+
+  // The progress bar to draw skip marks in: desktop and the mobile site
+  // (m.youtube.com) use different elements; hover previews on the home page
+  // have bars too and are never used. Same order as SponsorBlock.
+  const PLAYER_BAR_SELECTORS = ['.vds-time-slider .vds-slider-track', 'media-time-slider', '[data-media-time-slider]', '.vjs-progress-holder',
+    '.plyr__progress', '.jw-slider-time .jw-rail', '.shaka-seek-bar-container', '.dplayer-bar-wrap', '.art-control-progress-inner',
+    '.mejs__time-total', '.mejs-time-total', '.fluid_controls_progress_container', '.bar-background'];
+  const YT_BAR_SELECTORS = ['.ytChapteredProgressBarHost', '.ytProgressBarLineHost', '.YtProgressBarLineHost',
+    '.YtChapteredProgressBarHost', '.YtmProgressBarProgressBarLine', '.ytp-progress-bar'];
+  function _ytBar() {
+    for (const sel of YT_BAR_SELECTORS) {
+      for (const el of document.querySelectorAll(sel)) {
+        if (el.closest('#video-preview, ytd-video-preview, #inline-preview-player')) continue;
+        return el;
+      }
+    }
+    return null;
+  }
+
+  // An explicit start time in the address (?t=90, &start=, time_continue=) wins over resume.
+  function _urlHasStartTime(href) {
+    try {
+      const u = new URL(href || location.href);
+      for (const k of ['t', 'start', 'time_continue']) if (u.searchParams.has(k)) return true;
+      return /(^|[#&])t=\d/.test(u.hash.slice(1));
+    } catch { return false; }
   }
 
 function _pageUrl() {
@@ -310,6 +416,9 @@ function _pageUrl() {
       'paramountplus.com': 'Paramount+',
       'appletv.apple.com': 'Apple TV+',
       'tubi.tv': 'Tubi',
+      'hotstar.com': 'JioHotstar', 'jiohotstar.com': 'JioHotstar', 'jiocinema.com': 'JioCinema',
+      'sonyliv.com': 'SonyLIV', 'zee5.com': 'ZEE5', 'mxplayer.in': 'MX Player', 'aha.video': 'aha',
+      'sunnxt.com': 'Sun NXT', 'pluto.tv': 'Pluto TV', 'twitch.tv': 'Twitch', 'dailymotion.com': 'Dailymotion',
       '1shows.org': '1Shows',
       'fmovies.to': 'FMovies',
       'soap2day.ac': 'Soap2Day',
@@ -370,7 +479,10 @@ function _pageUrl() {
     while (parts.length > 1 && isSite(parts[parts.length - 1])) parts.pop();
     while (parts.length > 1 && isSite(parts[0])) parts.shift();
     let t = parts.join(' - ');
-    t = t.replace(/^\s*watch\s+/i, '')
+    t = t.replace(/\[[^\]]{0,60}\]/g, ' ')
+         .replace(/\s*\b(?:2160p|1080p|720p|480p|4k|hdrip|web-?dl|web-?rip|blu-?ray|brrip|x26[45]|hevc|(?:english|eng)[\s-]sub(?:bed|s|titled)?|subbed|dubbed|esubs?)\b/gi, ' ')
+         .replace(/\s+/g, ' ').trim()
+         .replace(/^\s*watch\s+/i, '')
          .replace(/\s+(?:online\s+)?(?:for\s+)?free(?:\s+(?:online|hd|on\s+\S+))*\s*$/i, '')
          .replace(/\s+(?:watch\s+)?online(?:\s+hd)?\s*$/i, '')
          .replace(/\s+(?:in\s+)?(?:full\s+)?hd(?:\s+quality)?\s*$/i, '')
@@ -399,14 +511,15 @@ function _pageUrl() {
   // Written by popup via INJECT_RESUME message; consumed once on video attach.
 
   const PENDING_KEY = 'skipstream_pending_resume';
+  const PENDING_MAX_MS = 120000;
 
   async function checkPendingResume(mediaId) {
     try {
       const stored = await br.storage.local.get(PENDING_KEY);
       const pending = stored[PENDING_KEY];
-      if (!pending || pending.mediaId !== mediaId) return null;
-      // Expire after 30s - enough time for a new tab to fully load
-      if (Date.now() - pending.ts > 30000) {
+      if (!pending || (pending.mediaId !== mediaId && pending.mediaId !== _legacyMediaId(mediaId))) return null;
+      // 120 s: a slow phone can take longer than 30 s to open the tab and start the player.
+      if (Date.now() - pending.ts > PENDING_MAX_MS) {
         await br.storage.local.remove(PENDING_KEY);
         return null;
       }
@@ -418,6 +531,7 @@ function _pageUrl() {
   // ── Local playback cache (browser.storage.local) ───────────────────────────
 
   const CACHE_KEY = 'skipstream_cache';
+  const CACHE_MAX = 300;   // local history entries (1.12: 100)
 
   // H11: cache writes are read-modify-write of one object; two at once used to
   // lose one video's entry. Every write in this frame now waits for the last.
@@ -448,8 +562,8 @@ function _pageUrl() {
         site_name: getSiteName(),
       };
       const keys = Object.keys(cache);
-      if (keys.length > 100) {
-        keys.sort((a, b) => cache[a].t - cache[b].t).slice(0, keys.length - 100).forEach(k => delete cache[k]);
+      if (keys.length > CACHE_MAX) {
+        keys.sort((a, b) => cache[a].t - cache[b].t).slice(0, keys.length - CACHE_MAX).forEach(k => delete cache[k]);
       }
       await br.storage.local.set({ [CACHE_KEY]: cache });
     } catch { /* storage unavailable */ }
@@ -470,8 +584,8 @@ function _pageUrl() {
         site_name: meta.site_name || getSiteName(),
       };
       const keys = Object.keys(cache);
-      if (keys.length > 100) {
-        keys.sort((a, b) => cache[a].t - cache[b].t).slice(0, keys.length - 100).forEach(k => delete cache[k]);
+      if (keys.length > CACHE_MAX) {
+        keys.sort((a, b) => cache[a].t - cache[b].t).slice(0, keys.length - CACHE_MAX).forEach(k => delete cache[k]);
       }
       await br.storage.local.set({ [CACHE_KEY]: cache });
     } catch { /* storage unavailable */ }
@@ -486,16 +600,33 @@ function _pageUrl() {
 
   // ── Playback save ──────────────────────────────────────────────────────────
 
-  // Writes local cache immediately; queues cloud upsert 3s later.
-  async function savePlayback(video, saveTimer) {
-    if (!video.duration || video.currentTime < 5) return;
+  // Local cache: every save. Cloud: at most every CLOUD_PUSH_MS while playing,
+  // with the newest position (up to 1.12 every save restarted a 3 s timer, so a
+  // video that kept playing never reached the cloud until it was paused).
+  const CLOUD_PUSH_MS = 20000;
+  let _resumeHoldUntil = 0;
+  function _saveBlocked(video) {
+    return !video.duration || video.currentTime < 5 || Date.now() < _resumeHoldUntil || _ytAdShowing();
+  }
+  async function savePlayback(video, saveTimer, now) {
+    if (_saveBlocked(video)) return;
     const mediaId = getMediaId();
     if (window !== window.top) _refreshTabInfo();   // no await: H12 ordering below stays synchronous
     const pos = Math.round(video.currentTime * 10) / 10;
     const dur = Math.round(video.duration);
-    // H12: timer first (synchronous last-call-wins), then the local write.
-    clearTimeout(saveTimer.id);
-    saveTimer.id = setTimeout(async () => {
+    // H12: the cloud state is set synchronously (newest call wins), then the local write.
+    saveTimer.pending = { mediaId, pos, dur };
+    const wait = now ? 0 : Math.max(1500, (saveTimer.last || 0) + CLOUD_PUSH_MS - Date.now());
+    if (now || !saveTimer.id) {
+      clearTimeout(saveTimer.id);
+      saveTimer.id = setTimeout(() => { saveTimer.id = null; saveTimer.last = Date.now(); _pushPlayback(saveTimer); }, wait);
+    }
+    await cacheWrite(mediaId, pos, dur);
+  }
+  async function _pushPlayback(saveTimer) {
+      const job = saveTimer.pending; saveTimer.pending = null;
+      if (!job) return;
+      const { mediaId, pos, dur } = job;
       if (getMediaId() !== mediaId) return;
       const userId = await getUserId();
       if (!userId) return;
@@ -520,14 +651,12 @@ function _pageUrl() {
         } else if (res.err !== 'not_configured') {
           console.warn('[SkipStream] Cloud save failed:', res.err);
         }
-      } catch { /* background not ready */ }
-    }, 3000);
-    await cacheWrite(mediaId, pos, dur);
+      } catch { /* background not ready: the background's 5-minute sync sends it later */ }
   }
 
   // Immediate synchronous-as-possible flush (beforeunload - no async guarantee)
   function flushPlaybackSync(video) {
-    if (!video.isConnected || !video.duration || video.currentTime < 5) return;
+    if (!video.isConnected || _saveBlocked(video)) return;
     const mediaId = getMediaId();
     const pos  = Math.round(video.currentTime * 10) / 10;
     const dur  = Math.round(video.duration);
@@ -658,18 +787,11 @@ function _pageUrl() {
     // Check if this tab was opened via history click (pending resume)
     const pendingPos = await checkPendingResume(mediaId);
     if (pendingPos && pendingPos >= 10) {
-      const doSeek = () => {
-        if (getMediaId() !== mediaId) return;   // H10: page moved on while we waited
-        if (video.currentTime > 3 || (video.played && video.played.length > 0)) return;
-        try {
-          video.currentTime = pendingPos;
-          video.play().catch(() => { /* autoplay policy - user will press play */ });
-        } catch { /* ok */ }
-      };
-      if (video.readyState >= 1) doSeek();
-      else video.addEventListener('loadedmetadata', doSeek, { once: true });
+      _resumeSeek(video, pendingPos, mediaId, true, null);
       return;
     }
+    // ?t=90 in the address: the user (or the site) chose the start time.
+    if (_urlHasStartTime(location.href)) return;
 
     const userId = await getUserId();
     let saved = null;
@@ -701,27 +823,65 @@ function _pageUrl() {
       } catch { /* fall through */ }
     }
     if (!saved) saved = await cacheRead(mediaId);
+    const legacyId = saved ? null : _legacyMediaId(mediaId);
+    if (legacyId) {
+      // Saved before 1.13 under the raw host (www., m.): local first, then the cloud.
+      saved = await cacheRead(legacyId);
+      if (!saved && userId) {
+        try {
+          const r2 = await br.runtime.sendMessage({ type: 'SUPABASE_GET', userId, mediaId: legacyId });
+          if (r2 && r2.data) saved = { p: r2.data.playback_time, d: r2.data.duration };
+        } catch { /* ok */ }
+      }
+    }
+    // Saved on the site's old address (1shows.cx, now 1shows.to): same name, same path.
+    if (!saved) saved = await _cacheReadMoved(mediaId);
     if (!saved || saved.p < 10) return;
     if (saved.d && saved.p / saved.d > 0.95 && saved.d - saved.p < 60) return;
 
-    const doResume = () => {
-      if (getMediaId() !== mediaId) return;   // H10: page moved on while we waited
-      if (video.currentTime > 3 || (video.played && video.played.length > 0)) return;
-      // Silent resume: just seek and show brief toast, no prompt
-      try {
-        video.currentTime = saved.p;
-        video.play().catch(() => { /* autoplay policy */ });
-        showResumeToast(video, saved.p);
-      } catch { /* ok */ }
-    };
+    // Silent resume: seek, then a brief toast once the position holds.
+    // "Continued from" is off by default (Settings > Skipping), like the skip notice.
+    _resumeSeek(video, saved.p, mediaId, false, () => { if (prefs.resumeNotice) showResumeToast(video, saved.p); });
+  }
 
-    if (video.readyState >= 1) doResume();
-    else video.addEventListener('loadedmetadata', doResume, { once: true });
+  // Seek to a saved position and make it stick. YouTube and other players reset
+  // the time while they start, and ads play in the same element: wait for the
+  // ad, seek, check twice, and seek again (up to 4 times) if the player snapped
+  // back near the start. Saving is off until this settles (at most 15 s), so a
+  // start-up time near 0 can never overwrite the saved position.
+  function _resumeSeek(video, pos, mediaId, play, onOk) {
+    const until = Date.now() + 15000;
+    let tries = 0, ok = 0;
+    _resumeHoldUntil = until;
+    const finish = (good) => { if (_resumeHoldUntil === until) _resumeHoldUntil = 0; if (good && onOk) { try { onOk(); } catch { /* ok */ } } };
+    const step = () => {
+      if (getMediaId() !== mediaId || !video.isConnected || Date.now() > until) return finish(false);   // H10: page moved on
+      if (_ytAdShowing() || video.readyState < 1) { setTimeout(step, 400); return; }
+      const cur = Number(video.currentTime) || 0;
+      if (Math.abs(cur - pos) <= 3) {
+        if (++ok >= 2) return finish(true);
+        setTimeout(step, 1500);
+        return;
+      }
+      ok = 0;
+      // Already somewhere else on its own (the site's own resume, or the user): leave it.
+      if (cur > 8) return finish(false);
+      if (tries >= 4) return finish(false);
+      tries++;
+      try {
+        video.currentTime = pos;
+        if (play && tries === 1) video.play().catch(() => { /* autoplay policy - user will press play */ });
+      } catch { /* ok */ }
+      setTimeout(step, 700);
+    };
+    step();
   }
 
   // ── Show / episode detection ───────────────────────────────────────────────
 
   const SE_REGEX = /\bS(\d{1,2})\s*[:·•\-\s]\s*E(\d{1,3})\b/i;
+  // "S4 Episode 2", "S04 Ep 2", "Season 4 Ep. 2" (JioHotstar tab titles, 1.13 round 5).
+  const SE_WORDS_RE = /\bS(?:eason)?\s*(\d{1,2})\s*[,:·•\-]?\s*E(?:p(?:isode)?)?\.?\s*(\d{1,3})\b/i;
 
   const URL_SE_PATTERNS = [
     /\/season[s]?[\/_-](\d+)[\/_-]episode[s]?[\/_-](\d+)/i,
@@ -750,6 +910,19 @@ function _pageUrl() {
     const imdbMatch = href.match(/\b(tt\d{7,8})\b/);
     if (imdbMatch && !info.imdbId) info.imdbId = imdbMatch[1];
     const sp = new URLSearchParams(u.search);
+    // Embed players: "?video_id=1399&tmdb=1&s=1&e=2" (tmdb=1 is a flag, not an id),
+    // "/movie/tmdb/603" and "/tv/tmdb/1399-1-2".
+    const vid = sp.get('video_id');
+    if (!info.tmdbId && vid && /^\d+$/.test(vid) && sp.get('tmdb') === '1') {
+      info.tmdbId = parseInt(vid, 10);
+      info.tmdbKind = sp.get('s') && sp.get('e') ? 'tv' : 'movie';
+    }
+    const tmdbTag = pathname.match(/\/(movie|tv)\/tmdb\/(\d+)(?:-(\d{1,2})-(\d{1,3}))?(?=[\/?#]|$)/i);
+    if (!info.tmdbId && tmdbTag) {
+      info.tmdbId = parseInt(tmdbTag[2], 10);
+      info.tmdbKind = tmdbTag[1].toLowerCase();
+      if (tmdbTag[3] && !info.season) { info.season = parseInt(tmdbTag[3], 10); info.episode = parseInt(tmdbTag[4], 10); }
+    }
     if (!info.tmdbId) {
       // "/movie/603", "/movies/603-the-matrix", "/embed/tv/1399/1/2"; the id must end the segment or be followed by "-".
       const tmdbMatch = pathname.match(/\/(tv|tvs|show|shows|series|movie|movies|film|films|watch)\/(\d+)(?=[-\/?#]|$)/i);
@@ -759,7 +932,8 @@ function _pageUrl() {
         else if (!/^watch$/i.test(tmdbMatch[1])) info.tmdbKind = 'tv';
       } else {
         const q = sp.get('tmdb') || sp.get('tmdb_id') || sp.get('tmdbid');
-        if (q && /^\d+$/.test(q)) {
+        // "?video_id=x&tmdb=1": there tmdb=1 is a flag, not TMDB id 1.
+        if (q && /^\d+$/.test(q) && !(sp.has('video_id') && q === '1')) {
           info.tmdbId = parseInt(q, 10);
           const t = (sp.get('type') || '').toLowerCase();
           if (t === 'movie') info.tmdbKind = 'movie'; else if (t === 'tv' || t === 'series') info.tmdbKind = 'tv';
@@ -767,6 +941,11 @@ function _pageUrl() {
       }
     }
     let seFromUrl = extractSeEpisode(href);
+    if (!seFromUrl) {
+      // "/tv/1399-1-2" (season and episode joined to the id)
+      const j = pathname.match(/\/(?:tv|tvs|show|shows|series)\/\d+-(\d{1,2})-(\d{1,3})(?:[\/?#]|$)/i);
+      if (j) seFromUrl = { season: parseInt(j[1], 10), episode: parseInt(j[2], 10) };
+    }
     if (!seFromUrl) {
       const m = pathname.match(/\/(?:tv|tvs|show|shows|series)\/\d+[^\/]*\/(\d{1,2})\/(\d{1,3})(?:[\/?#]|$)/i);
       if (m) seFromUrl = { season: parseInt(m[1], 10), episode: parseInt(m[2], 10) };
@@ -789,8 +968,28 @@ function _pageUrl() {
         const obj = Array.isArray(data) ? data[0] : data;
         if (!info.season  && obj?.partOfSeason?.seasonNumber) info.season  = parseInt(obj.partOfSeason.seasonNumber, 10);
         if (!info.episode && obj?.episodeNumber)               info.episode = parseInt(obj.episodeNumber, 10);
+        const nm = obj?.partOfSeries?.name || (/^(Movie|TVSeries|TVSeason|CreativeWork|VideoObject)$/.test(String(obj?.['@type'])) ? obj?.name : null);
+        if (nm && !info.ldName) info.ldName = String(nm).slice(0, 120);
+        const dt = String(obj?.datePublished || obj?.dateCreated || obj?.startDate || obj?.uploadDate || '').match(/^((?:19|20)\d{2})/);
+        if (dt && !info.year && /^(Movie|TVSeries)$/.test(String(obj?.['@type']))) info.year = parseInt(dt[1], 10);
       } catch { /* malformed JSON-LD */ }
     });
+    if (!info.malId) {
+      const a = document.querySelector('a[href*="myanimelist.net/anime/"]');
+      const m = a && String(a.getAttribute('href')).match(/myanimelist\.net\/anime\/(\d{1,7})/);
+      const d = document.querySelector('[data-mal-id],[data-malid],[data-mal]');
+      const dv = d && (d.getAttribute('data-mal-id') || d.getAttribute('data-malid') || d.getAttribute('data-mal'));
+      if (m) info.malId = parseInt(m[1], 10);
+      else if (dv && /^\d{1,7}$/.test(dv.trim())) info.malId = parseInt(dv, 10);
+      else {
+        for (const sc of document.querySelectorAll('script:not([src])')) {
+          const t = sc.textContent || '';
+          if (t.length > 200000) continue;
+          const k = t.match(/["']?(?:mal_id|malId|idMal|malID)["']?\s*[:=]\s*["']?(\d{1,7})\b/);
+          if (k) { info.malId = parseInt(k[1], 10); break; }
+        }
+      }
+    }
     if (!info.imdbId) {
       document.querySelectorAll('meta[content]').forEach(el => {
         const m = (el.getAttribute('content') || '').match(/\b(tt\d{7,8})\b/);
@@ -823,12 +1022,16 @@ function _pageUrl() {
         }
       }
     });
+    // The page says it is an episode (Open Graph): never look it up as a film.
+    const ogType = String(document.querySelector('meta[property="og:type"]')?.getAttribute('content') || '').trim().toLowerCase();
+    if (!info.tmdbKind && (ogType === 'video.episode' || ogType === 'video.tv_show')) info.tmdbKind = 'tv';
     if ((!info.season || !info.episode) && info.tmdbKind !== 'movie') {
       const text = document.title + ' ' + (document.body?.textContent?.slice(0, 4000) || '');
       const textPatterns = [
         [/Season\s+(\d+)[,\s·•\-]+Episode\s+(\d+)/i, false],
         [SE_REGEX, false],
         [/\bS(\d{1,2})E(\d{1,3})\b/i, false],
+        [SE_WORDS_RE, false],
         [/\bSeason\s+(\d+)\b.*?\bEpisode\s+(\d+)\b/i, false],
         [/\bEp(?:isode)?\s*(\d+)\s+Season\s+(\d+)/i, true],
       ];
@@ -923,8 +1126,15 @@ function _pageUrl() {
       // No id anywhere (aggregator sites): ask TMDB for an exact title match.
       // Never on YouTube, where the title is a video name, not a film.
       const yt = _hostIs(_siteHost(), 'youtube.com') || !!_youtubeVideoId();
-      const q = info.title || (!yt ? pageTitle : '');
-      if (q && !yt) {
+      // Several names for the same page, best first: the address, structured
+      // data, the page heading, the tab title. The first exact TMDB match wins.
+      const h1 = !yt ? _cleanTitle((document.querySelector('h1')?.textContent || '').trim(), [getSiteName(), _siteHost()]) : '';
+      const qs = [];
+      for (const c of [info.title, info.ldName, !yt ? pageTitle : '', h1]) {
+        const t = String(c || '').trim();
+        if (t.length >= 2 && t.length <= 120 && !qs.some(x => x.toLowerCase() === t.toLowerCase())) qs.push(t);
+      }
+      for (const q of yt ? [] : qs.slice(0, 3)) {
         const kind = info.season && info.episode ? 'tv' : (info.tmdbKind || '');
         const key = kind + ':' + q.toLowerCase() + ':' + (info.year || '');
         if (!_titleIdCache.has(key)) {
@@ -937,8 +1147,11 @@ function _pageUrl() {
         if (hit && hit.imdbId) {
           info.imdbId = hit.imdbId;
           info.byTitle = true;
+          if (hit.tmdbId && !info.tmdbId) info.tmdbId = hit.tmdbId;
           if (hit.kind === 'movie') { info.tmdbKind = 'movie'; info.season = null; info.episode = null; }
+          break;
         }
+        if (!hit) break;   // no key or network trouble: the other names would fail the same way
       }
     }
     return info;
@@ -949,12 +1162,13 @@ function _pageUrl() {
   const segmentCache = new Map();
 
   // Only real data is cached: a miss must stay retryable (API down, key added later).
-  async function fetchSegments(imdbId, season, episode, isMovie) {
-    const key = isMovie ? `${imdbId}:movie` : `${imdbId}:${season}:${episode}`;
+  async function fetchSegments(imdbId, season, episode, isMovie, extra) {
+    const x = extra || {};
+    const key = (isMovie ? `${imdbId}:movie` : `${imdbId}:${season}:${episode}`) + (x.tmdbId ? ':t' + x.tmdbId : '') + (x.malId ? ':m' + x.malId : '');
     if (segmentCache.has(key)) return segmentCache.get(key);
     
     // If this is a YouTube video, try SponsorBlock first
-    if (imdbId.startsWith('yt/')) {
+    if (String(imdbId || '').startsWith('yt/')) {
       const ytVideoId = imdbId.slice(3); // extract 11-char ID
       try {
         const res = await br.runtime.sendMessage({ type: 'FETCH_SEGMENTS_YT', videoId: ytVideoId });
@@ -967,7 +1181,8 @@ function _pageUrl() {
     
     // Regular IntroDB/AnimeSkip path for non-YouTube
     try {
-      const res = await br.runtime.sendMessage({ type: 'FETCH_SEGMENTS', imdbId, season, episode, isMovie: !!isMovie });
+      const res = await br.runtime.sendMessage({ type: 'FETCH_SEGMENTS', imdbId, season, episode, isMovie: !!isMovie,
+        tmdbId: x.tmdbId || null, malId: x.malId || null, anime: !!x.anime, title: x.title || '', durationSec: x.durationSec || 0 });
       const data = res?.data || null;
       if (data) segmentCache.set(key, data);
       return data;
@@ -997,14 +1212,126 @@ function _pageUrl() {
     }
     return out;
   }
-  let _tlBox = null, _tlVideo = null, _tlSegs = null, _tlHideT = null, _tlMoveOn = false;
+  let _tlBox = null, _tlVideo = null, _tlSegs = null, _tlMoveOn = false, _tlObs = null;
   function _clearTimeline() { if (_tlBox) _tlBox.remove(); _tlBox = null; _tlSegs = null; }
-  function _placeStrip(box, video) {
-    const fs = document.fullscreenElement || document.webkitFullscreenElement;
-    if (fs) { Object.assign(box.style, { position: 'absolute', left: '0', width: '100%', bottom: '0', top: '' }); return; }
-    const r = video.getBoundingClientRect();
-    Object.assign(box.style, { position: 'fixed', left: r.left + 'px', width: r.width + 'px', top: (r.bottom - 5) + 'px', bottom: '' });
+  // Called from the skip loop and on player DOM changes: YouTube rebuilds its
+  // controls (always on m.youtube.com), so marks are put back when they are gone.
+  function _tlKeep() {
+    if (!_tlSegs || !_tlVideo || !prefs.showTimeline || !_youtubeVideoId()) return;
+    if (_ytAdShowing()) { if (_tlBox) { _tlBox.remove(); _tlBox = null; } return; }
+    const bar = _ytBar();
+    if (bar && (!_tlBox || !_tlBox.isConnected || _tlBox.parentElement !== bar)) _renderTimeline(_tlVideo, _tlSegs);
   }
+  function _tlWatch() {
+    if (_tlObs) return;
+    const root = document.getElementById('player-control-container') || document.getElementById('movie_player') || document.getElementById('player');
+    if (!root || typeof MutationObserver === 'undefined') return;
+    _tlObs = new MutationObserver(throttle(_tlKeep, 300));
+    _tlObs.observe(root, { childList: true, subtree: true });
+  }
+  // A local history entry for the same page on the site's old address: same site
+  // name (_siteFamily), same path and ids. The newest one wins. Ids without a host
+  // (movie/603, tv/1396) already stay the same when a site moves.
+  async function _cacheReadMoved(id) {
+    const HID = /^([a-z0-9-]+(?:\.[a-z0-9-]+)+)(\/.*)$/i;
+    const m = HID.exec(String(id || ''));
+    if (!m) return null;
+    const fam = _siteFamily(m[1]);
+    try {
+      const c = (await br.storage.local.get(CACHE_KEY))[CACHE_KEY] || {};
+      let best = null;
+      for (const [k, v] of Object.entries(c)) {
+        if (k === id || !v || typeof v !== 'object') continue;
+        const n = HID.exec(k);
+        if (n && n[2] === m[2] && _siteFamily(n[1]) === fam && (!best || (v.t || 0) > (best.t || 0))) best = v;
+      }
+      return best;
+    } catch { return null; }
+  }
+
+  // ── Marks on any player's progress bar (1.13 round 4) ───────────────────
+  // Not tied to one player: SkipStream looks near the video for the element that
+  // acts as the seek bar (a slider or a "progress / seek / timeline" element, as
+  // wide as most of the video, low on it, not volume). Known class names from
+  // popular players only add points. The marks are NOT put inside the player:
+  // players such as Vidstack rebuild their bar and removed them (round 3). They
+  // float exactly over the bar, follow it every 250 ms, and hide when the
+  // player hides its controls. No bar found: a thin strip along the bottom of
+  // the video, shown while the mouse moves, as before.
+  function _seekBarScore(c, vr, dur) {
+    let r;
+    try { r = c.getBoundingClientRect(); } catch { return 0; }
+    if (!(r.width >= vr.width * 0.4) || !(r.height >= 1) || r.height > 48) return 0;
+    if (r.left < vr.left - 12 || r.right > vr.right + 12 || r.top < vr.top + vr.height * 0.45 || r.bottom > vr.bottom + 80) return 0;
+    const name = String((c.className && c.className.baseVal !== undefined ? c.className.baseVal : c.className) || '') + ' ' + String(c.id || '');
+    const label = String((c.getAttribute && (c.getAttribute('aria-label') || '')) || '') + ' ' + String((c.getAttribute && c.getAttribute('aria-valuetext')) || '');
+    if (/volume|vol-|brightness|speed|rate|quality|zoom/i.test(name + ' ' + label)) return 0;
+    let sc = 0;
+    const role = c.getAttribute && c.getAttribute('role');
+    const tag = String(c.tagName || '').toLowerCase();
+    if (role === 'slider' || (tag === 'input' && String(c.type).toLowerCase() === 'range')) sc += 3;
+    const max = Number(c.getAttribute && (c.getAttribute('aria-valuemax') || c.getAttribute('max')));
+    if (dur > 0 && Number.isFinite(max) && Math.abs(max - dur) <= Math.max(2, dur * 0.02)) sc += 3;
+    if (/\d:\d\d|seek|progress|time|position/i.test(label)) sc += 2;
+    if (/progress|seek|scrub|timeline|time-?slider|slider-track|rail|track/i.test(name)) sc += 2;
+    if (PLAYER_BAR_SELECTORS.some(sel => { try { return c.matches(sel); } catch { return false; } })) sc += 2;
+    if (r.width >= vr.width * 0.7) sc += 1;
+    return sc;
+  }
+  function _findSeekBar(video) {
+    let vr;
+    try { vr = video.getBoundingClientRect(); } catch { return null; }
+    if (!(vr.width >= 120)) return null;
+    const dur = Number(video.duration);
+    // The player box: the highest ancestor (6 levels, out of shadow roots too)
+    // that is still about the size of the video.
+    let el = video, scope = null;
+    for (let i = 0; i < 6; i++) {
+      el = el.parentElement || (el.getRootNode && el.getRootNode() && el.getRootNode().host) || null;
+      if (!el || typeof el.querySelectorAll !== 'function') break;
+      let rr; try { rr = el.getBoundingClientRect(); } catch { break; }
+      if (rr.width > vr.width * 1.6 + 8 || rr.height > vr.height * 1.8 + 8) break;
+      scope = el;
+    }
+    if (!scope) return null;
+    const SEL = '[role="slider"],input[type="range"],[class*="progress" i],[class*="seek" i],[class*="scrub" i],[class*="timeline" i],[class*="slider" i],[class*="rail" i],[id*="progress" i],[id*="seek" i],' + PLAYER_BAR_SELECTORS.join(',');
+    let best = null, bestSc = 0, n = 0;
+    const look = (root, depth) => {
+      let list = [];
+      try { list = root.querySelectorAll(SEL); } catch { return; }
+      for (const c of list) {
+        if (++n > 400) return;
+        const sc = _seekBarScore(c, vr, dur);
+        if (sc > bestSc) { best = c; bestSc = sc; }
+      }
+      if (depth >= 2) return;
+      try { root.querySelectorAll('*').forEach(x => { if (x.shadowRoot) look(x.shadowRoot, depth + 1); }); } catch { /* ok */ }
+    };
+    look(scope, 0);
+    return bestSc >= 3 ? best : null;
+  }
+  let _tlBar = null, _tlBarAt = 0, _tlTick = null, _tlMouseAt = 0;
+  function _tlPlace() {
+    const box = _tlBox, video = _tlVideo;
+    if (!box || box.dataset.ss !== 'over' || !video || !video.isConnected) { clearInterval(_tlTick); _tlTick = null; return; }
+    const fs = document.fullscreenElement || document.webkitFullscreenElement;
+    const host = fs || document.body || document.documentElement;
+    if (box.parentNode !== host) host.appendChild(box);
+    const now = Date.now();
+    if ((!_tlBar || !_tlBar.isConnected) && now - _tlBarAt > 1000) { _tlBarAt = now; _tlBar = _findSeekBar(video); }
+    const put = (l, t, w, h, on) => Object.assign(box.style, { left: l + 'px', top: t + 'px', width: w + 'px', height: h + 'px', opacity: on ? '1' : '0' });
+    if (_tlBar) {
+      const r = _tlBar.getBoundingClientRect();
+      let vis = r.width > 0 && r.height > 0;
+      try { if (vis && typeof _tlBar.checkVisibility === 'function') vis = _tlBar.checkVisibility({ opacityProperty: true, visibilityProperty: true }); } catch { /* ok */ }
+      const h = Math.max(3, Math.min(5, r.height));
+      put(r.left, r.top + r.height / 2 - h / 2, r.width, h, vis);
+      return;
+    }
+    const vr = video.getBoundingClientRect();
+    put(vr.left, vr.bottom - 5, vr.width, 5, now - _tlMouseAt < 2500);
+  }
+
   function _renderTimeline(video, segs) {
     _tlVideo = video; _tlSegs = segs;
     if (_tlBox) { _tlBox.remove(); _tlBox = null; }
@@ -1013,27 +1340,32 @@ function _pageUrl() {
     if (!Number.isFinite(d) || d <= 0) { video.addEventListener('durationchange', () => { if (_tlSegs === segs) _renderTimeline(video, segs); }, { once: true }); return; }
     const spans = _timelineSpans(segs, d);
     if (!spans.length) return;
+    const yt = !!_youtubeVideoId();
+    // YouTube: only inside its own bar. The mobile site removes the bar while its
+    // controls are hidden; _tlKeep() draws again when the bar comes back.
+    if (yt && _ytAdShowing()) return;
+    const ytBar = yt ? _ytBar() : null;
+    if (yt && !ytBar) return;
     const box = document.createElement('div');
     box.id = 'skipstream-timeline';
-    const ytBar = _youtubeVideoId() ? document.querySelector('.ytp-progress-bar') : null;
     if (ytBar) {
       box.dataset.ss = 'yt';
+      try { if (getComputedStyle(ytBar).position === 'static') ytBar.style.position = 'relative'; } catch { /* ok */ }
       Object.assign(box.style, { position: 'absolute', left: '0', right: '0', top: '0', bottom: '0', pointerEvents: 'none', zIndex: '40' });
       ytBar.appendChild(box);
+      _tlWatch();
     } else {
-      Object.assign(box.style, { height: '5px', pointerEvents: 'none', zIndex: '2147483644', opacity: '0', transition: 'opacity 200ms ease' });
+      box.dataset.ss = 'over';
+      Object.assign(box.style, { position: 'fixed', left: '0', top: '0', width: '0', height: '4px', pointerEvents: 'none', zIndex: '2147483644', opacity: '0', transition: 'opacity 150ms ease' });
       (document.fullscreenElement || document.webkitFullscreenElement || document.body || document.documentElement).appendChild(box);
-      _placeStrip(box, video);
+      _tlBar = null; _tlBarAt = 0;
+      if (!_tlTick) _tlTick = setInterval(_tlPlace, 250);
       if (!_tlMoveOn) {
         _tlMoveOn = true;
         document.addEventListener('mousemove', throttle((e) => {
-          if (!_tlBox || !_tlVideo || _tlBox.dataset.ss === 'yt' || !_tlBox.isConnected) return;
+          if (!_tlVideo) return;
           const r = _tlVideo.getBoundingClientRect();
-          if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
-          _placeStrip(_tlBox, _tlVideo);
-          _tlBox.style.opacity = '1';
-          clearTimeout(_tlHideT);
-          _tlHideT = setTimeout(() => { if (_tlBox) _tlBox.style.opacity = '0'; }, 2500);
+          if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) _tlMouseAt = Date.now();
         }, 150), true);
       }
     }
@@ -1044,6 +1376,54 @@ function _pageUrl() {
       box.appendChild(m);
     }
     _tlBox = box;
+    if (box.dataset.ss === 'over') _tlPlace();
+  }
+
+  // SponsorBlock rows are made for one upload; a row made for a different length
+  // (re-upload, edit) would skip the wrong part. Rule from yt-dlp: within 3 s.
+  function _sbFitDuration(segs, video) {
+    if (!segs || !video) return segs;
+    const d = Number(video.duration);
+    if (!Number.isFinite(d) || d <= 0 || _ytAdShowing()) return segs;
+    const out = {};
+    for (const [k, v] of Object.entries(segs)) {
+      if (!Array.isArray(v)) { out[k] = v; continue; }
+      const keep = v.filter(r => !(r && r.video_duration > 0) || Math.abs(r.video_duration - d) <= 3);
+      if (keep.length) out[k] = keep;
+    }
+    return Object.keys(out).length ? out : null;
+  }
+
+  // Anime streaming sites (MyAnimeList ids are looked up by title there).
+  function _animeSite() {
+    const h = _siteHost();
+    return /(^|\.)(?:[a-z0-9-]*anime[a-z0-9-]*|aniwatch[a-z]*|zoro|kaido|aniwave|animekai|gogoanime[a-z0-9]*|anitaku|animepahe|crunchyroll)\.[a-z.]+$/i.test(h);
+  }
+
+  // Chapters the page itself gives the player: <track kind="chapters"> cues and
+  // JSON-LD Clip parts named "Intro", "Opening", "Recap", "Credits", "Preview".
+  // Lowest priority: only used when no skip database answers.
+  const CHAPTER_KEY = [[/\b(intro|opening|op)\b/i, 'intro'], [/\b(recap|previously)\b/i, 'recap'],
+    [/\b(credits|ending|outro|ed|end credits)\b/i, 'outro'], [/\b(preview|next episode)\b/i, 'preview']];
+  function _chapterKey(name) { const t = String(name || '').trim(); if (!t || t.length > 40) return null; const hit = CHAPTER_KEY.find(([re]) => re.test(t)); return hit ? hit[1] : null; }
+  function _pageChapters(video) {
+    const out = {};
+    const add = (name, a, b) => { const k = _chapterKey(name); a = Number(a); b = Number(b); if (k && !out[k] && Number.isFinite(a) && Number.isFinite(b) && b > a && a >= 0) out[k] = { start_sec: a, end_sec: b }; };
+    try {
+      for (const t of Array.from((video && video.textTracks) || [])) {
+        if (t.kind !== 'chapters') continue;
+        if (t.mode === 'disabled') t.mode = 'hidden';
+        for (const c of Array.from(t.cues || [])) add(c.text, c.startTime, c.endTime);
+      }
+    } catch { /* ok */ }
+    document.querySelectorAll('script[type="application/ld+json"]').forEach(el => {
+      try {
+        const d = JSON.parse(el.textContent || '');
+        const parts = [].concat(d && d.hasPart || [], ...(Array.isArray(d) ? d.map(x => x && x.hasPart || []) : []));
+        for (const c of parts) if (c && /Clip/.test(String(c['@type']))) add(c.name, c.startOffset, c.endOffset);
+      } catch { /* malformed JSON-LD */ }
+    });
+    return Object.keys(out).length ? out : null;
   }
 
   function findActiveSegment(segments, currentTime) {
@@ -1240,7 +1620,9 @@ function _pageUrl() {
       video._ssCooldownUntil = Date.now() + 1500;
       recordSkipStat(segment.end_sec - prevTime);
       _diag.last = { key: segKey, at: Date.now(), auto: true, notice: false, undone: false };
-      showSkippedNotice(segKey, segment, video, prevTime);
+      video._ssLastSkip = { key: segKey, from: prevTime, until: segment.end_sec, at: Date.now(), media: getMediaId() };
+      // "Skipped X, Undo" is off by default (Settings > Skipping): Alt+Z still undoes.
+      if (prefs.skipNotice) showSkippedNotice(segKey, segment, video, prevTime);
       onDone();
       return;
     }
@@ -1688,17 +2070,105 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   let _subState = { enabled: true, language: 'en', fontSize: 18, position: 12, sync: 0, subs: [], loading: false, dragPos: { x: 50, bottom: 10 } };
   let _subOverlay = null;
   let _subCCBtn   = null;
+  // CC button (1.13): only while its video is on the page and big enough; hides
+  // after 5 s without mouse, touch or keys in full screen; drag it on a normal page
+  // (the spot is remembered); Settings > Subtitles can switch it off.
+  const CC_IDLE_MS = 5000;
+  let _ccVideo = null, _ccIdleT = null, _ccWatchT = null;
+  function _ccFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function _ccApplyPos(btn, pos) {
+    if (!btn) return;
+    if (_ccFs() || !pos) { btn.style.left = '3%'; btn.style.bottom = '68px'; return; }
+    const l = Number(pos.left), b = Number(pos.bottom);
+    if (Number.isFinite(l) && Number.isFinite(b)) {
+      btn.style.left = Math.max(0, Math.min(94, l)) + '%';
+      btn.style.bottom = Math.max(0, Math.min((window.innerHeight || 600) - 40, b)) + 'px';
+    }
+  }
+  function _ccSetup(btn, video) {
+    br.storage.local.get('subtitle_cc_pos').then(s => _ccApplyPos(btn, s.subtitle_cc_pos)).catch(() => {});
+    const show = () => {
+      if (!btn.isConnected) return;
+      btn.style.visibility = 'visible';
+      clearTimeout(_ccIdleT);
+      if (_ccFs()) _ccIdleT = setTimeout(() => { if (_ccFs()) btn.style.visibility = 'hidden'; }, CC_IDLE_MS);
+    };
+    if (window._ssCCWake) for (const ev of ['mousemove', 'touchstart', 'keydown']) document.removeEventListener(ev, window._ssCCWake, true);
+    window._ssCCWake = throttle(show, 250);
+    window._ssCCShow = show;
+    for (const ev of ['mousemove', 'touchstart', 'keydown']) document.addEventListener(ev, window._ssCCWake, { capture: true, passive: true });
+    let drag = null;
+    btn.addEventListener('pointerdown', e => {
+      if (_ccFs() || e.button !== 0) return;
+      const r = btn.getBoundingClientRect();
+      drag = { x: e.clientX, y: e.clientY, l: r.left, b: (window.innerHeight || 0) - r.bottom, moved: false };
+      try { btn.setPointerCapture(e.pointerId); } catch { /* ok */ }
+    });
+    btn.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+      drag.moved = true;
+      btn.style.left = Math.max(0, drag.l + dx) + 'px';
+      btn.style.bottom = Math.max(0, drag.b - dy) + 'px';
+    });
+    btn.addEventListener('pointerup', () => {
+      if (drag && drag.moved) {
+        const r = btn.getBoundingClientRect();
+        const pos = { left: Math.round(r.left / (window.innerWidth || 1) * 1000) / 10, bottom: Math.round((window.innerHeight || 0) - r.bottom) };
+        _ccApplyPos(btn, pos);
+        br.storage.local.set({ subtitle_cc_pos: pos }).catch(() => {});
+        btn._ssDragged = Date.now();
+      }
+      drag = null;
+    });
+    clearInterval(_ccWatchT);
+    _ccWatchT = setInterval(() => {
+      if (!btn.isConnected) { clearInterval(_ccWatchT); return; }
+      const r = video.isConnected ? video.getBoundingClientRect() : null;
+      btn.style.display = r && r.width >= 120 && r.height >= 68 ? 'flex' : 'none';
+    }, 1500);
+    show();
+  }
 
-  // Subtitle look (Settings > Subtitles): colour, background, font, outline.
-  let _subStyle = { color: '#ffffff', bg: 38, font: 'sans', outline: true };
-  const SUB_FONTS = { sans: 'system-ui,-apple-system,sans-serif', serif: 'Georgia,"Times New Roman",serif', mono: 'ui-monospace,Consolas,monospace' };
+  // Subtitle look (Settings > Subtitles): colour, background, font, letter edge.
+  // Edge styles as in TV caption settings (and CloudStream): outline, drop
+  // shadow, raised, none. Before 1.13 there was only an outline on/off switch
+  // (subtitle_outline); it still decides when no edge is saved.
+  let _subStyle = { color: '#ffffff', bg: 38, font: 'sans', outline: true, edge: null, weight: 'bold' };
+  const SUB_FONTS = {
+    sans: 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',
+    serif: 'Georgia,"Times New Roman",serif',
+    mono: 'ui-monospace,Consolas,"Courier New",monospace',
+    rounded: 'ui-rounded,"SF Pro Rounded","Nunito","Varela Round","Arial Rounded MT Bold",system-ui,sans-serif',
+    casual: '"Comic Neue","Comic Sans MS","Chalkboard SE","Segoe Print",cursive,sans-serif',
+    condensed: '"Roboto Condensed","Arial Narrow","Sofia Sans Condensed","Helvetica Neue",sans-serif',
+    smallcaps: 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',
+    netflix: '"Netflix Sans","Helvetica Neue",Helvetica,Arial,sans-serif',
+    prime: '"Amazon Ember","Segoe UI","Helvetica Neue",Arial,sans-serif',
+  };
+  const SUB_EDGES = {
+    outline: '0 2px 8px rgba(0,0,0,0.7), 0 0 3px rgba(0,0,0,0.9), 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000',
+    shadow: '2px 2px 3px rgba(0,0,0,0.95), 3px 3px 6px rgba(0,0,0,0.6)',
+    raised: '-1px -1px 0 rgba(255,255,255,0.45), 1px 1px 0 rgba(0,0,0,0.95), 2px 2px 0 rgba(0,0,0,0.6)',
+    depressed: '1px 1px 0 rgba(255,255,255,0.45), -1px -1px 0 rgba(0,0,0,0.95), -2px -2px 0 rgba(0,0,0,0.6)',
+    glow: '0 0 4px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.85), 0 0 18px rgba(0,0,0,0.6)',
+    none: 'none',
+  };
+  function _subEdge(st) {
+    const e = st && st.edge;
+    if (typeof e === 'string' && Object.prototype.hasOwnProperty.call(SUB_EDGES, e)) return e;
+    return st && st.outline === false ? 'none' : 'outline';
+  }
   function _subLook(st) {
     const color = /^#[0-9a-f]{6}$/i.test(String(st && st.color)) ? st.color : '#ffffff';
     const bgN = Number(st && st.bg);
     const bg = Number.isFinite(bgN) ? Math.max(0, Math.min(90, bgN)) / 100 : 0.38;
     return {
       color, fontFamily: SUB_FONTS[st && st.font] || SUB_FONTS.sans, background: 'rgba(0,0,0,' + bg + ')',
-      textShadow: st && st.outline === false ? 'none' : '0 2px 8px rgba(0,0,0,0.7), 0 0 3px rgba(0,0,0,0.9), 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000',
+      textShadow: SUB_EDGES[_subEdge(st)],
+      fontWeight: st && st.weight === 'regular' ? '500' : '700',
+      fontVariant: st && st.font === 'smallcaps' ? 'small-caps' : 'normal',
     };
   }
   function _applySubStyle(el) { if (el) Object.assign(el.style, _subLook(_subStyle)); }
@@ -1721,11 +2191,13 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
 
   async function loadSubPrefs() {
     try {
-      const st = await br.storage.local.get(['subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline']);
+      const st = await br.storage.local.get(['subtitle_color', 'subtitle_bg', 'subtitle_font', 'subtitle_outline', 'subtitle_edge', 'subtitle_weight']);
       if (st.subtitle_color)               _subStyle.color   = st.subtitle_color;
       if (st.subtitle_bg !== undefined)    _subStyle.bg      = Number(st.subtitle_bg);
       if (st.subtitle_font)                _subStyle.font    = st.subtitle_font;
       if (st.subtitle_outline !== undefined) _subStyle.outline = !!st.subtitle_outline;
+      if (st.subtitle_edge)                _subStyle.edge    = st.subtitle_edge;
+      if (st.subtitle_weight)              _subStyle.weight  = st.subtitle_weight;
     } catch { /* defaults ok */ }
     try {
       const s = await br.storage.local.get(['subtitle_enabled','subtitle_language','subtitle_font_size','subtitle_sync','subtitle_drag_pos']);
@@ -1890,6 +2362,8 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   }
 
   function ensureCCBtn(video) {
+    _ccVideo = video;
+    if (prefs.ccButton === 'off') { if (_subCCBtn) { _subCCBtn.remove(); _subCCBtn = null; } clearInterval(_ccWatchT); return null; }
     if (_subCCBtn?.isConnected) return _subCCBtn;
     if (_subCCBtn) _subCCBtn.remove();
     const btn = document.createElement('button');
@@ -1936,6 +2410,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     btn.onmouseup = () => { btn.style.transform = 'scale(1)'; };
     btn.addEventListener('click', e => {
       e.preventDefault(); e.stopPropagation();
+      if (btn._ssDragged && Date.now() - btn._ssDragged < 400) return;   // the end of a drag is not a click
       if (!_subState.subs || _subState.subs.length === 0) {
         const inp = document.createElement('input');
         inp.type = 'file';
@@ -1967,7 +2442,14 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     });
     subContainer(video).appendChild(btn);
     _subCCBtn = btn;
-    const onFs = () => { if (!_subCCBtn?.isConnected) return; _subCCBtn.style.position=(document.fullscreenElement||document.webkitFullscreenElement)?'absolute':'fixed'; subContainer(video).appendChild(_subCCBtn); };
+    _ccSetup(btn, video);
+    const onFs = () => {
+      if (!_subCCBtn?.isConnected) return;
+      _subCCBtn.style.position = _ccFs() ? 'absolute' : 'fixed';
+      subContainer(video).appendChild(_subCCBtn);
+      br.storage.local.get('subtitle_cc_pos').then(s => _ccApplyPos(_subCCBtn, s.subtitle_cc_pos)).catch(() => {});
+      if (window._ssCCShow) window._ssCCShow();
+    };
     if (window._ssCCFsHandler) {
       document.removeEventListener('fullscreenchange', window._ssCCFsHandler);
       document.removeEventListener('webkitfullscreenchange', window._ssCCFsHandler);
@@ -2087,6 +2569,9 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     if ('subtitle_bg' in changes)      { _subStyle.bg = Number(changes.subtitle_bg.newValue); restyle = true; }
     if ('subtitle_font' in changes)    { _subStyle.font = changes.subtitle_font.newValue || 'sans'; restyle = true; }
     if ('subtitle_outline' in changes) { _subStyle.outline = changes.subtitle_outline.newValue !== false; restyle = true; }
+    if ('subtitle_edge' in changes)    { _subStyle.edge = changes.subtitle_edge.newValue || null; restyle = true; }
+    if ('subtitle_weight' in changes)  { _subStyle.weight = changes.subtitle_weight.newValue || 'bold'; restyle = true; }
+    if ('ccButton' in changes) { prefs.ccButton = changes.ccButton.newValue; if (prefs.ccButton === 'off') ensureCCBtn(_ccVideo); else if (_ccVideo && _ccVideo.isConnected) { ensureCCBtn(_ccVideo); syncCCBtn(); } }
     if (restyle) _applySubStyle(_subOverlay);
     if ('showTimeline' in changes && _tlVideo) { if (changes.showTimeline.newValue === false) { if (_tlBox) { _tlBox.remove(); _tlBox = null; } } else if (_tlSegs) _renderTimeline(_tlVideo, _tlSegs); }
     if ('subtitle_drag_pos' in changes) {
@@ -2165,7 +2650,11 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     });
 
     // Event-based saves for pause / seek / unload
-    video.addEventListener('pause',  () => { savePlayback(video, saveTimer); });
+    video.addEventListener('pause',  () => { savePlayback(video, saveTimer, true); });
+    // Phones: switching app or tab often never fires pagehide. Send the position now.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && video.isConnected) savePlayback(video, saveTimer, true);
+    });
     video.addEventListener('seeked', () => {
       savePlayback(video, saveTimer);
       // Reset so a seek INTO an active segment re-shows the skip button/countdown
@@ -2224,19 +2713,27 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
       // (IntroDB end credits). Anything else: nothing to look up.
       const ytId = _youtubeVideoId();
       let fetched = null;
+      const dur = Number.isFinite(video.duration) && video.duration > 0 ? Math.round(video.duration) : 0;
+      const anime = !!info.malId || _animeSite();
+      const extra = { tmdbId: info.tmdbId, malId: info.malId, anime, title: anime ? (info.title || info.ldName || getVideoTitle()) : '', durationSec: dur };
+      const ids = info.imdbId || info.tmdbId;
       if (ytId) {
-        fetched = await fetchSegments('yt/' + ytId, 0, 0);
-      } else if (info.imdbId && info.season && info.episode) {
-        fetched = await fetchSegments(info.imdbId, info.season, info.episode);
-      } else if (info.imdbId && !info.season && !info.episode && info.tmdbKind !== 'tv') {
+        fetched = _sbFitDuration(await fetchSegments('yt/' + ytId, 0, 0), video);
+      } else if (ids && info.season && info.episode) {
+        fetched = await fetchSegments(info.imdbId, info.season, info.episode, false, extra);
+      } else if (ids && !info.season && !info.episode && info.tmdbKind !== 'tv' && !anime) {
         // A show page without S/E is not a movie: nothing to look up yet.
-        fetched = await fetchSegments(info.imdbId, 0, 0, true);
-      } else {
+        fetched = await fetchSegments(info.imdbId, 0, 0, true, extra);
+      } else if (anime && info.episode) {
+        fetched = await fetchSegments(info.imdbId, info.season || 1, info.episode, false, extra);
+      }
+      if (!fetched && !ytId) { fetched = _pageChapters(video); _diagChapters = fetched; }
+      if (!fetched && !ytId && !ids && !(anime && info.episode)) {
         _diag.segs = 'nothing to look up';
         return;
       }
       if (gen !== _segGen) return;
-      _diag.segs = fetched ? Object.keys(fetched).map(k => k === 'full' ? 'whole video: ' + fetched.full : k).join(', ') : 'none found (yet)';
+      _diag.segs = fetched ? _diagSegs(fetched, ytId ? 'SponsorBlock' : '') : 'none found (yet)';
       if (fetched) {
         resolved = true;
         segments = fetched;
@@ -2285,6 +2782,8 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
         return;
       }
       if (!video.isConnected) return;
+      if (_ytAdShowing()) return;
+      if (segments) _tlKeep();
       if (video.paused || !segments) return;
       if (video._ssCooldownUntil && Date.now() < video._ssCooldownUntil) return;
 
@@ -2384,10 +2883,18 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
         }
       }
       
-      // Alt+Z: undo last skip (go back 15 seconds)
+      // Alt+Z: undo the last automatic skip (within 30 s), otherwise back 15 seconds
       if (e.altKey && (e.code === 'KeyZ' || String(e.key).toLowerCase() === 'z')) {
         e.preventDefault();
-        video.currentTime = Math.max(0, video.currentTime - 15);
+        const ls = video._ssLastSkip;
+        if (ls && Date.now() - ls.at < 30000 && ls.media === getMediaId()) {
+          video._ssUndone = { key: ls.key, until: ls.until, media: ls.media };
+          video._ssLastSkip = null;
+          if (_diag.last) _diag.last.undone = true;
+          video.currentTime = ls.from;
+        } else {
+          video.currentTime = Math.max(0, video.currentTime - 15);
+        }
       }
     });
     
@@ -2551,7 +3058,12 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   // keeps a cheap watch (DOM changes, play events, and a 2 s look inside player
   // components) until a video appears, then starts once.
   function _waitForVideo(doc, onFound, timers) {
-    const T = timers || { setTimeout, clearTimeout, setInterval, clearInterval };
+    // Wrappers, not the bare functions: a browser timer called as a method of a
+    // plain object (T.setInterval) throws "does not implement interface Window".
+    // Up to 1.13 round 2 that stopped start-up in every player frame, so a frame
+    // started only on a play event and "Check this page" said "did not finish".
+    const T = timers || { setTimeout: (f, ms) => setTimeout(f, ms), clearTimeout: (id) => clearTimeout(id),
+      setInterval: (f, ms) => setInterval(f, ms), clearInterval: (id) => clearInterval(id) };
     let done = false, pending = null, poll = null, obs = null;
     const has = () => !!doc.querySelector('video') || _shadowVideos(doc, 0, [], 4).length > 0;
     const fire = () => {
@@ -2579,6 +3091,28 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
   if (window === window.top) _ssStart();
   else _waitForVideo(document, _ssStart);
 
+  // "intro 0:00-0:40 (TheIntroDB), outro 2:09:25-2:16:19 (SkipDB)": what was
+  // found, when, and which source gave it, so a user can check it at the source.
+  function _diagClock(sec) {
+    const t = Math.max(0, Math.round(Number(sec) || 0));
+    const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, x = String(t % 60).padStart(2, '0');
+    return h ? h + ':' + String(m).padStart(2, '0') + ':' + x : m + ':' + x;
+  }
+  function _diagSegs(segs, fallbackSrc) {
+    if (!segs || typeof segs !== 'object') return '';
+    const parts = [];
+    for (const [k, v] of Object.entries(segs)) {
+      if (k === 'full') { parts.push('whole video: ' + v); continue; }
+      for (const sg of [].concat(v)) {
+        if (!sg || typeof sg !== 'object') continue;
+        const a = Number(sg.start_sec), b = Number(sg.end_sec);
+        const when = Number.isFinite(a) ? ' ' + _diagClock(a) + (Number.isFinite(b) && b > a ? '-' + _diagClock(b) : '') : '';
+        const src = sg.src || fallbackSrc || (segs === _diagChapters ? 'page chapters' : '');
+        parts.push(k + when + (src ? ' (' + src + ')' : ''));
+      }
+    }
+    return parts.slice(0, 12).join(', ');
+  }
   function _diagLast(l, now) {
     if (!l) return '';
     const ago = Math.max(0, Math.round((now - l.at) / 1000));
@@ -2594,24 +3128,6 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
 
   // "Check this page" in the popup: every frame reports what it sees, even one
   // still waiting for a video. Reports go to the background (local only).
-  br.runtime.onMessage.addListener((msg) => {
-    if (!msg || msg.type !== 'SS_DIAG_PING') return false;
-    try {
-      const light = Array.from(document.querySelectorAll('video'));
-      const hidden = _shadowVideos(document, 0, [], 6);
-      let blank = 0;
-      document.querySelectorAll('iframe').forEach(f => {
-        const s = f.getAttribute('src');
-        if (!s || s === 'about:blank' || f.hasAttribute('srcdoc')) blank++;
-      });
-      const attached = light.concat(hidden).filter(v => attachedVideos.has(v)).length;
-      br.runtime.sendMessage({ type: 'SS_DIAG_REPORT', report: {
-        frame: (location.hostname || location.protocol) + location.pathname, top: window === window.top,
-        videos: light.length, hidden: hidden.length, blankFrames: blank, attached,
-        ident: _diag.id, segs: _diag.segs, subs: _diag.subs, last: _diagLast(_diag.last, Date.now()), auto: _diagAuto(_ssEffPrefs || prefs),
-      } }).catch(() => {});
-    } catch { /* never break the page */ }
-    return false;
-  });
+  _ssBootDone = true;   // start-up reached the end (Check this page reports it)
 
 })();

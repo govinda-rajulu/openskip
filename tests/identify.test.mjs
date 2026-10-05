@@ -69,7 +69,7 @@ test('ids: slugs give a clean title and year', () => {
 });
 
 test('ids: another site\'s ?v= is not a YouTube video', () => {
-  const mk = (href) => { const u = new URL(href); return contentFns(['getMediaId', '_youtubeVideoId'], [], { location: { href: u.href, hostname: u.hostname, pathname: u.pathname, search: u.search } }); };
+  const mk = (href) => { const u = new URL(href); return contentFns(['getMediaId', '_youtubeVideoId', '_canonHost'], [], { location: { href: u.href, hostname: u.hostname, pathname: u.pathname, search: u.search } }); };
   assert.equal(mk('https://www.youtube.com/watch?v=dQw4w9WgXcQ').getMediaId(), 'yt/dQw4w9WgXcQ');
   assert.equal(mk('https://www.youtube.com/shorts/dQw4w9WgXcQ').getMediaId(), 'yt/dQw4w9WgXcQ');
   assert.ok(!mk('https://example.com/play?v=abcdefghijk').getMediaId().startsWith('yt/'));
@@ -189,7 +189,7 @@ test('skip: next YouTube video looks segments up at once, not 1.5 s later', () =
 });
 
 test('skip: a show page without S/E is not looked up as a movie', () => {
-  assert.match(CONTENT, /info\.imdbId && !info\.season && !info\.episode && info\.tmdbKind !== 'tv'/);
+  assert.match(CONTENT, /ids && !info\.season && !info\.episode && info\.tmdbKind !== 'tv' && !anime/);
 });
 
 test('keys: Alt+Z works on macOS (Option+Z types a symbol)', () => {
@@ -241,7 +241,7 @@ test('page check: each player frame says what it found, the skip mode and the la
 });
 
 test('page check: skips record whether the notice was shown and undone', () => {
-  assert.match(CONTENT, /_diag\.last = \{ key: segKey, at: Date\.now\(\), auto: true, notice: false, undone: false \};\n\s*showSkippedNotice/);
+  assert.match(CONTENT, /_diag\.last = \{ key: segKey, at: Date\.now\(\), auto: true, notice: false, undone: false \};\n\s*video\._ssLastSkip = /);
   assert.match(CONTENT, /container\.appendChild\(_toastFit\(box\)\);\n\s*if \(_diag\.last\) _diag\.last\.notice = true;/);
   assert.match(CONTENT, /if \(_diag\.last\) _diag\.last\.undone = true;/);
 });

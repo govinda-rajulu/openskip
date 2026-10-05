@@ -2,11 +2,67 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
+## Start here (5 Oct 2026, packet os-130, release 1.13.0)
+
+- **Released:** 1.12.0 (PR #80 merge `eac9924d`, tree `165aa58b`, tag `v1.12.0`, AMO upload OK
+  3 Oct 13:11 UTC). AMO public page still showed 1.11.0 on 5 Oct: check the developer page.
+- **In flight:** 1.13.0 PR from packet `os-130` (branch `packet/release-1.13.0-20261005`), built
+  on tree `165aa58b`. Owner: device test the ZIP (checklist in the PR), merge, then run the
+  guarded tag command. The tag publishes to AMO.
+- **Owner, outside code:** AMO listing (screenshots, privacy link = PRIVACY.md on GitHub);
+  Edge Add-ons listing (free, takes the Chrome ZIP).
+  **Firefox for Android updates:** users have no manual add-on update button. Owner path:
+  About Firefox, tap the logo 5 times, Secret Settings, enable the debug drawer, then
+  Add-ons tools > Check for updates (Firefox 142+). Extensions cannot force their own update
+  (`runtime.requestUpdateCheck` is not in Firefox, bug 1740508).
+- **Next code:** the "Agent clean-up (after 1.13)" lane in ROADMAP (hand-over addendum items
+  5 to 9). Then Supabase login (1.14.0, ROADMAP).
+- **Owner decides:** own OpenSubtitles API key field (only if quota errors); drop free-streaming
+  site names from getSiteName(); a headless browser CI job; Edge Add-ons listing.
+- **Checked live 5 Oct:** TheIntroDB v3 (v1 is gone) for tmdb 603 and imdb tt0903747; SkipDB and IntroDB.
+  **Unverified live:** Anime Skip, AniSkip answers. 1Shows triple subtitles.
+- **Device round 2 (5 Oct):** 7 of 8 passed; the OpenSubtitles count was not confirmed. Found: player
+  frames did not finish start-up (timer this-binding, since 1.11) and TheIntroDB v1 gone. Both fixed
+  in os-133 with the 5S Settings, Sources page and per-kind source merge. Round 3 is in the PR.
+- **Round 3 (5 Oct):** passed; asked for: site moves (site family), marks in player bars, Accounts
+  logos (os-135). Outros ask by default (skipOutro false): by design.
+- **Writing:** all docs follow knowledge/handbook/WRITING.md. Mirror it to patch-factory by
+  that repo's own PR.
+
+## What 1.13.0 contains
+
+- Sticky resume (`_resumeSeek`, save hold 15 s, `?t=` wins, pending resume 120 s), YouTube ads
+  guard (`_ytAdShowing`), mobile YouTube bar (`YT_BAR_SELECTORS`, `_tlKeep`), cloud push at most
+  every 20 s plus pause, hidden tab and `pushUnsyncedHistory` every 5 min.
+- Sources: TheIntroDB, AniSkip, Jikan (MAL id), page chapters. One source per kind, kinds combine (`mergeSkipSources`, each part has `src`). Order IntroDB > TheIntroDB >
+  SkipDB > AniSkip > Anime Skip > page chapters. SponsorBlock `service=YouTube`, `_sbFitDuration`.
+- `sbAuth()`: publishable keys only in `apikey`. CSP `connect-src 'self'`. Setup helper in Settings.
+  `ss_put_creds` dropped from supabase_setup.sql (column kept).
+- Skip notice opt-in (`skipNotice`), Alt+Z undo, subtitle edge (`subtitle_edge`), deep site report,
+  history 300, AMO listing fix (flat categories, STE text, `--print-listing`).
+- One site, one name: `_canonHost` drops www., m. and mobile. from saved hosts and ids. Resume
+  still finds positions saved under the old id (`_legacyMediaId`). History merges both copies.
+- Device test round 1 (5 Oct, laptop): 1 to 5, 8, 9, 10 OK; 6 and phone items wait for the AMO
+  build. Fixed from it (packet os-131, same PR #81): "Continued from" opt-in (`resumeNotice`),
+  OpenSubtitles numbers, History device filter and site names and icons, subtitle fonts, weight,
+  edges and preview, site report token masking.
+- Cross-device history needs both browsers linked (Settings > Backup > Link devices) until the
+  Supabase login (1.14). Each cloud row keeps only the device that played it last.
+- Site report on 1Shows (5 Oct): the player is Vidstack + video.js 8.12 + hls.js 1.7.3 in
+  viduki.net, with 30 of the site's own subtitle tracks (all off). Check this page needs play first.
+- Round 1, part 2 (same packet, now os-132): OpenSubtitles downloads without the account first
+  (HTTP 406 = quota, no longer retried); Netflix and Prime Video subtitle styles (local fonts
+  only); CC button switch, 5 s auto-hide in full screen, drag on a normal page; Check this page
+  listener moved to the top (frames now answer and report unfinished start-up); Site report
+  shows SkipStream's own view per frame and the video position.
+- Tests: 199.
+
 ## Start here (3 Oct 2026, end of the long session)
 
 - **Released:** 1.11.0 (tag `v1.11.0`, main tree `b1c6801a`, AMO upload OK 3 Oct 12:08 UTC).
 - **In flight:** 1.12.0 PR from packet `os-120` (branch `packet/release-1.12.0-20261003`).
   Owner: device test the ZIP, merge, push tag `v1.12.0` (that publishes to AMO).
+  **Superseded 5 Oct:** #80 merged and v1.12.0 released 3 Oct, before the device test.
 - **Owner, outside code:** AMO listing (screenshots, privacy link = PRIVACY.md on GitHub);
   Edge Add-ons listing (free, takes the Chrome ZIP).
 - **Next code:** Supabase login (1.13.0, ROADMAP). Site fixes come from "Site report" pastes.

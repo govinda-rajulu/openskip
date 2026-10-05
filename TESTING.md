@@ -13,11 +13,11 @@ Repository: https://github.com/govinda-rajulu/openskip
 
 ## API keys needed for full testing
 
-No key is needed to test skipping (IntroDB, SkipDB and SponsorBlock are read without keys) or resume. Optional keys:
+You do not need a key to test skipping or resume. IntroDB, TheIntroDB, SkipDB, AniSkip and SponsorBlock work without keys. Optional keys:
 
 | Feature | Key | Where to get |
 |---------|-----|--------------|
-| Cloud sync | Supabase URL + anon key | [supabase.com](https://supabase.com) |
+| Cloud sync | Supabase URL + publishable key (or legacy anon key) | [supabase.com](https://supabase.com) |
 | Show detection (Plex etc.) | TMDB API key | [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) |
 | Anime support | AnimeSkip Client ID | [anime-skip.com](https://anime-skip.com/account/api-clients) |
 
@@ -32,8 +32,20 @@ Enter keys in the extension's Settings page (gear icon in popup).
 - Speed control (0.75x to 2x) applies to the active video and persists on reload
 - Skip mode dropdown (Off / Prompt / Auto Intro / Auto Recap / Auto Outro / Auto All)
 - Per-site rules in Settings override the global skip mode for specific domains
-- Popup: Status (switch, today's skips and time saved), Playback (skip mode, speed, subtitles, accent), Tools (Check this page, Site report)
-- YouTube with SponsorBlock data: marks on the progress bar; sponsors skipped with a "Skipped sponsor, Undo" notice
+- Popup: Status (switch, today's skips and time saved), Playback (skip mode, speed, subtitles), Tools (Check this page, Site report)
+- Settings pages: Features (every switch), Customise (subtitle look, accent colour), Accounts (every login, all optional), History, Stats, Data (export, import, clear), Sources & help (logos load only when that page opens)
+- Skip marks on 1Shows (Vidstack): inside the player's progress bar, not under the video
+- Accounts: each service card shows its logo
+- Check this page on 1Shows: every frame says "running"; skips show times and source, for example "intro 0:00-0:40 (TheIntroDB)"
+- YouTube with SponsorBlock data: marks on the progress bar (desktop and m.youtube.com). Sponsors are skipped with no message.
+- Settings > Skipping: switch on "Skipped, Undo" to see a message after each automatic skip. Alt+Z undoes the last automatic skip.
+- Resume from History: click a video in History. It continues from the saved position, also when the player starts by itself.
+- Settings > Subtitles: font, weight, colour and letter edge change the live preview and the subtitles on the video.
+- Settings > History: site icons and names; the device filter lists each device.
+- CC button: hides after 5 seconds without mouse in full screen; drag it on a normal page; Settings > Subtitles can hide it.
+- Check this page on a site with a player frame: every frame is listed.
+- Settings > Cloud: with an empty Supabase project, a setup helper opens the SQL editor with the setup script.
+- Popup > Tools > Site report: lists frames, players, source buttons, loaded media and subtitle files.
 - Sync button in history panel pushes local positions to Supabase and refreshes list
 - Export All downloads one JSON file: settings, rules, stats, history; keys only if you turn that on (encrypted with a passphrase)
 - Import & Merge restores from export - merges history (newer wins), combines session counts

@@ -65,7 +65,23 @@ Caps on rounds, minutes and daily model calls.
 - The biggest lever is tests: agents are only as good as the suite that judges them. Every
   lane 3 task adds a test that fails on the old code.
 
-## Next: Supabase login (1.13.0, needs SQL in the user's own project and its own test cycle)
+## Lane: Agent clean-up (after 1.13)
+
+- 6 AI workflows share 3 secrets: OPENROUTER_API_KEY, GEMINI_API_KEY, NVIDIA_API_KEY.
+  Version Bump also reads ANTHROPIC_API_KEY, which is probably never set.
+- The default OpenRouter model "google/gemini-2.0-flash-exp:free" in scripts/ai_call.py is
+  likely retired. Pin current ids with a fallback.
+- One accurate rules file instead of CLAUDE.md, GEMINI.md and AGENTS.md. CI reads CLAUDE.md
+  and agent.sh reads GEMINI.md.
+- Fix the scripts/agent.sh gate. It passes on committed work and force-deletes the branch.
+- Spec issue template. Path guard on .github/**. A 5-round loop with the test suite as the
+  check. An AGENTS_PAUSED off-switch.
+- Agents get chores only: tests, single-doc rewrites, selector updates. Releases, device
+  bugs and packets stay with the assistant.
+- Disable cws-submit and store-version-check until a Chrome store account exists. Stop
+  release.yml writing the unused updates.json.
+
+## Next: Supabase login (1.14.0, moved from 1.13.0 on 5 Oct 2026; needs SQL in the user's own project and its own test cycle)
 
 Owner decision 3 Oct: each user keeps their own keys; one login restores everything.
 - Supabase Auth (email and password or magic link) in the user's own project; rows keyed by
@@ -79,6 +95,12 @@ Owner decision 3 Oct: each user keeps their own keys; one login restores everyth
   turned on. Replace the unused `ss_put_creds` RPC.
 - Chrome build: keepalive and EdgA label done in 1.11.0; next, list on Edge Add-ons (free,
   takes the MV3 zip).
+
+## Later: send skip times (after 1.14 login)
+
+- Accounts page: IntroDB key, TheIntroDB key and SkipDB, each optional, for sending your own times.
+- On the video: mark start and end of an intro, recap or credits, then send to one source.
+- Needs: each source's submit rules, a review screen before sending, and its own device test.
 
 ## Parking lot
 

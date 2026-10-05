@@ -1,5 +1,56 @@
 # Changelog
 
+## [1.13.0] - 2026-10-05
+### Fixed
+- Player frames (embedded players such as 1Shows / viduki.net) stopped their start-up early since 1.11. They started only when a video began to play, and "Check this page" said "did not finish starting". A video that already played when the page loaded got no skips and no resume. Now every frame with a video starts at once
+- TheIntroDB gave no skip times: SkipStream asked API v1, which no longer answers. Now it asks v3, also by IMDb id when no TMDB id is known. An intro with no start (it starts at 0:00) is kept, and every part of a kind is kept (two recaps, credits with a scene between)
+- Resume from History worked 2 or 3 times, then started from 0. SkipStream gave up when the player started by itself. Then the start-up position replaced the saved position. Now SkipStream waits for the player, checks the position twice and seeks again (up to 4 times). Saving waits until the position holds (at most 15 seconds)
+- A time in the address (?t=90, start=, time_continue=) now has priority over resume
+- A History click is now kept for 120 seconds (was 30), for slow phones
+- Cloud sync: a video that kept playing never reached the cloud until you paused it. Now SkipStream sends the position at most every 20 seconds, at once when you pause or leave the tab, and every 5 minutes from the background
+- YouTube: during an ad, SkipStream does not save, skip, resume or draw marks
+- YouTube: marks now show on the m.youtube.com progress bar, never on hover previews, and come back when YouTube rebuilds its controls
+- SponsorBlock: only YouTube rows, and rows made for a different video length (more than 3 seconds off) are not used
+- Supabase: new publishable keys (sb_publishable_...) are sent only as apikey, as Supabase requires. Legacy anon keys still work
+- Settings could not read its own setup script (security policy). It now can
+- A player address with "&tmdb=1" read the flag as TMDB id 1
+- The AMO listing kept its old text: the update sent categories in the old format. The listing text is new and matches the code
+- OpenSubtitles: Settings said "up to 200 a day". OpenSubtitles gives 5 a day without an account and 20 with a free account. After login, Settings now shows the allowance, and after each download the number left
+- "Check this page" listed only the top page on sites with player frames. Its listener was the last line of the script, so a frame whose start-up stopped early never answered. It now answers first and says when start-up did not finish
+- History showed m.youtube.com and youtube.com (and www. or m. copies of any site) as different sites. Hosts are now saved without www., m. or mobile., History merges the copies, and resume still finds positions saved under the old address
+### Added
+- New skip sources: TheIntroDB (by TMDB id) and AniSkip (anime, by MyAnimeList id). Jikan finds the MyAnimeList id from the title on anime sites. Chapters that the page gives its player are used when no source answers
+- Player addresses such as ?video_id=1399&tmdb=1&s=1&e=2, /movie/tmdb/603 and /tv/1399-1-2 give the TMDB id, season and episode
+- Titles: release words (1080p, WEB-DL, Eng Sub, Dubbed), brackets and emoji are removed. Up to 3 names from the page are tried. A poster is used only when the name is close and the year is within 1
+- "Skipped intro, Undo" after automatic skips is now off by default (Settings > Skipping). Alt+Z undoes the last automatic skip for 30 seconds, else goes back 15 seconds
+- Subtitles: letter edge (Outline, Drop shadow, Raised, None)
+- Supabase setup helper: when the tables are missing, Settings opens your project's SQL editor with the script filled in, copies it, and checks again
+- Site report: source and server buttons, media that the page loaded or has in its scripts, lazy frames, subtitle files and (Firefox) the player code that the page loaded. At most 30 of each, host and path only
+- Local history now keeps 300 videos (was 100)
+- History: popular sites by name (YouTube, Netflix, JioHotstar, SonyLIV, ZEE5 and more) with each site's own icon. A device filter shows what each device played last
+- Subtitles: 4 more fonts (Rounded, Casual, Condensed, Small capitals), Bold or Regular weight, Depressed and Soft glow edges, Orange and Pink, and a live preview in Settings
+- "Continued from" after a resume is now off by default (Settings > Skipping), like the skip notice
+- Subtitles: "Netflix style" and "Prime Video style". They use Netflix Sans or Amazon Ember only if your device has them (SkipStream cannot include those fonts)
+- CC button: a Settings switch to hide it. It shows only while its video is on the page. In full screen it hides after 5 seconds without mouse, touch or keys. On a normal page you can drag it, and SkipStream keeps the spot
+- OpenSubtitles: SkipStream downloads without your account first. Your account's downloads are used only when that is refused
+- Site report: each frame also shows what SkipStream sees there, and the video position
+- Site report: long random parts of addresses (often tokens) show as <id>. YouTube trailer embeds are no longer listed
+### Changed
+- Settings in 5S order. Features: every switch, skip mode, YouTube kinds and per-site rules. Customise: subtitle look and accent colour (the accent moved here from the popup). Accounts: every login and key, each marked optional, and what needs a login (nothing does). Data: export, import and clear. Sources & help: each source with its logo, link, what it gives and its licence, keyboard shortcuts. Old links (#connections, #siterules, #dataadvanced) still open the right page
+- Skip sources: kinds combine across sources (the intro from one, the credits from another). Inside one kind, one source gives all its parts, in this order: IntroDB, TheIntroDB, SkipDB, AniSkip, Anime Skip. Two sources are never mixed in one kind, because their times can come from different releases
+- Check this page and Site report show each skip with its times and its source, for example "intro 0:00-0:40 (TheIntroDB)"
+- Skip mode: a fresh install showed "Auto all" while outros only asked first (the default), so picking "Auto all" changed nothing. The popup and Settings now show the mode the player really uses. New mode "Intros + recaps" (outros ask first) is the default
+- Popup footer: a Sources link
+- A site on a new address (1shows.cx to 1shows.to) stays the same site: per-site rules still apply, History shows one site in the filter, and resume finds the position saved on the old address. Pages with ids in the address (/movie/603, /tv/1396) already kept their position
+- Skip marks on other sites now sit on the player's own progress bar. SkipStream finds the bar in any player by what it is (a wide slider low on the video, with the video's length, not volume); known player names only help. The marks float over the bar and hide with the player's controls, so a player that rebuilds its bar cannot remove them. Without a bar, the thin strip along the bottom of the video stays
+- SkipDB gets the video length, so it picks and shifts the times made for that release
+- Links: AniSkip points to its GitHub page (aniskip.com is a parked domain)
+- JioHotstar: "S4 Episode 2" in the title now gives season 4, episode 2, and a page that says it is an episode (og:type video.episode) is never looked up as a film. Up to now Modern Family S4E2 was looked up as a film and found nothing
+- A test checks the wiring: every control in Settings and the popup has code, and every saved setting is read, backed up and synced
+- Accounts: each service card shows its logo, from the service's own website first
+- supabase_setup.sql no longer makes ss_put_creds (unused since 1.11) and removes it from old projects. The old creds column stays. PRIVACY.md says how to clear it
+- README, PRIVACY, TESTING and the store text are rewritten in plain, short sentences (knowledge/handbook/WRITING.md)
+
 ## [1.12.0] - 2026-10-03
 ### Added
 - Popup "Site report": what every frame of the page holds (players such as JW Player or Video.js, stream type, video size and length, subtitle tracks, frames, ids), including frames SkipStream does not run in. Shown in the popup, copied only when you press Copy; addresses are cut to host and path

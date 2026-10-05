@@ -4,6 +4,48 @@ Newest first. Append; never delete. Older lessons live verbatim in
 [archive/skills/](archive/skills/) (MY-WRONG-CALLS-4-5-SEP, FIXED-WORK-AND-WRONG-CALLS,
 SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
 
+## 5 Oct 2026 (1.13.0, packet os-130)
+
+1. **Resume from History.** The old code gave up if YouTube had already started playing.
+   YouTube starts sooner on warm loads, so the 2nd and 3rd resume were skipped. Then saves
+   from 0 overwrote the real position. **Wrong call:** ads were blamed, but the owner uses
+   ad blockers. Ask what the user runs before you name a cause.
+2. **Sync push starvation.** Every save restarted a 3-second timer, so a playing video never
+   reached the cloud until pause. Throttle cloud pushes, and send at once on pause and on
+   app switch.
+3. **The store listing PATCH probably failed.** amo-update.js sent the category in a format
+   that the store API no longer accepts. So the AMO description stayed old and false. A
+   step that only warns can hide a failure for months.
+4. **New Supabase publishable keys are not JWTs.** Never send them as Bearer. Keep auth
+   headers in one helper.
+5. **The anon key cannot run SQL.** Guide the user to run the setup script one time. Never
+   ask for a personal access token.
+6. **Taking on more than one session can ship is a wrong call.** Ship a smaller packet.
+7. **One site can have many hosts.** History showed m.youtube.com and youtube.com as two
+   sites. Use one canonical host (no www., m. or mobile.), and keep a fallback for ids
+   saved under the old host.
+8. **A flag can look like an id.** `?video_id=x&tmdb=1` gave TMDB id 1. Test odd inputs.
+9. **Extension pages need `'self'` in connect-src** to read their own files once
+   connect-src lists hosts.
+10. **Pin the test reporter in gates (assistant's wrong call).** The packet read the TAP
+    summary ("# pass N"). Node 22 prints TAP when output goes to a file. Node 24 prints its
+    "spec" format, so the gate found no numbers and stopped, with 186 tests passing. Always
+    pass `--test-reporter=tap`. Rehearse with the owner's Node version.
+11. **Take numbers from the provider, not from old text.** Settings said OpenSubtitles gives
+    "up to 200 a day". OpenSubtitles' help says 5 without an account and 20 with a free
+    account. Its login answer `allowed_downloads` is the allowance, not what is left.
+13. **Register diagnostics first.** The "Check this page" listener was the last line of
+    content.js. If start-up stopped early in a frame, that frame never answered, so 1Shows
+    showed only the top page. A diagnostic must not depend on the code it diagnoses.
+    (Likely cause, verify on the device: the frame now says if start-up did not finish.)
+14. **Use the free tier first.** OpenSubtitles downloads try without the account first, so
+    the account's 20 a day are kept for when the 5 run out.
+15. **Know which HTTP codes are final.** OpenSubtitles says "quota used up" with 406. The
+    retry helper treated 406 as temporary, retried, then threw, so a fallback never ran. A
+    test with a fake 406 found it.
+12. **The device test finds what tests cannot.** Round 1 (5 Oct) found a needless "Continued
+    from" message, wrong download numbers and no way to see another device's history.
+
 ## 3 Oct 2026, evening (1.11.0 device test, 1.12.0, UI refresh)
 
 1. **Check which build is running before reading a test.** The first device test ran the old
@@ -104,3 +146,18 @@ SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
 - CWS secrets are absent; `cws-submit` fails silently on release. Chrome is unpublished by
   choice.
 - Any shipped file must be in all four workflow file lists (see AGENTS.md).
+- 5 Oct round 2: `const T = { setTimeout, setInterval }` then `T.setInterval(f)` throws in every
+  browser ("does not implement interface Window"); node:vm does not. Tests passed for 4 releases
+  while every player frame aborted start-up. Fake browser timers in tests must check `this`.
+- 5 Oct round 2: a source's API version can disappear. TheIntroDB v1 stopped answering and the
+  tests (fake fetch) stayed green. Check each source live once per release with a known title.
+- 5 Oct os-133: Settings died on load (`manifest` read before its `const`, TDZ). No test ran
+  options.js end to end. Now a test runs options.js and popup.js as whole files.
+- 5 Oct round 3: a shown choice must come from what the code reads. The mode select showed
+  "Auto all" from a missing key while skipOutro was off; re-picking it fired no change.
+- 5 Oct round 4: find page parts by what they do (role, size, place, value), not by one
+  player's class names; never insert into another app's DOM that re-renders. Overlay instead.
+- 5 Oct round 4: check every outside link live before a release: aniskip.com was parked.
+- 5 Oct os-139: CodeQL ran on PR #81 and failed with 5 alerts (all in new tests but one), unseen
+  since os-130, because packets gate locally and nobody read the PR checks. Packets that merge
+  now wait for every PR check, CodeQL included, and stop on any failure.
