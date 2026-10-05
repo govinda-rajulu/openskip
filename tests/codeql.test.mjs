@@ -48,3 +48,8 @@ test('CodeQL scans shipped code only: tests/ is ignored, nothing else is', () =>
   assert.match(cfg, /\npaths-ignore:\n  - tests\n$/);
   assert.equal((cfg.match(/^  - /gm) || []).length, 1, 'only tests/ is ignored');
 });
+
+test('no condition that is always true after if (active) (CodeQL #48)', () => {
+  assert.doesNotMatch(content, /\} else if \(!active && activeSegmentKey\) \{/);
+  assert.match(content, /\n      \} else if \(activeSegmentKey\) \{\n        activeSegmentKey = '';\n        hideSkipBtn\(\);/);
+});
