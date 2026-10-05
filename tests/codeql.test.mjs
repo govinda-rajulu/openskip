@@ -40,3 +40,11 @@ test('CI can never apply SQL to the live Supabase project (CodeQL #30)', () => {
   assert.doesNotMatch(sv, /SUPABASE_DB_URL|run_on_supabase|psql /);
   assert.match(sv, /workflow_dispatch:/);
 });
+
+test('CodeQL scans shipped code only: tests/ is ignored, nothing else is', () => {
+  const wf = readFileSync('.github/workflows/codeql.yml', 'utf8');
+  const cfg = readFileSync('.github/codeql/codeql-config.yml', 'utf8');
+  assert.match(wf, /\n {10}config-file: \.\/\.github\/codeql\/codeql-config\.yml\n/);
+  assert.match(cfg, /\npaths-ignore:\n  - tests\n$/);
+  assert.equal((cfg.match(/^  - /gm) || []).length, 1, 'only tests/ is ignored');
+});

@@ -1,0 +1,6 @@
+name: SkipStream CodeQL config
+# Scan only code that ships. tests/ never goes into the extension ZIP, and its string
+# checks on host names (for example url.includes("api.skipdb.tv") in a fake fetch)
+# read as URL checks to CodeQL. Shipped code is still scanned in full.
+paths-ignore:
+  - tests
