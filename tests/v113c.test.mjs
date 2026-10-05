@@ -117,7 +117,7 @@ test('sources page: 10 sources, each with a link; logos from the official site f
   const rows = [...OPTIONS_HTML.matchAll(/<li class="src-row">([\s\S]*?)<\/li>/g)].map((m) => m[1]);
   assert.equal(rows.length, 10);
   for (const r of rows) {
-    assert.match(r, /<img class="src-logo" data-logo="https:\/\/[a-z0-9.-]+\/favicon\.ico" data-logo-alt="https:\/\/icons\.duckduckgo\.com\/ip3\/[a-z0-9.-]+\.ico" alt="" width="20" height="20" referrerpolicy="no-referrer" hidden>/);
+    assert.match(r, /<img class="src-logo" data-logo="https:\/\/(?:[a-z0-9.-]+\/favicon\.ico|github\.com\/[a-z0-9-]+\.png\?size=40)" data-logo-alt="https:\/\/icons\.duckduckgo\.com\/ip3\/[a-z0-9.-]+\.ico" alt="" width="20" height="20" referrerpolicy="no-referrer" hidden>/);
     assert.match(r, /<a href="https:\/\/[^"]+" target="_blank" rel="noopener"><strong>/);
   }
   assert.equal(/<img[^>]* src="https?:/.test(OPTIONS_HTML), false, 'no remote image loads when Settings opens');
@@ -158,17 +158,25 @@ test('site moved (1shows.cx -> 1shows.to): rules, History filter and resume foll
   assert.equal(await g._cacheReadMoved('movie/603'), null, 'host-free ids need no search');
 });
 
-test('timeline: marks go inside the player\'s own progress bar when there is one (video.js, Vidstack, Plyr ...)', () => {
-  const bar = { tag: 'vjs' };
-  const player = { parentElement: null, querySelector: (sel) => (sel === '.vjs-progress-holder' ? bar : null) };
-  const wrap = { parentElement: player, querySelector: () => null };
-  const video = { parentElement: wrap };
-  const { _playerBar } = contentFns(['_playerBar'], ['PLAYER_BAR_SELECTORS'], {});
-  assert.equal(_playerBar(video), bar);
-  assert.equal(_playerBar({ parentElement: { parentElement: null, querySelector: () => null } }), null, 'no bar: the strip is used');
+test('timeline: any player\'s seek bar is found by what it is, not by its name; marks float over it', () => {
+  const rect = (l, t, w, h) => ({ left: l, top: t, width: w, height: h, right: l + w, bottom: t + h });
+  const mk = (attrs, r, cls = '') => ({ className: cls, id: '', tagName: 'DIV', getAttribute: (k) => (k in attrs ? attrs[k] : null), getBoundingClientRect: () => r, matches: () => false });
+  const seek = mk({ role: 'slider', 'aria-label': 'Seek', 'aria-valuemax': '8181' }, rect(20, 520, 960, 20), 'x-a1b2');   // no known class name
+  const volume = mk({ role: 'slider', 'aria-label': 'Volume' }, rect(800, 520, 900, 20));
+  const topbar = mk({ role: 'slider' }, rect(0, 10, 1000, 4), 'progress');
+  const player = { parentElement: null, getBoundingClientRect: () => rect(0, 0, 1000, 600),
+    querySelectorAll: (q) => (q === '*' ? [] : [topbar, volume, seek]) };
+  const video = { parentElement: player, duration: 8181, getBoundingClientRect: () => rect(0, 0, 1000, 560) };
+  const f = contentFns(['_findSeekBar', '_seekBarScore'], ['PLAYER_BAR_SELECTORS'], {});
+  assert.equal(f._findSeekBar(video), seek, 'the wide slider low on the video, length = video length');
+  assert.equal(f._seekBarScore(volume, rect(0, 0, 1000, 560), 8181), 0, 'volume is never the seek bar');
+  assert.equal(f._seekBarScore(topbar, rect(0, 0, 1000, 560), 8181), 0, 'a bar at the top is not the seek bar');
+  const none = { parentElement: { parentElement: null, getBoundingClientRect: () => rect(0, 0, 1000, 600), querySelectorAll: () => [] }, duration: 100, getBoundingClientRect: () => rect(0, 0, 1000, 560) };
+  assert.equal(f._findSeekBar(none), null, 'no bar: the strip under the video is used');
   const C = read('content-scripts/content.js');
-  for (const sel of ['.vds-time-slider .vds-slider-track', 'media-time-slider', '.vjs-progress-holder', '.plyr__progress', '.jw-slider-time .jw-rail']) assert.ok(C.includes("'" + sel + "'"), sel);
-  assert.match(C, /const pBar = yt \? null : _playerBar\(video\);/);
+  assert.match(C, /box\.dataset\.ss = 'over';/, 'marks float over the bar');
+  assert.equal(/pBar\.appendChild|bar\.appendChild\(box\)/.test(C), false, 'nothing is put inside another player\'s bar');
+  assert.match(C, /checkVisibility\(\{ opacityProperty: true, visibilityProperty: true \}\)/, 'marks hide with the controls');
 });
 
 test('accounts: each service card has its logo from its own site (DuckDuckGo as fallback), loaded only when Accounts opens', () => {
@@ -194,4 +202,15 @@ test('skip mode shown = what the player does: a fresh install shows "Intros + re
   assert.ok(read('popup.html').includes('data-mode="auto-ir"'));
   assert.ok(read('options.html').includes('<option value="auto-ir">'));
   assert.match(read('popup.js'), /const mode {5}= modeFromPrefs\(data\);/);
+});
+
+test('links: no source points to a parked or wrong domain (aniskip.com is parked; AniSkip lives on GitHub)', () => {
+  for (const f of ['options.html', 'README.md']) assert.equal(/https:\/\/aniskip\.com/.test(read(f)), false, f);
+  assert.ok(read('options.html').includes('href="https://github.com/aniskip"'));
+});
+
+test('skipdb: the video length is sent, so SkipDB picks the times made for this release', async () => {
+  const bg = loadBackground({ fetchImpl: () => fakeResponse(404, {}) });
+  await bg.send({ type: 'FETCH_SEGMENTS', imdbId: 'tt0133093', season: 0, episode: 0, isMovie: true, durationSec: 8181.4 });
+  assert.ok(bg.calls.some((x) => x.url === 'https://api.skipdb.tv/api/segments?imdb_id=tt0133093&duration=8181'));
 });

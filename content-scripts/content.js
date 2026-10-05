@@ -1206,7 +1206,7 @@ function _pageUrl() {
     }
     return out;
   }
-  let _tlBox = null, _tlVideo = null, _tlSegs = null, _tlHideT = null, _tlMoveOn = false, _tlObs = null;
+  let _tlBox = null, _tlVideo = null, _tlSegs = null, _tlMoveOn = false, _tlObs = null;
   function _clearTimeline() { if (_tlBox) _tlBox.remove(); _tlBox = null; _tlSegs = null; }
   // Called from the skip loop and on player DOM changes: YouTube rebuilds its
   // controls (always on m.youtube.com), so marks are put back when they are gone.
@@ -1222,12 +1222,6 @@ function _pageUrl() {
     if (!root || typeof MutationObserver === 'undefined') return;
     _tlObs = new MutationObserver(throttle(_tlKeep, 300));
     _tlObs.observe(root, { childList: true, subtree: true });
-  }
-  function _placeStrip(box, video) {
-    const fs = document.fullscreenElement || document.webkitFullscreenElement;
-    if (fs) { Object.assign(box.style, { position: 'absolute', left: '0', width: '100%', bottom: '0', top: '' }); return; }
-    const r = video.getBoundingClientRect();
-    Object.assign(box.style, { position: 'fixed', left: r.left + 'px', width: r.width + 'px', top: (r.bottom - 5) + 'px', bottom: '' });
   }
   // A local history entry for the same page on the site's old address: same site
   // name (_siteFamily), same path and ids. The newest one wins. Ids without a host
@@ -1249,20 +1243,87 @@ function _pageUrl() {
     } catch { return null; }
   }
 
-  // The player's own progress bar (video.js, Vidstack, Plyr, JW Player, Shaka,
-  // DPlayer, ArtPlayer, MediaElement, Fluid, Clappr). Marks go inside it, like on
-  // YouTube. Searched upward from the video (6 levels, also out of a shadow root).
-  function _playerBar(video) {
-    let el = video;
+  // ── Marks on any player's progress bar (1.13 round 4) ───────────────────
+  // Not tied to one player: SkipStream looks near the video for the element that
+  // acts as the seek bar (a slider or a "progress / seek / timeline" element, as
+  // wide as most of the video, low on it, not volume). Known class names from
+  // popular players only add points. The marks are NOT put inside the player:
+  // players such as Vidstack rebuild their bar and removed them (round 3). They
+  // float exactly over the bar, follow it every 250 ms, and hide when the
+  // player hides its controls. No bar found: a thin strip along the bottom of
+  // the video, shown while the mouse moves, as before.
+  function _seekBarScore(c, vr, dur) {
+    let r;
+    try { r = c.getBoundingClientRect(); } catch { return 0; }
+    if (!(r.width >= vr.width * 0.4) || !(r.height >= 1) || r.height > 48) return 0;
+    if (r.left < vr.left - 12 || r.right > vr.right + 12 || r.top < vr.top + vr.height * 0.45 || r.bottom > vr.bottom + 80) return 0;
+    const name = String((c.className && c.className.baseVal !== undefined ? c.className.baseVal : c.className) || '') + ' ' + String(c.id || '');
+    const label = String((c.getAttribute && (c.getAttribute('aria-label') || '')) || '') + ' ' + String((c.getAttribute && c.getAttribute('aria-valuetext')) || '');
+    if (/volume|vol-|brightness|speed|rate|quality|zoom/i.test(name + ' ' + label)) return 0;
+    let sc = 0;
+    const role = c.getAttribute && c.getAttribute('role');
+    const tag = String(c.tagName || '').toLowerCase();
+    if (role === 'slider' || (tag === 'input' && String(c.type).toLowerCase() === 'range')) sc += 3;
+    const max = Number(c.getAttribute && (c.getAttribute('aria-valuemax') || c.getAttribute('max')));
+    if (dur > 0 && Number.isFinite(max) && Math.abs(max - dur) <= Math.max(2, dur * 0.02)) sc += 3;
+    if (/\d:\d\d|seek|progress|time|position/i.test(label)) sc += 2;
+    if (/progress|seek|scrub|timeline|time-?slider|slider-track|rail|track/i.test(name)) sc += 2;
+    if (PLAYER_BAR_SELECTORS.some(sel => { try { return c.matches(sel); } catch { return false; } })) sc += 2;
+    if (r.width >= vr.width * 0.7) sc += 1;
+    return sc;
+  }
+  function _findSeekBar(video) {
+    let vr;
+    try { vr = video.getBoundingClientRect(); } catch { return null; }
+    if (!(vr.width >= 120)) return null;
+    const dur = Number(video.duration);
+    // The player box: the highest ancestor (6 levels, out of shadow roots too)
+    // that is still about the size of the video.
+    let el = video, scope = null;
     for (let i = 0; i < 6 && el; i++) {
       el = el.parentElement || (el.getRootNode && el.getRootNode() && el.getRootNode().host) || null;
-      if (!el || typeof el.querySelector !== 'function') break;
-      for (const sel of PLAYER_BAR_SELECTORS) {
-        const b = el.querySelector(sel);
-        if (b) return b;
-      }
+      if (!el || typeof el.querySelectorAll !== 'function') break;
+      let rr; try { rr = el.getBoundingClientRect(); } catch { break; }
+      if (rr.width > vr.width * 1.6 + 8 || rr.height > vr.height * 1.8 + 8) break;
+      scope = el;
     }
-    return null;
+    if (!scope) return null;
+    const SEL = '[role="slider"],input[type="range"],[class*="progress" i],[class*="seek" i],[class*="scrub" i],[class*="timeline" i],[class*="slider" i],[class*="rail" i],[id*="progress" i],[id*="seek" i],' + PLAYER_BAR_SELECTORS.join(',');
+    let best = null, bestSc = 0, n = 0;
+    const look = (root, depth) => {
+      let list = [];
+      try { list = root.querySelectorAll(SEL); } catch { return; }
+      for (const c of list) {
+        if (++n > 400) return;
+        const sc = _seekBarScore(c, vr, dur);
+        if (sc > bestSc) { best = c; bestSc = sc; }
+      }
+      if (depth >= 2) return;
+      try { root.querySelectorAll('*').forEach(x => { if (x.shadowRoot) look(x.shadowRoot, depth + 1); }); } catch { /* ok */ }
+    };
+    look(scope, 0);
+    return bestSc >= 3 ? best : null;
+  }
+  let _tlBar = null, _tlBarAt = 0, _tlTick = null, _tlMouseAt = 0;
+  function _tlPlace() {
+    const box = _tlBox, video = _tlVideo;
+    if (!box || box.dataset.ss !== 'over' || !video || !video.isConnected) { clearInterval(_tlTick); _tlTick = null; return; }
+    const fs = document.fullscreenElement || document.webkitFullscreenElement;
+    const host = fs || document.body || document.documentElement;
+    if (box.parentNode !== host) host.appendChild(box);
+    const now = Date.now();
+    if ((!_tlBar || !_tlBar.isConnected) && now - _tlBarAt > 1000) { _tlBarAt = now; _tlBar = _findSeekBar(video); }
+    const put = (l, t, w, h, on) => Object.assign(box.style, { left: l + 'px', top: t + 'px', width: w + 'px', height: h + 'px', opacity: on ? '1' : '0' });
+    if (_tlBar) {
+      const r = _tlBar.getBoundingClientRect();
+      let vis = r.width > 0 && r.height > 0;
+      try { if (vis && typeof _tlBar.checkVisibility === 'function') vis = _tlBar.checkVisibility({ opacityProperty: true, visibilityProperty: true }); } catch { /* ok */ }
+      const h = Math.max(3, Math.min(5, r.height));
+      put(r.left, r.top + r.height / 2 - h / 2, r.width, h, vis);
+      return;
+    }
+    const vr = video.getBoundingClientRect();
+    put(vr.left, vr.bottom - 5, vr.width, 5, now - _tlMouseAt < 2500);
   }
 
   function _renderTimeline(video, segs) {
@@ -1279,36 +1340,28 @@ function _pageUrl() {
     if (yt && _ytAdShowing()) return;
     const ytBar = yt ? _ytBar() : null;
     if (yt && !ytBar) return;
-    const pBar = yt ? null : _playerBar(video);
     const box = document.createElement('div');
     box.id = 'skipstream-timeline';
-    if (ytBar || pBar) {
-      const bar = ytBar || pBar;
-      box.dataset.ss = ytBar ? 'yt' : 'bar';
-      try { if (getComputedStyle(bar).position === 'static') bar.style.position = 'relative'; } catch { /* ok */ }
+    if (ytBar) {
+      box.dataset.ss = 'yt';
+      try { if (getComputedStyle(ytBar).position === 'static') ytBar.style.position = 'relative'; } catch { /* ok */ }
       Object.assign(box.style, { position: 'absolute', left: '0', right: '0', top: '0', bottom: '0', pointerEvents: 'none', zIndex: '40' });
-      bar.appendChild(box);
-      if (ytBar) _tlWatch();
+      ytBar.appendChild(box);
+      _tlWatch();
     } else {
-      // No player bar found: a thin strip along the bottom of the video.
-      Object.assign(box.style, { height: '5px', pointerEvents: 'none', zIndex: '2147483644', opacity: '0', transition: 'opacity 200ms ease' });
+      box.dataset.ss = 'over';
+      Object.assign(box.style, { position: 'fixed', left: '0', top: '0', width: '0', height: '4px', pointerEvents: 'none', zIndex: '2147483644', opacity: '0', transition: 'opacity 150ms ease' });
       (document.fullscreenElement || document.webkitFullscreenElement || document.body || document.documentElement).appendChild(box);
-      _placeStrip(box, video);
-    }
-    if (!yt && !_tlMoveOn) {
-      _tlMoveOn = true;
-      document.addEventListener('mousemove', throttle((e) => {
-          if (!_tlBox || !_tlVideo || _tlBox.dataset.ss === 'yt') return;
-          // Player bars often appear only on hover, or are rebuilt: draw into the bar again.
-          if ((_tlBox.dataset.ss !== 'bar' || !_tlBox.isConnected) && _playerBar(_tlVideo)) { _renderTimeline(_tlVideo, _tlSegs); return; }
-          if (_tlBox.dataset.ss === 'bar' || !_tlBox.isConnected) return;
+      _tlBar = null; _tlBarAt = 0;
+      if (!_tlTick) _tlTick = setInterval(_tlPlace, 250);
+      if (!_tlMoveOn) {
+        _tlMoveOn = true;
+        document.addEventListener('mousemove', throttle((e) => {
+          if (!_tlVideo) return;
           const r = _tlVideo.getBoundingClientRect();
-          if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
-          _placeStrip(_tlBox, _tlVideo);
-          _tlBox.style.opacity = '1';
-          clearTimeout(_tlHideT);
-          _tlHideT = setTimeout(() => { if (_tlBox) _tlBox.style.opacity = '0'; }, 2500);
-      }, 150), true);
+          if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) _tlMouseAt = Date.now();
+        }, 150), true);
+      }
     }
     for (const sp of spans) {
       const m = document.createElement('div');
@@ -1317,6 +1370,7 @@ function _pageUrl() {
       box.appendChild(m);
     }
     _tlBox = box;
+    if (box.dataset.ss === 'over') _tlPlace();
   }
 
   // SponsorBlock rows are made for one upload; a row made for a different length

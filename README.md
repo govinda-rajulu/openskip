@@ -29,7 +29,7 @@
 ## What SkipStream does
 
 - **Skips** intros, recaps, credits and previews. It skips at once, or after a 3-second countdown with Undo.
-- **Gets skip times** from [IntroDB](https://introdb.app), [TheIntroDB](https://theintrodb.org), [SkipDB](https://skipdb.tv), [AniSkip](https://aniskip.com) and [Anime Skip](https://anime-skip.com). It also reads chapters that the page gives its player.
+- **Gets skip times** from [IntroDB](https://introdb.app), [TheIntroDB](https://theintrodb.org), [SkipDB](https://skipdb.tv), [AniSkip](https://github.com/aniskip) and [Anime Skip](https://anime-skip.com). It also reads chapters that the page gives its player.
 - **Pushes the site's own Skip button** on Netflix, Prime Video, Disney+, Hulu, Max, Crunchyroll and more.
 - **YouTube:** skips [SponsorBlock](https://sponsor.ajay.app) segments. You set each type to Auto, Ask or Off. The segments show on the progress bar, also on m.youtube.com.
 - **Resumes** each video from your last position, also in embedded players. A time in the address (for example `?t=90`) has priority.
@@ -66,7 +66,7 @@ SkipStream uses these services. Logos belong to their owners and show only where
 | <img src="https://icons.duckduckgo.com/ip3/theintrodb.org.ico" width="16" height="16" alt=""> | [TheIntroDB](https://theintrodb.org) | Intro, recap, credits and preview times, by TMDB or IMDb id | None (key only to send times) |
 | <img src="https://icons.duckduckgo.com/ip3/skipdb.tv.ico" width="16" height="16" alt=""> | [SkipDB](https://skipdb.tv) | Intro, recap, credits and preview times ([ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/)) | None |
 | <img src="https://icons.duckduckgo.com/ip3/sponsor.ajay.app.ico" width="16" height="16" alt=""> | [SponsorBlock](https://sponsor.ajay.app) | YouTube sponsors, reminders, highlights ([CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)) | None |
-| <img src="https://icons.duckduckgo.com/ip3/aniskip.com.ico" width="16" height="16" alt=""> | [AniSkip](https://aniskip.com) | Anime openings, endings and recaps | None |
+| <img src="https://github.com/aniskip.png?size=32" width="16" height="16" alt=""> | [AniSkip](https://github.com/aniskip) | Anime openings, endings and recaps | None |
 | <img src="https://icons.duckduckgo.com/ip3/jikan.moe.ico" width="16" height="16" alt=""> | [Jikan](https://jikan.moe) | MyAnimeList ids for anime titles | None |
 | <img src="https://icons.duckduckgo.com/ip3/anime-skip.com.ico" width="16" height="16" alt=""> | [Anime Skip](https://anime-skip.com) | More anime times | Optional client id |
 | <img src="https://icons.duckduckgo.com/ip3/themoviedb.org.ico" width="16" height="16" alt=""> | [TMDB](https://www.themoviedb.org) | Posters, titles and ids | Optional key |

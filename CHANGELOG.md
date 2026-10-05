@@ -42,7 +42,9 @@
 - Skip mode: a fresh install showed "Auto all" while outros only asked first (the default), so picking "Auto all" changed nothing. The popup and Settings now show the mode the player really uses. New mode "Intros + recaps" (outros ask first) is the default
 - Popup footer: a Sources link
 - A site on a new address (1shows.cx to 1shows.to) stays the same site: per-site rules still apply, History shows one site in the filter, and resume finds the position saved on the old address. Pages with ids in the address (/movie/603, /tv/1396) already kept their position
-- Skip marks on other sites now go inside the player's own progress bar (video.js, Vidstack, Plyr, JW Player, Shaka, DPlayer, ArtPlayer, MediaElement, Fluid, Clappr), like on YouTube. Without a known bar, the thin strip along the bottom of the video stays
+- Skip marks on other sites now sit on the player's own progress bar. SkipStream finds the bar in any player by what it is (a wide slider low on the video, with the video's length, not volume); known player names only help. The marks float over the bar and hide with the player's controls, so a player that rebuilds its bar cannot remove them. Without a bar, the thin strip along the bottom of the video stays
+- SkipDB gets the video length, so it picks and shifts the times made for that release
+- Links: AniSkip points to its GitHub page (aniskip.com is a parked domain)
 - Accounts: each service card shows its logo, from the service's own website first
 - supabase_setup.sql no longer makes ss_put_creds (unused since 1.11) and removes it from old projects. The old creds column stays. PRIVACY.md says how to clear it
 - README, PRIVACY, TESTING and the store text are rewritten in plain, short sentences (knowledge/handbook/WRITING.md)

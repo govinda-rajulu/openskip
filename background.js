@@ -631,11 +631,13 @@ function animeSkipSegments(timestamps) {
 
 // SkipDB (api.skipdb.tv, ODbL 1.0): public intro/recap/outro/preview by IMDb id.
 // Used where IntroDB has nothing; IntroDB wins when both answer.
-async function providerSkipDB(imdbId, season, episode, isMovie) {
+async function providerSkipDB(imdbId, season, episode, isMovie, durationSec) {
   if (!/^tt\d{7,8}$/.test(String(imdbId || ''))) return null;
   try {
     const params = new URLSearchParams({ imdb_id: imdbId });
     if (!isMovie) { params.set('season', String(season)); params.set('episode', String(episode)); }
+    // The stream length lets SkipDB pick, and shift, the times made for this release.
+    if (durationSec > 0) params.set('duration', String(Math.round(durationSec)));
     const r = await fetchWithRetry(`https://api.skipdb.tv/api/segments?${params}`);
     if (!r.ok) return null;
     return skipDbSegments(await r.json());
@@ -845,7 +847,7 @@ async function fetchSegmentsMulti(imdbId, season, episode, isMovie, extra = {}) 
   const [introdb, animeskip, skipdb, tidb, aniskip] = await Promise.all([
     imdb ? providerIntroDB(imdb, season, episode, config, isMovie) : null,
     isMovie || !imdb ? null : providerAnimeSkip(imdb, season, episode, config),
-    imdb ? providerSkipDB(imdb, season, episode, isMovie) : null,
+    imdb ? providerSkipDB(imdb, season, episode, isMovie, dur) : null,
     (tmdbId || imdb) && (isMovie || (season && episode)) ? providerTheIntroDB(tmdbId, season, episode, isMovie, dur, imdb) : null,
     malId && !isMovie ? providerAniSkip(malId, episode, dur) : null,
   ]);

@@ -155,3 +155,6 @@ SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
   options.js end to end. Now a test runs options.js and popup.js as whole files.
 - 5 Oct round 3: a shown choice must come from what the code reads. The mode select showed
   "Auto all" from a missing key while skipOutro was off; re-picking it fired no change.
+- 5 Oct round 4: find page parts by what they do (role, size, place, value), not by one
+  player's class names; never insert into another app's DOM that re-renders. Overlay instead.
+- 5 Oct round 4: check every outside link live before a release: aniskip.com was parked.

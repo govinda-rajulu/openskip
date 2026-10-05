@@ -7,7 +7,7 @@ SkipStream has no server. It sends nothing to its developer. To work, it sends s
 ## Sent with no setup, while skipping is on
 
 - **IntroDB** (api.introdb.app): the IMDb id of the video, and the season and episode for TV. SkipStream uses this to get intro, recap and credits times. No key and no account.
-- **SkipDB** (api.skipdb.tv): the same IMDb id, season and episode, for times that IntroDB does not have. No key and no account.
+- **SkipDB** (api.skipdb.tv): the same IMDb id, season and episode, and the video length (so SkipDB picks the times made for that release). No key and no account.
 - **TheIntroDB** (api.theintrodb.org): the TMDB id (or, when SkipStream does not know it, the IMDb id), the season and episode for TV, and the video length. No key and no account.
 - **Logos** (each service's own website, else icons.duckduckgo.com): only when you open Settings > Accounts or Sources & help, your browser loads the site icons of the services listed there. The request names only those fixed websites, never what you watch.
 - **AniSkip** (api.aniskip.com), anime only: the MyAnimeList id, the episode number and the episode length. SkipStream sends this only when it knows the MyAnimeList id. No key and no account.
