@@ -10,6 +10,7 @@ jobs:
   # ── Full AI review on PR open/sync ──────────────────────────────────────────
   review-pr:
     if: |
+      vars.AGENTS_PAUSED != 'true' &&
       github.event_name == 'pull_request' &&
       !github.event.pull_request.draft &&
       !startsWith(github.event.pull_request.head.ref, 'dependabot/') &&

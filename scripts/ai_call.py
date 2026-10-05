@@ -29,8 +29,11 @@ OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
 NVIDIA_KEY = os.environ.get("NVIDIA_API_KEY", "")
 
-MODEL_OPENROUTER = os.environ.get("AI_MODEL_OPENROUTER") or "google/gemini-2.0-flash-exp:free"
-MODEL_GEMINI = os.environ.get("AI_MODEL_GEMINI") or "gemini-2.0-flash"
+# Defaults (os-147): the old ids gemini-2.0-flash-exp:free and gemini-2.0-flash are retired.
+# OpenRouter: an empty id means "pick a live free model". Gemini: a retired id walks the
+# live list (see _gemini). Pin a working id in the repository variable when one answers.
+MODEL_OPENROUTER = os.environ.get("AI_MODEL_OPENROUTER") or ""
+MODEL_GEMINI = os.environ.get("AI_MODEL_GEMINI") or "gemini-flash-latest"
 MODEL_NVIDIA = os.environ.get("AI_MODEL_NVIDIA") or "openai/gpt-oss-20b"
 
 TIMEOUT = 120
@@ -101,13 +104,62 @@ def _chat(url, payload, headers):
     return text
 
 
+OPENROUTER_FAMILIES = ("gemini", "deepseek", "qwen", "llama", "mistral", "gpt-oss", "nemotron")
+OPENROUTER_TRIES = 3
+_OPENROUTER_PICKED = None
+
+def openrouter_rank(models):
+    """Live free models (id ends with ':free'), known families first, then the rest."""
+    ids = [str(m.get("id", "")) for m in models if isinstance(m, dict)]
+    free = [i for i in ids if i.endswith(":free")]
+    out = []
+    for fam in OPENROUTER_FAMILIES:
+        out += [i for i in free if fam in i.lower() and i not in out]
+    return out + [i for i in free if i not in out]
+
+def _openrouter_skippable(e):
+    """400/404/410 = unknown or retired id; 5xx = provider broken: try the next live model."""
+    return isinstance(e, urllib.error.HTTPError) and (e.code in (400, 404, 410) or e.code >= 500)
+
 def _openrouter(prompt, max_tokens):
+    """AI_MODEL_OPENROUTER first (if set). If it is retired or unset, try at most
+    OPENROUTER_TRIES live free models from the public model list."""
+    global _OPENROUTER_PICKED
     if not OPENROUTER_KEY:
         raise RuntimeError("no OPENROUTER_API_KEY")
+    first = _OPENROUTER_PICKED or MODEL_OPENROUTER
+    err = None
+    if first:
+        try:
+            return _openrouter_once(first, prompt, max_tokens)
+        except urllib.error.HTTPError as e:
+            if not _openrouter_skippable(e):
+                raise
+            err = e
+    live = [m for m in openrouter_rank(_get("https://openrouter.ai/api/v1/models").get("data", [])) if m != first]
+    tried = [first + " (HTTP " + str(err.code) + ")"] if err else []
+    for model in live[:OPENROUTER_TRIES]:
+        try:
+            text = _openrouter_once(model, prompt, max_tokens)
+        except urllib.error.HTTPError as e:
+            if not _openrouter_skippable(e):
+                raise
+            err = e
+            tried.append(model + " (HTTP " + str(e.code) + ")")
+            continue
+        _OPENROUTER_PICKED = model
+        print("ai_call: openrouter tried " + (", ".join(tried) or "nothing pinned") + "; answered by " + model
+              + " (set repo variable AI_MODEL_OPENROUTER=" + model + " to pin it)")
+        return text
+    if err:
+        raise err
+    raise RuntimeError("openrouter: no live free model")
+
+def _openrouter_once(model, prompt, max_tokens):
     return _chat(
         "https://openrouter.ai/api/v1/chat/completions",
         {
-            "model": MODEL_OPENROUTER,
+            "model": model,
             "max_tokens": max_tokens,
             "temperature": 0.1,
             # low effort = about 20% of max_tokens for thinking, the rest is left for the answer
@@ -301,7 +353,7 @@ def probe():
     for name, fn in PROVIDERS:
         try:
             text = fn("Reply with exactly the two letters OK and nothing else.", 512)
-            model = {"openrouter": MODEL_OPENROUTER, "gemini": _GEMINI_PICKED or MODEL_GEMINI, "nvidia": MODEL_NVIDIA}.get(name, "?")
+            model = {"openrouter": _OPENROUTER_PICKED or MODEL_OPENROUTER, "gemini": _GEMINI_PICKED or MODEL_GEMINI, "nvidia": MODEL_NVIDIA}.get(name, "?")
             if "OK" in text.upper()[:40]:
                 ok += 1
                 print(name + ": OK " + model)

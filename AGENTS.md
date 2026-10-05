@@ -1,126 +1,117 @@
 # AGENTS
 
-## Purpose
-This file helps AI coding agents understand the SkipStream repository structure, constraints, and conventions.
+The one rules file for every person and agent working here (os-147, 5 Oct 2026).
+`CLAUDE.md` and `GEMINI.md` only point here. Agent workflows read this file. The code and
+live GitHub state win where they disagree; `knowledge/README.md` is the history.
+
+## What this is
+
+SkipStream: a browser extension (Firefox MV2 + Chrome MV3) that skips intros, recaps and
+credits, presses the platforms' own Skip buttons, skips SponsorBlock segments on YouTube,
+resumes videos, shows OpenSubtitles subtitles, and can sync history to the user's own
+Supabase project. Vanilla JS. No build step, no npm, no bundler, no TypeScript. Do not add one.
 
 ## Repository layout
-Flat-structure vanilla-JS browser extension. No build step. No npm. No TypeScript.
 
 ```
-manifest.json              - Firefox MV2 manifest (authoritative version source)
-manifest-chrome.json       - Chrome MV3 manifest (must always match manifest.json version)
-updates.json               - Version manifest (informational, not wired to auto-update)
-background.js              - Service worker: all external API calls, retry logic, user ID derivation
-content-scripts/
-  content.js               - Injected into all frames: video detection, skip polling, resume prompt, playback sync
-popup.html / popup.js      - Extension toolbar popup: history, skip toggles, segment reporting
-popup.css / options.css    - Separate stylesheets with DIFFERENT token namespaces. Not interchangeable.
-theme-engine.js            - OKLCH palette generator, injects color vars into both pages
-options.html / options.js  - Settings page: credential input, connection verification
-scripts/
-  amo-update.js            - CI script: uploads signed ZIP to AMO via REST API
-icons/                     - icon-16.png, icon-32.png, icon-48.png, icon-128.png
-supabase_setup.sql         - One-time DB schema setup (run once in Supabase SQL editor)
-CHANGELOG.md               - Version history
-CONTRIBUTING.md            - Development guide
-TESTING.md                 - Manual and automated testing notes
-PRIVACY.md                 - Privacy policy
-HOW_TO_RELEASE.md          - Release checklist
-docs/                      - Additional documentation
-.github/workflows/         - CI/CD pipelines
+manifest.json              Firefox MV2 (authoritative version source)
+manifest-chrome.json       Chrome MV3 (same version, same CSP hosts)
+background.js              all network calls, retry logic, install id, Supabase RPCs
+content-scripts/content.js every frame: video detection, skips, resume, subtitles, sync
+content-scripts/probe.js   the popup's "Site report" scan
+popup.html / popup.js / popup.css         toolbar popup
+options.html / options.js / options.css   Settings page
+theme-engine.js            OKLCH palette; writes colour tokens on <html> for both pages
+supabase_setup.sql         one-time, idempotent setup the user runs in their project
+updates.json               version list (not wired to auto-update; Lint & Validate checks it)
+scripts/                   amo-update.js, ai_call.py, ai_edits.py, agent_desk.py, dom-contract.py
+tests/                     node:test suites (harness.mjs), fixtures/agent-exam (not shipped)
+knowledge/                 state, lessons, audits, handbook, agent desk (knowledge/agents/)
 ```
 
-There is no `src/`, no `wxt`, no `openskip/` subdirectory, no TypeScript, no build step.
+## Hard rules (CI fails otherwise)
 
-## Version management - CRITICAL
-- `manifest.json` is the **authoritative** version source
-- `manifest-chrome.json` must always match `manifest.json` version exactly
-- Git tag must match manifest version exactly (tag `v1.5.9` requires version `1.5.9` in manifest)
-- `CHANGELOG.md` must have a matching `## [X.Y.Z]` entry before tagging
-- `popup.js` header comment must be updated: `/* SkipStream - popup vX.Y.Z */`
-- README version badge must be updated
-- CI (`release.yml`) enforces tag == manifest version and will fail the build if mismatched
+- No `fetch()` and no `localStorage` in `content-scripts/`: the content script asks the
+  background with `runtime.sendMessage`.
+- No `innerHTML` anywhere: `createElement`, `textContent`, `appendChild`.
+- No `console.log` in shipped code; `console.warn` only for diagnostics.
+- Every element id that options.js reads exists in options.html (`scripts/dom-contract.py`).
+- Install id: `crypto.randomUUID()` per install in `skipstream_install_id`. Never derive it
+  from the anon key (settled; see knowledge/agents/SETTLED.md).
+- Never pass a host name to `.includes()` or `.indexOf()`; compare `new URL(x).hostname`
+  exactly (CodeQL, 5 Oct 2026).
+- Firefox stays MV2 with `strict_min_version` 140.0. Decided, not a bug.
+- No unlicensed streaming site is named anywhere in the repository (owner decision 5 Oct
+  2026; tests/v1131.test.mjs and tests/knowledge.test.mjs check it by hash).
 
-Files to update on every version bump: `manifest.json`, `manifest-chrome.json`, `popup.js`, `popup.css`, `README.md`, `CHANGELOG.md`, `updates.json`
+## Messages (content, popup and options to background)
 
-`.github/workflows/version-bump.yml` automates this. Run it rather than
-hand-editing seven files.
+The full list is the `onMessage` switch in background.js. The common ones:
+`GET_USER_ID`, `SUPABASE_UPSERT`, `SUPABASE_GET`, `SUPABASE_GET_ALL`, `FETCH_SEGMENTS`,
+`TMDB_TO_IMDB`, `TMDB_SEARCH_POSTER`, `OSUB_SEARCH_AND_FETCH`, `GET_TAB_INFO`,
+`SS_DIAG_REPORT`, `SUPABASE_SETTINGS_UPSERT`, `SUPABASE_SETTINGS_GET`. The content script
+answers `GET_VIDEO_TIME` and `GET_SHOW_INFO`. Supabase traffic uses only the `ss_*`
+security-definer RPCs in supabase_setup.sql; the tables have no policies and no grants.
 
-Chrome Web Store is not published (developer fee unpaid). The Chrome ZIP
-is still built on every release so it stays current for manual install.
+## Versions and releases
 
-## Tech constraints
-- Vanilla JS only at root level
-- MV2 (Firefox) and MV3 (Chrome) both served from same `background.js` via runtime detection
-- All Supabase/external API calls: `fetch()` in `background.js` only - content script uses `browser.runtime.sendMessage`
-- No `fetch()` in `content-scripts/content.js` - banned by architecture and CI
-- No `localStorage` in content script - use `browser.storage.local` only
-- No `innerHTML` anywhere - use DOM API: `createElement`, `textContent`, `appendChild`
-- No `console.log` - use `console.warn` only for diagnostics
-- User ID: random UUID v4 generated per browser installation, stored in `skipstream_install_id` key
+- One version in 7 places: `manifest.json`, `manifest-chrome.json`, the `popup.js` header
+  `/* SkipStream - popup vX.Y.Z */`, the `popup.css` header, the README badge and release
+  link, a `## [X.Y.Z] - YYYY-MM-DD` entry at the top of CHANGELOG.md, and the last entry of
+  `updates.json`. The release packet bumps all of them in its PR; there is no bump workflow
+  (retired in os-147). tests/v1131.test.mjs reads the version from manifest.json.
+- Pushing tag `vX.Y.Z` runs `release.yml` (checks, ZIPs, GitHub release), then
+  `amo-submit.yml` uploads the Firefox ZIP to AMO. `cws-submit.yml` is manual only: there is
+  no Chrome Web Store account. Edge Add-ons takes the Chrome ZIP by hand (Partner Center).
+- Any file that ships must be in the file lists of `release.yml` (Firefox zip and Chrome cp),
+  `amo-submit.yml`, `cws-submit.yml` and `validate.yml`. validate.yml fails if a required file
+  is missing from either ZIP; extend that guard with every new shipped file.
 
-## Supabase schema
-Tables:
-- `public.playback_states` - per-title watch positions
-- `public.user_settings` - stats, prefs, site rules, theme per user
+## Verify before you claim
 
-`playback_states` unique constraint: `playback_states_user_id_media_id_key` on `(user_id, media_id)`
+Run these and paste the real output. "Done" without them is not evidence; UNVERIFIED is
+an acceptable answer.
 
-Correct upsert (both required - header alone causes HTTP 409):
 ```
-POST /rest/v1/playback_states?on_conflict=user_id,media_id
-Prefer: resolution=merge-duplicates
+node --check <each changed .js file>
+node --test --test-reporter=tap tests/*.test.mjs     # gate on the exact pass count
+python3 scripts/dom-contract.py                      # must print: DOM contract OK
 ```
 
-`user_settings` upsert:
-```
-POST /rest/v1/user_settings?on_conflict=user_id
-Prefer: resolution=merge-duplicates
-```
+- A new test must fail on the old code. Say which tests failed on main.
+- Touch only the files the task names. Small diffs, no drive-by refactors, no new storage
+  keys without a reason in the PR.
+- There is one non-technical primary user. A change she would not notice is not a priority.
+  Correct numbers beat styling.
 
-## Message passing API (content script <-> background)
-| type | direction | purpose |
-|------|-----------|---------|
-| `GET_USER_ID` | content→bg | get per-install UUID |
-| `SUPABASE_UPSERT` | content→bg | upsert playback state row |
-| `SUPABASE_GET` | content→bg | fetch single playback row by userId + mediaId |
-| `SUPABASE_GET_ALL` | popup→bg | fetch all rows for history display |
-| `FETCH_SEGMENTS` | content→bg | fetch skip segments from IntroDB/AnimeSkip |
-| `TMDB_TO_IMDB` | content→bg | convert TMDB numeric ID to IMDb tt-ID |
-| `GET_VIDEO_TIME` | popup→content | get current video currentTime |
-| `GET_SHOW_INFO` | popup→content | get resolved show/episode/mediaId metadata |
-| `REPORT_SEGMENT` | popup→bg | submit a new segment to IntroDB/AnimeSkip |
-| `DELETE_ALL_HISTORY` | popup→bg | delete all Supabase rows for this user |
-| `SUPABASE_SETTINGS_UPSERT` | options→bg | save stats/prefs/site_rules/theme to `user_settings` |
-| `SUPABASE_SETTINGS_GET` | options→bg | fetch `user_settings` row for restore prompt |
-| `TMDB_SEARCH_POSTER` | options→bg | resolve a history thumbnail. Short-circuits to i.ytimg.com when `mediaId` matches `^yt/[A-Za-z0-9_-]{11}$`, otherwise TMDB backdrop then poster |
-| `OSUB_SEARCH_AND_FETCH` | content→bg | auto-fetch subtitles by IMDb ID |
+## UI rules (popup, Settings, on-video UI)
 
-## Packaging - CRITICAL
-Any file that ships inside the extension must be listed in the zip/cp file list of ALL FOUR workflows:
-`.github/workflows/release.yml` (two places: Firefox zip and Chrome cp), `amo-submit.yml`, `cws-submit.yml`, `validate.yml`.
-Adding a file to the repo alone does NOT ship it. This bug has shipped twice: popup.css missing in v1.7.6, theme-engine.js missing in v1.9.4.
-`validate.yml` now fails the build if popup.css, options.css, or theme-engine.js is absent from either ZIP. Extend that guard whenever a new shipped file is added.
+- Native, light, fast, accessible. No frameworks, no build tools, no redesign without a request.
+- Theme: light, dark or system. The popup's choice is the source of truth; Settings follows it.
+  theme-engine.js writes every colour token inline on `<html>`. Never redefine a colour token
+  under `body.theme-*`: a property on body beats the inline one and kills the accent picker
+  (shipped twice). `:root` blocks are pre-paint fallbacks only.
+- Five type sizes: 12, 14, 16, 20, 28 px (body 16). Radii 8, 16, pill. Spacing from the token
+  scale. popup.css and options.css use different token names: never assume one exists in both.
+- 44 px touch targets, visible focus, WCAG AA contrast, reduced motion respected. Animate only
+  transform and opacity. No `backdrop-filter` (Firefox Android bug), no viewport units in popup.css.
+- On video: find player parts by what they do (role, size, place), never by one player's class
+  names, and never insert into another app's DOM that re-renders: draw an overlay.
+- Every action must be reachable by touch: Firefox for Android has no keyboard commands.
 
-## CI/CD pipeline
-1. Commit all version files, push tag `vX.Y.Z`
-2. `release.yml` triggers: validates JS syntax, security checks, tag==manifest version, CHANGELOG entry, builds ZIP, uploads to GitHub Release
-3. `amo-submit.yml` triggers on release: downloads ZIP artifact, submits to AMO, updates listing metadata
-4. `cws-submit.yml` triggers on release: submits the Chrome ZIP to the Chrome Web Store
-5. `validate.yml` runs on every push to `main` and every PR
+## Agents
 
-## Common mistakes to avoid
-- Never push a tag before bumping all version files - CI will fail with "tag does not match manifest version"
-- Never use `fetch()` or `XMLHttpRequest` in `content-scripts/content.js`
-- Never use `localStorage` in content script
-- Never add a shipped file without updating all four workflow file lists
-- popup.css and options.css use different CSS variable namespaces - do not assume a token exists in both
-- Only animate transform and opacity. No backdrop-filter (open Firefox Android bug), no multi-layer shadows
-- The constraint name in `supabase_setup.sql` is `playback_states_user_id_media_id_key` - do not rename it
+- The **agent desk** (`.github/workflows/agent-desk.yml`, contract in
+  `knowledge/agents/README.md`) only finds and cross-examines; a script keeps verified quotes.
+  Skills live in `knowledge/agents/skills/`, settled items in `knowledge/agents/SETTLED.md`,
+  tasks in `knowledge/agents/BACKLOG.md`.
+- Fix agents (`ai-fix-pr.yml`, `sweep.yml`) run only for the owner and use the find/replace
+  edit contract in `scripts/ai_edits.py` (allowed files only, never `.github/`). Their PRs are
+  made with GITHUB_TOKEN, so PR checks do not start until the owner closes and reopens the PR.
+- Repository variable `AGENTS_PAUSED=true` stops every agent workflow.
+- Agents never merge, publish, delete, change settings or fill in an owner decision.
 
-## Knowledge base (read before proposing a change)
+## Knowledge base
 
-`knowledge/README.md` is the entry point: the working agreement with the owner, the latest
-dated state, lessons from past wrong calls, and audit status. It is history and lessons;
-the code and live GitHub state win where they disagree. Add session notes there, dated and
-append-only.
+Read `knowledge/README.md` first: the working agreement, the dated state, lessons from past
+wrong calls and audit status. Add session notes there, dated and append-only.

@@ -10,12 +10,13 @@ jobs:
   sweep:
     # Trigger: new issue title starts with "sweep:" OR comment is "sweep: <task>"
     if: |
+      vars.AGENTS_PAUSED != 'true' && (
       (github.event_name == 'issues' &&
        github.event.sender.login == github.repository_owner &&
        startsWith(github.event.issue.title, 'sweep:')) ||
       (github.event_name == 'issue_comment' &&
        github.event.comment.user.login == github.repository_owner &&
-       startsWith(github.event.comment.body, 'sweep:'))
+       startsWith(github.event.comment.body, 'sweep:')))
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     runs-on: ubuntu-latest
@@ -33,7 +34,7 @@ jobs:
       - name: Build context
         run: |
           {
-            cat CLAUDE.md
+            cat AGENTS.md
             echo ""
             for f in background.js content-scripts/content.js options.js popup.js manifest.json; do
               echo "=== $f ==="

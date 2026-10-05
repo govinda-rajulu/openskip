@@ -4,15 +4,21 @@ Written 1 Oct 2026. One lane in flight at a time. New ideas go to the parking lo
 bottom with a date; they do not start work by themselves. Tool verdicts and agent rules:
 [handbook/AGENT-TOOLING.md](handbook/AGENT-TOOLING.md). STATE.md and the code win over this file.
 
-## Now: 1.12.0 (packet 3 Oct 2026), then the AMO listing
+## Done: 1.12.0 (3 Oct) and 1.13.0 (5 Oct); 1.13.1 in os-147 (5 Oct). Kept for history
 
 - Done 3 Oct: #71, #72, #73, #77 merged; 1.11.0 released (#79, tag v1.11.0, AMO upload OK).
 - 1.12.0 PR: site report, all SponsorBlock categories with modes, mute and highlight, timeline
   marks, AnimeSkip section ends, SkipDB, subtitle look and per-show sync offset.
 - Owner: device test the 1.12.0 ZIP (checklist in the PR), merge, tag. AMO listing: screenshots,
   privacy policy link (PRIVACY.md on GitHub). Edge Add-ons: free, takes the Chrome ZIP.
-- Use "Site report" on 1Shows and other sites; paste it into the chat. Player or site fixes come
+- Use "Site report" on StreamSite and other sites; paste it into the chat. Player or site fixes come
   from those reports, one site at a time.
+
+## Now: agent desk and backlog (os-147)
+
+- The desk hunts weekly and files only verified, cross-examined findings
+  (knowledge/agents/README.md). Tasks: knowledge/agents/BACKLOG.md (T01 to T16).
+- Fix agents get work only after 3 passed exams and the owner's yes.
 
 ## Lane 1: settings, no code (owner, in the browser, after the merges)
 
@@ -65,7 +71,7 @@ Caps on rounds, minutes and daily model calls.
 - The biggest lever is tests: agents are only as good as the suite that judges them. Every
   lane 3 task adds a test that fails on the old code.
 
-## Lane: Agent clean-up (after 1.13)
+## Lane: Agent clean-up (after 1.13). Done in os-147 except the 5-round fix loop and path-guarded worker (lane 3)
 
 - 6 AI workflows share 3 secrets: OPENROUTER_API_KEY, GEMINI_API_KEY, NVIDIA_API_KEY.
   Version Bump also reads ANTHROPIC_API_KEY, which is probably never set.
@@ -113,9 +119,9 @@ Add ideas here with a date. Move one into a lane only when the lane before it is
 - 3 Oct 2026: TMDB logo next to the Credits notice (TMDB attribution rules).
 - 3 Oct 2026: AniSkip (api.aniskip.com, MAL ids) as a second anime source; needs IMDb or TMDB to MAL.
 - 3 Oct 2026: submit segments (IntroDB key, SponsorBlock), with a review step.
-- 3 Oct 2026: "Check this page" on 1Shows listed only the main page while the player played
+- 3 Oct 2026: "Check this page" on StreamSite listed only the main page while the player played
   (1.11.0 device test). Site report (1.12.0) reads every frame directly; use it to find out why.
-- 3 Oct 2026: 1Shows showed three subtitle lines; one is ours (dark box), two are the site's own.
+- 3 Oct 2026: StreamSite showed three subtitle lines; one is ours (dark box), two are the site's own.
 - 3 Oct 2026: OpenSubtitles search by title when no IMDb id: done in 1.11.0 (popup button only; YouTube excluded). A confirm step showing the match is still open.
 - 3 Oct 2026: if "Check this page" shows blank frames holding players, add match_about_blank.
 - 3 Oct 2026: agent docs overlap (AGENTS.md, CLAUDE.md, GEMINI.md): CI and scripts/agent.sh read

@@ -2,7 +2,7 @@
 // and the weekly audit cannot publish findings it did not quote from the source.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -76,7 +76,7 @@ test('ai_call: dead or empty seats fall through, GitHub Models is gone', () => {
 });
 
 test('every agent workflow uses the edit contract and passes the NVIDIA seat', () => {
-  for (const f of ['ai-fix-pr.yml', 'sweep.yml', 'ai-pr-review.yml', 'ai-weekly-audit.yml']) {
+  for (const f of ['ai-fix-pr.yml', 'sweep.yml', 'ai-pr-review.yml', 'agent-desk.yml']) {
     const s = wf(f);
     assert.doesNotMatch(s, /COMPLETE file content/, f);
     assert.equal((s.match(/NVIDIA_API_KEY: \$\{\{ secrets\.NVIDIA_API_KEY \}\}/g) || []).length,
@@ -87,11 +87,12 @@ test('every agent workflow uses the edit contract and passes the NVIDIA seat', (
   assert.match(wf('ai-probe.yml'), /ai_call\.py --probe/);
 });
 
-test('weekly audit keeps only findings whose quote is really in the file', () => {
-  const s = wf('ai-weekly-audit.yml');
-  assert.match(s, /if src and len\(q\) >= 12 and q in src:/);
-  assert.match(s, /"quote": "ONE line copied/);
-  assert.match(s, /if \(findings\.length === 0\) \{ core\.notice/);
+test('os-147: the one-seat weekly audit is replaced by the agent desk (quote check in tests/desk.test.mjs)', () => {
+  assert.equal(existsSync('.github/workflows/ai-weekly-audit.yml'), false);
+  assert.equal(existsSync('knowledge/archive/unused/ai-weekly-audit.yml'), true, 'kept for history');
+  const desk = readFileSync('scripts/agent_desk.py', 'utf8');
+  assert.match(desk, /line = verify_quote\(src, raw\.get\("quote"\), raw\.get\("line"\)\)/);
+  assert.match(wf('agent-desk.yml'), /python3 scripts\/agent_desk\.py "\$MODE" --topic "\$TOPIC" --publish/);
 });
 
 test('setup SQL drops the allow_all policy found live on 29 Sep', () => {
@@ -207,7 +208,6 @@ test('F3: one 503 is retried once on the same model before moving on', () => {
 test('F2: every JSON-contract agent asks with accept=looks_json', () => {
   assert.equal((wf('ai-fix-pr.yml').match(/accept=looks_json/g) || []).length, 2);
   assert.match(wf('sweep.yml'), /ask\(prompt, accept=looks_json\)/);
-  assert.match(wf('ai-weekly-audit.yml'), /ask\(prompt, accept=looks_json\)/);
   assert.match(readFileSync('scripts/ai_call.py', 'utf8'), /"reasoning": \{"effort": "low", "exclude": True\}/);
 });
 
@@ -215,6 +215,7 @@ test('F4: a seat that spends its whole budget thinking is asked once more with 4
   const r = py([
     'import ai_call, urllib.error',
     'ai_call.OPENROUTER_KEY = "k"; ai_call.NVIDIA_KEY = "k"; ai_call.GEMINI_KEY = "k"',
+    'ai_call.MODEL_OPENROUTER = "google/pinned-model:free"',
     'budgets = []',
     'def post(url, payload, headers, timeout=0):',
     '    if "generativelanguage" in url:',
@@ -245,7 +246,7 @@ test('F4: a seat that spends its whole budget thinking is asked once more with 4
 test('F4: 429 and 5xx wait and retry (5s, 15s), other errors fail at once', () => {
   const r = py([
     'import ai_call, urllib.error',
-    'ai_call.OPENROUTER_KEY = "k"',
+    'ai_call.OPENROUTER_KEY = "k"; ai_call.MODEL_OPENROUTER = "google/pinned-model:free"',
     'waits = []; ai_call.time.sleep = lambda s: waits.append(s)',
     'codes = [429, 503]',
     'def post(url, payload, headers, timeout=0):',
@@ -267,4 +268,33 @@ test('F4: 429 and 5xx wait and retry (5s, 15s), other errors fail at once', () =
   assert.match(r.out, /ANS OK \[5, 15\]/);
   assert.match(r.out, /GAVEUP 429 \[5, 15\]/);
   assert.match(r.out, /AUTH 401 \[\]/);
+});
+
+test('os-147: retired default model ids are gone; OpenRouter picks a live free model when its id is unset or retired', () => {
+  const src = readFileSync('scripts/ai_call.py', 'utf8');
+  assert.doesNotMatch(src, /or "google\/gemini-2\.0-flash-exp:free"|or "gemini-2\.0-flash"/);
+  const r = py([
+    'import ai_call, urllib.error, json',
+    'ai_call.OPENROUTER_KEY = "k"',
+    'ai_call._get = lambda url, timeout=30: {"data": [{"id": "x/paid"}, {"id": "zz/other:free"}, {"id": "qwen/qwen3:free"}, {"id": "google/gemini-9:free"}]}',
+    'print("RANK", ai_call.openrouter_rank(ai_call._get("u")["data"]))',
+    'asked = []',
+    'def post(url, payload, headers, timeout=0):',
+    '    asked.append(payload["model"])',
+    '    if payload["model"] in ("old/retired:free", "google/gemini-9:free"): raise urllib.error.HTTPError(url, 404, "nf", None, None)',
+    '    return {"choices": [{"finish_reason": "stop", "message": {"content": "OK"}}]}',
+    'ai_call._post = post',
+    'ai_call.MODEL_OPENROUTER = "old/retired:free"',
+    'print("ANS", ai_call._openrouter("x", 64), asked)',
+    'ai_call._OPENROUTER_PICKED = None; ai_call.MODEL_OPENROUTER = ""; asked.clear()',
+    'print("UNSET", ai_call._openrouter("x", 64), asked)',
+    'def auth(url, payload, headers, timeout=0): raise urllib.error.HTTPError(url, 401, "no", None, None)',
+    'ai_call._post = auth; ai_call._OPENROUTER_PICKED = None; ai_call.MODEL_OPENROUTER = "a/b:free"',
+    'try:\n  ai_call._openrouter("x", 64)\nexcept urllib.error.HTTPError as e:\n  print("AUTH", e.code)',
+  ].join('\n'));
+  assert.match(r.out, /RANK \['google\/gemini-9:free', 'qwen\/qwen3:free', 'zz\/other:free'\]/, r.out);
+  assert.match(r.out, /ANS OK \['old\/retired:free', 'google\/gemini-9:free', 'qwen\/qwen3:free'\]/, r.out);
+  assert.match(r.out, /answered by qwen\/qwen3:free \(set repo variable AI_MODEL_OPENROUTER=qwen\/qwen3:free to pin it\)/);
+  assert.match(r.out, /UNSET OK \['google\/gemini-9:free', 'qwen\/qwen3:free'\]/, r.out);
+  assert.match(r.out, /AUTH 401/, 'a bad key is not hidden by walking models');
 });

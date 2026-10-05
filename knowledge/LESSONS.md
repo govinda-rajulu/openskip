@@ -4,6 +4,27 @@ Newest first. Append; never delete. Older lessons live verbatim in
 [archive/skills/](archive/skills/) (MY-WRONG-CALLS-4-5-SEP, FIXED-WORK-AND-WRONG-CALLS,
 SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
 
+## 5 Oct 2026, night (os-147: agent clean-up, agent desk, 1.13.1)
+
+1. **Unpinned public reads were stale twice in one evening.** A raw `main` file showed
+   manifest version 1.7.11 and an old release.yml, and `/branches/main` showed an August
+   commit. Reads pinned to the commit sha (`/pulls/82` merge `6419b6e0`) were right. Every
+   claim in os-147 came from pinned reads or the owner's bundle.
+2. **A table the owner ran found a bug no test had.** 20 history rows had no device name:
+   the 5-minute background push (new in 1.13.0) sent `null` when no name was set, while the
+   content script sent the browser name. Two senders of one row must share one default.
+3. **"Sync does not work" was two ids.** Phone and laptop had never been linked; each
+   temporary add-on load had made a new install id (8 in the project). Ask for the
+   `user_id` per device before reading code.
+4. **A required check you can bypass is advice.** Only Lint & Validate was required and
+   admins were not enforced; CodeQL failed for 9 packets unseen. Required checks are an
+   owner setting (BACKLOG T13).
+5. **Release tests that name a version break every release.** amo.test and the 1.13.0
+   release test hard-coded 1.13.0. Tests now read the version from manifest.json.
+6. **Agents find; a script decides.** The desk keeps a finding only when its quote is on a
+   real line, drops uncited votes and counts made-up quotes per seat. Fix rights wait for
+   3 passed exams.
+
 ## 5 Oct 2026 (1.13.0, packet os-130)
 
 1. **Resume from History.** The old code gave up if YouTube had already started playing.
@@ -35,7 +56,7 @@ SUPERSEDED-CLAIMS, REPO-LANDMINES-AND-AGENTS).
     "up to 200 a day". OpenSubtitles' help says 5 without an account and 20 with a free
     account. Its login answer `allowed_downloads` is the allowance, not what is left.
 13. **Register diagnostics first.** The "Check this page" listener was the last line of
-    content.js. If start-up stopped early in a frame, that frame never answered, so 1Shows
+    content.js. If start-up stopped early in a frame, that frame never answered, so StreamSite
     showed only the top page. A diagnostic must not depend on the code it diagnoses.
     (Likely cause, verify on the device: the frame now says if start-up did not finish.)
 14. **Use the free tier first.** OpenSubtitles downloads try without the account first, so

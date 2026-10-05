@@ -42,4 +42,4 @@ What it gets wrong is `scripts/agent.sh`:
 
 - **"Local subtitle upload gives no feedback and does not attach"** -> the attach half is fixed by PR 62. The feedback half is job 2.2 and is still open.
 - **"****`getSitePrefs`** async-inside-sync means the first video on a site can miss its rule" -> the symptom is right, the mechanism description was muddled. Settled now.
-- The six device checks and the `2x` speed on 1shows item are all still outstanding and still blocked on the permanent install.
+- The six device checks and the `2x` speed on streamsite item are all still outstanding and still blocked on the permanent install.

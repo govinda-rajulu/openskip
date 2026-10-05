@@ -5,7 +5,7 @@
 
 ## Frame architecture, the thing that explains half the bug reports
 
-`manifest.json` sets **`all_frames: true`** with ``. On aggregator sites (1shows, xpass, fmovies) content.js therefore runs in the top page **and** inside every embedded player iframe, each with its own module scope and its own copy of every module-level counter.
+`manifest.json` sets **`all_frames: true`** with ``. On aggregator sites content.js therefore runs in the top page **and** inside every embedded player iframe, each with its own module scope and its own copy of every module-level counter.
 
 - **`_siteHost()`** and **`getSiteHostname()`** already resolve identity from **`document.referrer`** when inside an iframe. Do not "discover" this again and do not propose a redesign; that was a wrong call on 15 Aug. The bugs were always individual call sites bypassing those helpers.
 - **`_pageUrl()`** (added `0527017`) does the same for URLs: returns `document.referrer` in an iframe, else `location.href`. It has no protocol check; `renderHistory` guards hrefs to http/https so the worst case is a row falling back to `#`.

@@ -22,10 +22,10 @@ Found while reading the code, not fixed yet. Priority order.
 ## Note only (owner decides)
 10. OpenSubtitles app key is hard-coded in background.js (normal for OpenSubtitles apps, but every user shares its quota).
     If downloads fail with quota errors, add an optional "your own OpenSubtitles API key" field.
-11. getSiteName() names free-streaming sites (1shows, fmovies, soap2day, goojara). AMO reviewers may question it. Keep the
+11. getSiteName() names four unlicensed streaming sites (names removed from the repository on 5 Oct 2026, os-147). AMO reviewers may question it. Keep the
     generic fallback; consider dropping those names from the shipped list.
 12. No end-to-end browser test: 138 unit tests only. Headless Chromium can load the popup and a local test page
     (done by hand in the assistant sandbox). A CI job would catch UI breaks before device tests.
 13. Konami egg needs a keyboard: phones only get the version-badge egg. Fine.
-14. Still unverified live: Anime Skip, SkipDB, TheIntroDB, AniSkip answers. 1Shows triple subtitles. AMO 1.12.0 listing status.
+14. Still unverified live: Anime Skip, SkipDB, TheIntroDB, AniSkip answers. StreamSite triple subtitles. AMO 1.12.0 listing status.
 15. Edge Add-ons listing (free, Chrome ZIP) and the AMO listing text are owner steps.

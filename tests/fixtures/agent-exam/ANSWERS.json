@@ -1,0 +1,88 @@
+{
+  "note": "Planted problems for the agent desk exam. The seats never see this file. A hit is a kept finding in the same file within 2 lines.",
+  "planted": [
+    {
+      "id": "A1",
+      "file": "player-a.js",
+      "line": 8,
+      "quote": "return String(url).includes('youtube.com');",
+      "category": "security",
+      "why": "host check by substring: evil.com/?youtube.com passes"
+    },
+    {
+      "id": "A2",
+      "file": "player-a.js",
+      "line": 16,
+      "quote": "box.innerHTML = '<b>Now playing:</b> ' + pageTitle;",
+      "category": "security",
+      "why": "page title written as HTML"
+    },
+    {
+      "id": "A3",
+      "file": "player-a.js",
+      "line": 26,
+      "quote": "if (e.data && e.data.type === 'SEEK') {",
+      "category": "security",
+      "why": "message listener trusts any window: no origin or source check"
+    },
+    {
+      "id": "A4",
+      "file": "player-a.js",
+      "line": 37,
+      "quote": "return fetch('https://' + baseUrl + '/api/v1/subtitles', { headers: { Authorization: 'Bearer ' + token } });",
+      "category": "security",
+      "why": "bearer token sent to a host the caller supplies"
+    },
+    {
+      "id": "B1",
+      "file": "player-b.js",
+      "line": 7,
+      "quote": "return T.setTimeout(check, 1000);",
+      "category": "bug",
+      "why": "timer called as a method of a plain object throws in browsers"
+    },
+    {
+      "id": "B2",
+      "file": "player-b.js",
+      "line": 12,
+      "quote": "for (let i = list.length - n; i <= list.length; i++) out.push(list[i]);",
+      "category": "bug",
+      "why": "off by one: reads list[list.length]"
+    },
+    {
+      "id": "B3",
+      "file": "player-b.js",
+      "line": 25,
+      "quote": "if (isReady(api)) video.play();",
+      "category": "bug",
+      "why": "missing await: a Promise is always truthy"
+    }
+  ],
+  "decoys": [
+    {
+      "file": "player-a.js",
+      "line": 12,
+      "quote": "try { return ALLOWED_HOSTS.includes(new URL(url).hostname); } catch { return false; }"
+    },
+    {
+      "file": "player-a.js",
+      "line": 21,
+      "quote": "b.textContent = 'Now playing: ';"
+    },
+    {
+      "file": "player-a.js",
+      "line": 32,
+      "quote": "if (e.source !== window.parent || e.origin !== location.origin) return;"
+    },
+    {
+      "file": "player-b.js",
+      "line": 17,
+      "quote": "return list.slice(0, Math.max(0, n));"
+    },
+    {
+      "file": "player-b.js",
+      "line": 29,
+      "quote": "if (await isReady(api)) video.play();"
+    }
+  ]
+}
