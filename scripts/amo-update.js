@@ -8,6 +8,10 @@
  *   3. Polls until validation passes (up to 10 min)
  *   4. Creates new version on the listing (gracefully skips HTTP 409 duplicates)
  *   5. PATCHes listing metadata: summary, description, categories, homepage, tags
+ *   6. Uploads the add-on icon (icons/icon-128.png) while AMO still shows its default icon
+ *
+ * LISTING_ONLY=1 skips steps 2-4: it sets the release notes of the current AMO version
+ * (must be this manifest version), then steps 5 and 6. Use it to fix a published listing.
  *
  * API v5 takes categories as a flat list of slugs. The old v4 object form
  * ({ firefox: [...] }) makes the PATCH fail, and then the listing keeps its old
@@ -22,6 +26,7 @@
  *   ZIP_PATH        - path to built ZIP; defaults to first skipstream-*-firefox.zip found
  *   RELEASE_NOTES   - version release notes (plain text or basic Markdown)
  *   DRY_RUN         - set to "1" to skip mutating API calls
+ *   LISTING_ONLY    - set to "1" to update notes, listing and icon only (no upload)
  */
 'use strict';
 
@@ -35,6 +40,9 @@ const API_KEY    = process.env.AMO_API_KEY;
 const API_SECRET = process.env.AMO_API_SECRET;
 const ADDON_SLUG = process.env.AMO_ADDON_SLUG || 'skipstream';
 const DRY_RUN    = process.env.DRY_RUN === '1';
+const LISTING_ONLY = process.env.LISTING_ONLY === '1';
+const ICON_PATH  = 'icons/icon-128.png';
+const NOTES_MAX  = 3000;
 
 let ZIP_PATH, VERSION, RELEASE_NOTES;
 
@@ -45,24 +53,24 @@ function setup() {
     process.exit(1);
   }
 
-  // Find ZIP
+  // Find ZIP (not needed when only the listing is updated)
   ZIP_PATH = process.env.ZIP_PATH;
-  if (!ZIP_PATH) {
+  if (!ZIP_PATH && !LISTING_ONLY) {
     const zips = fs.readdirSync('.').filter(f => f.startsWith('skipstream-') && f.endsWith('-firefox.zip'));
     if (!zips.length) { process.stderr.write('❌  No skipstream-*-firefox.zip found in cwd\n'); process.exit(1); }
     ZIP_PATH = zips.sort().pop();
   }
-  if (!fs.existsSync(ZIP_PATH)) { process.stderr.write(`❌  ZIP not found: ${ZIP_PATH}\n`); process.exit(1); }
+  if (!LISTING_ONLY && !fs.existsSync(ZIP_PATH)) { process.stderr.write(`❌  ZIP not found: ${ZIP_PATH}\n`); process.exit(1); }
 
   // Version from manifest.json
   const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
   VERSION  = manifest.version;
 
   // Release notes
-  RELEASE_NOTES = process.env.RELEASE_NOTES || extractChangelogNotes(VERSION);
+  RELEASE_NOTES = fitNotes(process.env.RELEASE_NOTES || extractChangelogNotes(VERSION), VERSION);
 
   process.stdout.write(`\n🚀  SkipStream AMO Update - v${VERSION}\n`);
-  process.stdout.write(`    ZIP:  ${ZIP_PATH}\n`);
+  process.stdout.write(LISTING_ONLY ? '    LISTING_ONLY=1 - no upload: notes, listing and icon\n' : `    ZIP:  ${ZIP_PATH}\n`);
   process.stdout.write(`    Slug: ${ADDON_SLUG}\n`);
   if (DRY_RUN) process.stdout.write('    DRY_RUN=1 - mutating calls will be skipped\n\n');
 }
@@ -107,7 +115,7 @@ function apiRequest(method, urlPath, { json, formData, retries = 3 } = {}) {
           if (val && val._file) {
             const fileData = fs.readFileSync(val._file);
             parts.push(
-              `--${boundary}\r\nContent-Disposition: form-data; name="${key}"; filename="${pathBasename(val._file)}"\r\nContent-Type: application/zip\r\n\r\n`
+              `--${boundary}\r\nContent-Disposition: form-data; name="${key}"; filename="${pathBasename(val._file)}"\r\nContent-Type: ${val._type || 'application/zip'}\r\n\r\n`
             );
             parts.push(fileData);
             parts.push('\r\n');
@@ -187,15 +195,32 @@ function extractChangelogNotes(version) {
     return m[1]
       .replace(/###[^\n]*/g, '')
       .replace(/\*\*(.*?)\*\*/g, '$1')
-      .trim()
-      .slice(0, 3000);
+      .trim();
   } catch { return ''; }
+}
+
+// AMO shows each "- " line as a list item. Long notes are cut after a whole line
+// (never inside one), and the last line links to the full notes on GitHub.
+function fitNotes(text, version, max = NOTES_MAX) {
+  const t = String(text || '').trim();
+  if (t.length <= max) return t;
+  const tail = `- More in the full release notes: https://github.com/govinda-rajulu/openskip/releases/tag/v${version}`;
+  const out = [];
+  let len = tail.length;
+  for (const line of t.split('\n')) {
+    if (len + line.length + 1 > max) break;
+    out.push(line);
+    len += line.length + 1;
+  }
+  while (out.length && !out[out.length - 1].trim()) out.pop();
+  return out.concat(tail).join('\n');
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
   let uploadUuid;
+  if (LISTING_ONLY) { await updateCurrentNotes(); await updateListing(); await updateIcon(); return done(); }
 
   // ── Step 1: Upload ZIP ────────────────────────────────────────────────────
   process.stdout.write('\n📤  Step 1/4 - Uploading ZIP…\n');
@@ -300,8 +325,51 @@ async function main() {
     }
   }
 
-  // ── Step 4: PATCH listing metadata ───────────────────────────────────────
-  process.stdout.write('\n📝  Step 4/4 - Updating listing metadata…\n');
+  await updateListing();
+  await updateIcon();
+  done();
+}
+
+function done() {
+  process.stdout.write(`\n✅  Done - SkipStream v${VERSION} processed on AMO.\n`);
+  process.stdout.write(`    View: https://addons.mozilla.org/en-US/firefox/addon/${ADDON_SLUG}/\n\n`);
+}
+
+// Notes of a version that is already on AMO (LISTING_ONLY).
+async function updateCurrentNotes() {
+  process.stdout.write('\n🗒   Release notes of the current AMO version…\n');
+  const a = await apiRequest('GET', `/api/v5/addons/addon/${ADDON_SLUG}/`);
+  const cur = a.status === 200 && a.data && a.data.current_version;
+  if (!cur || cur.version !== VERSION) {
+    process.stderr.write(`❌  AMO current version is ${cur ? cur.version : '(unreadable, HTTP ' + a.status + ')'}, expected ${VERSION}. Notes not changed.\n`);
+    process.exit(1);
+  }
+  if (DRY_RUN) { process.stdout.write(`    [dry-run] PATCH version ${cur.id} notes (${RELEASE_NOTES.length} chars)\n`); return; }
+  const r = await apiRequest('PATCH', `/api/v5/addons/addon/${ADDON_SLUG}/versions/${cur.id}/`, { json: { release_notes: { 'en-US': RELEASE_NOTES } } });
+  if (r.status !== 200) {
+    process.stderr.write(`❌  Notes PATCH failed (HTTP ${r.status}):\n${JSON.stringify(r.data, null, 2)}\n`);
+    process.exit(1);
+  }
+  process.stdout.write(`    ✅  Notes of ${VERSION} updated (${RELEASE_NOTES.length} chars)\n`);
+}
+
+// AMO does not take the icon from the manifest: it shows a default icon until one is
+// uploaded. Upload icons/icon-128.png only while the default is shown.
+async function updateIcon() {
+  process.stdout.write('\n🖼   Add-on icon…\n');
+  const a = await apiRequest('GET', `/api/v5/addons/addon/${ADDON_SLUG}/`);
+  const url = a.status === 200 && a.data ? String(a.data.icon_url || '') : '';
+  if (url && !/\/default-\d+\.png/.test(url)) { process.stdout.write('    icon already set\n'); return; }
+  if (DRY_RUN) { process.stdout.write(`    [dry-run] PATCH icon ${ICON_PATH}\n`); return; }
+  const r = await apiRequest('PATCH', `/api/v5/addons/addon/${ADDON_SLUG}/`, { formData: { icon: { _file: ICON_PATH, _type: 'image/png' } } });
+  if (r.status === 200) { process.stdout.write('    ✅  Icon uploaded (AMO resizes it in the background)\n'); return; }
+  process.stderr.write(`    ⚠  Icon PATCH returned HTTP ${r.status}:\n${JSON.stringify(r.data, null, 2)}\n`);
+  process.stdout.write(`::warning title=AMO icon not set::PATCH returned HTTP ${r.status}.\n`);
+  if (LISTING_ONLY) process.exit(1);
+}
+
+async function updateListing() {
+  process.stdout.write('\n📝  Listing metadata…\n');
 
   const listingBody = buildListing();
 
@@ -320,11 +388,9 @@ async function main() {
       // and make the warning visible on the run page (it was missed before 1.13).
       process.stderr.write(`    ⚠  PATCH returned HTTP ${patchRes.status} - metadata update skipped:\n${JSON.stringify(patchRes.data, null, 2)}\n`);
       process.stdout.write(`::warning title=AMO listing not updated::PATCH returned HTTP ${patchRes.status}. The listing keeps its old text.\n`);
+      if (LISTING_ONLY) process.exit(1);
     }
   }
-
-  process.stdout.write(`\n✅  Done - SkipStream v${VERSION} processed on AMO.\n`);
-  process.stdout.write(`    View: https://addons.mozilla.org/en-US/firefox/addon/${ADDON_SLUG}/\n\n`);
 }
 
 // ── Listing text ──────────────────────────────────────────────────────────────
@@ -388,4 +454,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { buildListing, buildDescription, SUMMARY, extractChangelogNotes };
+module.exports = { buildListing, buildDescription, SUMMARY, extractChangelogNotes, fitNotes };

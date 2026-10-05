@@ -16,6 +16,12 @@ on:
         default: 'false'
         type: choice
         options: ['false', 'true']
+      listing_only:
+        description: 'Only release notes, listing text and icon of the current AMO version (no upload)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 concurrency:
   group: amo-submit
@@ -116,7 +122,7 @@ jobs:
               text = m.group(1) if m else ''
               text = re.sub(r'###[^\n]*\n', '', text)
               text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
-              text = text.strip()[:3000]
+              text = text.strip()  # scripts/amo-update.js cuts after a whole line
           except Exception:
               text = ''
           open('/tmp/release_notes.txt', 'w').write(text)
@@ -132,6 +138,7 @@ jobs:
           AMO_ADDON_SLUG: skipstream
           DRY_RUN:        ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' && '1' || '0' }}
           RELEASE_NOTES:  ""
+          LISTING_ONLY:   ${{ github.event_name == 'workflow_dispatch' && inputs.listing_only == 'true' && '1' || '0' }}
         run: |
           export RELEASE_NOTES="$(cat /tmp/release_notes.txt)"
           node scripts/amo-update.js
