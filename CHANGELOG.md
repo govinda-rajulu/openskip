@@ -45,6 +45,8 @@
 - Skip marks on other sites now sit on the player's own progress bar. SkipStream finds the bar in any player by what it is (a wide slider low on the video, with the video's length, not volume); known player names only help. The marks float over the bar and hide with the player's controls, so a player that rebuilds its bar cannot remove them. Without a bar, the thin strip along the bottom of the video stays
 - SkipDB gets the video length, so it picks and shifts the times made for that release
 - Links: AniSkip points to its GitHub page (aniskip.com is a parked domain)
+- JioHotstar: "S4 Episode 2" in the title now gives season 4, episode 2, and a page that says it is an episode (og:type video.episode) is never looked up as a film. Up to now Modern Family S4E2 was looked up as a film and found nothing
+- A test checks the wiring: every control in Settings and the popup has code, and every saved setting is read, backed up and synced
 - Accounts: each service card shows its logo, from the service's own website first
 - supabase_setup.sql no longer makes ss_put_creds (unused since 1.11) and removes it from old projects. The old creds column stays. PRIVACY.md says how to clear it
 - README, PRIVACY, TESTING and the store text are rewritten in plain, short sentences (knowledge/handbook/WRITING.md)

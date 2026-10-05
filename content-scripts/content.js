@@ -880,6 +880,8 @@ function _pageUrl() {
   // ── Show / episode detection ───────────────────────────────────────────────
 
   const SE_REGEX = /\bS(\d{1,2})\s*[:·•\-\s]\s*E(\d{1,3})\b/i;
+  // "S4 Episode 2", "S04 Ep 2", "Season 4 Ep. 2" (JioHotstar tab titles, 1.13 round 5).
+  const SE_WORDS_RE = /\bS(?:eason)?\s*(\d{1,2})\s*[,:·•\-]?\s*E(?:p(?:isode)?)?\.?\s*(\d{1,3})\b/i;
 
   const URL_SE_PATTERNS = [
     /\/season[s]?[\/_-](\d+)[\/_-]episode[s]?[\/_-](\d+)/i,
@@ -1020,12 +1022,16 @@ function _pageUrl() {
         }
       }
     });
+    // The page says it is an episode (Open Graph): never look it up as a film.
+    const ogType = String(document.querySelector('meta[property="og:type"]')?.getAttribute('content') || '').trim().toLowerCase();
+    if (!info.tmdbKind && (ogType === 'video.episode' || ogType === 'video.tv_show')) info.tmdbKind = 'tv';
     if ((!info.season || !info.episode) && info.tmdbKind !== 'movie') {
       const text = document.title + ' ' + (document.body?.textContent?.slice(0, 4000) || '');
       const textPatterns = [
         [/Season\s+(\d+)[,\s·•\-]+Episode\s+(\d+)/i, false],
         [SE_REGEX, false],
         [/\bS(\d{1,2})E(\d{1,3})\b/i, false],
+        [SE_WORDS_RE, false],
         [/\bSeason\s+(\d+)\b.*?\bEpisode\s+(\d+)\b/i, false],
         [/\bEp(?:isode)?\s*(\d+)\s+Season\s+(\d+)/i, true],
       ];

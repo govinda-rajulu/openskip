@@ -214,3 +214,41 @@ test('skipdb: the video length is sent, so SkipDB picks the times made for this 
   await bg.send({ type: 'FETCH_SEGMENTS', imdbId: 'tt0133093', season: 0, episode: 0, isMovie: true, durationSec: 8181.4 });
   assert.ok(bg.calls.some((x) => x.url === 'https://api.skipdb.tv/api/segments?imdb_id=tt0133093&duration=8181'));
 });
+
+// ── Round 5 (5 Oct): JioHotstar "S4 Episode 2"; every control wired end to end ──
+test('episode titles like "Watch Modern Family S4 Episode 2 on JioHotstar" give season and episode', () => {
+  const C = read('content-scripts/content.js');
+  const m = /const SE_WORDS_RE = (\/.*\/i);/.exec(C);
+  assert.ok(m);
+  const re = vm.runInNewContext(m[1]);
+  for (const [t, s, e] of [['Watch Modern Family S4 Episode 2 on JioHotstar', '4', '2'], ['Show S04 Ep 12', '04', '12'], ['Season 3 Ep. 7', '3', '7'], ['S1 E5', '1', '5']]) {
+    const x = re.exec(t); assert.ok(x, t); assert.deepEqual([x[1], x[2]], [s, e], t);
+  }
+  assert.equal(re.exec('Matrix 1999 Sequel'), null);
+  assert.match(C, /if \(!info\.tmdbKind && \(ogType === 'video\.episode' \|\| ogType === 'video\.tv_show'\)\) info\.tmdbKind = 'tv';/, 'og:type video.episode is never a film');
+});
+
+test('wiring: every control has code, every saved setting is read, backed up, synced and checked on import', () => {
+  const H = { options: read('options.html'), popup: read('popup.html') };
+  const J = { options: read('options.js'), popup: read('popup.js') };
+  const viaAttr = { 'sbm-': /select\[data-sb\]/, src: /\.source-pill|data-source/ };
+  for (const page of ['options', 'popup']) {
+    for (const [, id] of H[page].matchAll(/<(?:input|select|textarea|button)[^>]*\bid="([^"]+)"/g)) {
+      const direct = new RegExp("['\"]" + id.replace(/[-]/g, '\\-') + "['\"]").test(J[page]);
+      const pattern = Object.entries(viaAttr).some(([p, re]) => id.startsWith(p) && re.test(J[page]));
+      assert.ok(direct || pattern, page + '.html #' + id + ' has no code');
+    }
+  }
+  const arr = (src, name) => { const m = new RegExp('(?:const|let)\\s+' + name + '\\s*=\\s*(?:new Set\\()?\\[([^\\]]*)\\]', 's').exec(src); return new Set([...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1])); };
+  const BG = read('background.js'), C = read('content-scripts/content.js');
+  const sync = arr(BG, 'SYNC_PREF_KEYS'), allow = arr(J.options, 'CLOUD_PREF_ALLOW'), backup = arr(J.options, 'SETTINGS');
+  assert.deepEqual([...sync].sort(), [...allow].sort(), 'background sync list = Settings cloud allowlist');
+  for (const k of sync) assert.ok(backup.has(k), k + ' synced but not in the backup');
+  for (const k of backup) assert.ok([C, BG, J.popup].some((s) => s.includes("'" + k + "'") || new RegExp('\\b' + k + '\\s*:').test(s)), k + ' is backed up but nothing reads it');
+  const defaults = /const PREF_DEFAULTS = \{([^}]*)\}/.exec(C)[1];
+  for (const [, k] of defaults.matchAll(/(\w+):/g)) {
+    if (k === 'deviceName') continue;   // one per device: never synced
+    assert.ok(sync.has(k), 'player setting ' + k + ' is not synced');
+    assert.ok(new RegExp("'" + k + "'|S\\." + k + '\\b|\\b' + k + ':').test(J.options.slice(J.options.indexOf('function importValueOk'))) || /IMPORT_BOOL/.test(J.options), k);
+  }
+});
