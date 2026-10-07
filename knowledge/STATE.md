@@ -2,6 +2,34 @@
 
 Newest checkpoint first. Each section is a dated snapshot; verify live before acting.
 
+## 7 Oct 2026 (handover from the patch-factory chat; docs only, no code changed)
+
+- **Keys**: all six free provider keys (NVIDIA, GEMINI, OPENROUTER, MISTRAL, COHERE, GROQ) were
+  tested against their providers and stored as secrets in this repo on 7 Oct (owner scripts
+  keys-k1, keys-k2). `scripts/ai_call.py` still uses only OpenRouter, Gemini and NVIDIA (map read
+  at `9032b1e9`).
+- **Planned packet, not started** (needs a fresh intake: `~/work/os-intake-20261006T193731Z.tgz`
+  on the owner's Cloud Shell is from 6 Oct; re-run an intake if main moved): add Mistral, Cohere
+  and Groq seats to `ai_call.py` and the AI workflows; remove `sweep.yml`, which duplicates
+  `ai-fix-pr.yml`; remove GitHub Models remnants (comments, `AI_MODEL_GITHUB`); give `ai-probe.yml`
+  the `AGENTS_PAUSED` gate; drop the stale workflow-run condition in `cws-submit.yml` (manual only);
+  the handbook here lacks patch-factory's `AGENT-TOOLING.md`.
+- **Borrow from the patch-factory council** (its PRs #153 and #156): JSON mode with a one-time
+  fallback when a model refuses a field; 404 and 410 fall through to the next model; one repair
+  turn with the exact refusal; quoted findings (the desk already checks quotes); heavy jobs one
+  at a time on a schedule; score agents against an owner-checked answer key. Short form:
+  `knowledge/handbook/FREE-LLM-AGENTS.md`.
+- **Carried from the assistant's memory of the 5 Oct openskip chat** (not yet elsewhere in this
+  repo): PR87 (1.13.1) was open and paused by the owner: device-name check, merge, tag v1.13.1,
+  read the exam issue, then the spec lane (agents write `knowledge/specs/` only; spec 1 = phone
+  subtitle -0.5/+0.5 s). Next big item after 1.13: Supabase login (1.14). Store submissions stay
+  a ROADMAP item. Lessons: never `cmd | grep -q` under pipefail; ai-pr-review truncates at 40 KB
+  and reads removed lines as live (T17); watch action deprecations (T18); phone checks only after
+  AMO; read PR checks before merging; never `.includes()` a host name; always
+  `--test-reporter=tap`; pin blobs from main's git tree, never a PR head; the owner uses ad
+  blockers. The agent-tuning packet (addendum 5-9) follows the spec lane. Wrong calls that chat: 7.
+- Verify every line above against live main before acting; this is a handover, not state.
+
 ## Start here (5 Oct 2026, night, packet os-147: two PRs)
 
 - **main** `6419b6e0` (tree `019b6be8`), 1.13.0 public on AMO (reviewed 5 Oct 09:21 UTC).
