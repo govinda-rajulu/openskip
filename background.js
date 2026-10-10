@@ -82,7 +82,7 @@ function _looseTitle(pageTitle, workTitle) {
   if (!words.length) return true;
   return words.filter(w => page.has(w)).length / words.length >= 0.6;
 }
-// "Watch The Matrix (1999) Online Free | 1Shows" -> { q: "The Matrix", year: 1999, tv: false }
+// "Watch The Matrix (1999) Online Free | StreamSite" -> { q: "The Matrix", year: 1999, tv: false }
 // "Dark - S01E02 - Lies" -> { q: "Dark", year: null, tv: true }
 // Release and streaming tags that are never part of a film's name.
 const _RELEASE_JUNK = /\s*(?:\b(?:2160p|1080p|720p|480p|360p|4k|uhd|hdr10\+?|hdr|hdrip|hdtv|web-?dl|web-?rip|blu-?ray|brrip|bdrip|dvdrip|dvdscr|hdcam|camrip|x26[45]|h\.?26[45]|hevc|10bit|aac(?:2\.0)?|dd[p+]?5\.1|dual[\s-]audio|multi[\s-]audio|esubs?|(?:english|eng)[\s-]sub(?:bed|s|titled)?|subbed|dubbed|(?:hindi|english|tamil|telugu|japanese)[\s-]dub(?:bed)?|full[\s-]movie|full[\s-]episodes?|watch[\s-]online|free[\s-]download)\b)/gi;
@@ -450,6 +450,12 @@ async function flushOfflineQueue() {
 // cloud too, so a phone that closed the tab mid-video (no pause, no pagehide)
 // still reaches the other devices. Newer wins on the server (updated_at).
 const LAST_PUSH_KEY = 'skipstream_last_push_t';
+// The name a row gets when the user set none: the same browser name that the
+// content script sends (Firefox, Edge or Chrome), never an empty device (1.13.1).
+function defaultDeviceName() {
+  const ua = String((typeof navigator !== 'undefined' && navigator.userAgent) || '');
+  return ua.includes('Firefox') ? 'Firefox' : /Edg(A|iOS)?\//.test(ua) ? 'Edge' : 'Chrome';
+}
 let _pushingHistory = false;
 async function pushUnsyncedHistory() {
   if (_pushingHistory) return { pushed: 0 };
@@ -470,7 +476,7 @@ async function pushUnsyncedHistory() {
       const r = await supabaseUpsert({
         user_id: userId, media_id: mediaId, playback_time: Math.floor(e.p), duration: e.d || 0,
         site: e.site || '', site_name: e.site_name || e.site || '', video_title: e.title || '', page_url: e.url || '',
-        device_name: st.deviceName || null, updated_at: new Date(Math.min(Number(e.t), Date.now())).toISOString(),
+        device_name: String(st.deviceName || '').trim() || defaultDeviceName(), updated_at: new Date(Math.min(Number(e.t), Date.now())).toISOString(),
       });
       if (!r.ok) break;              // offline or not set up: try again next run
       pushed++; mark = Number(e.t);

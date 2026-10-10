@@ -139,7 +139,7 @@ test('resume: an explicit start time in the address wins', () => {
   const { _urlHasStartTime } = contentFns(['_urlHasStartTime'], [], { location: { href: 'https://x.example/' } });
   for (const u of ['https://www.youtube.com/watch?v=abcdefghijk&t=90', 'https://youtu.be/abcdefghijk?t=1m5s', 'https://p.example/e/1?start=30',
     'https://www.youtube.com/watch?v=abcdefghijk&time_continue=12', 'https://v.example/watch#t=42']) assert.equal(_urlHasStartTime(u), true, u);
-  for (const u of ['https://www.youtube.com/watch?v=abcdefghijk', 'https://1shows.bz/tv/1399-1-2', 'https://p.example/#top']) assert.equal(_urlHasStartTime(u), false, u);
+  for (const u of ['https://www.youtube.com/watch?v=abcdefghijk', 'https://streamsite.bz/tv/1399-1-2', 'https://p.example/#top']) assert.equal(_urlHasStartTime(u), false, u);
   assert.match(CONTENT, /if \(_urlHasStartTime\(location\.href\)\) return;/);
 });
 
@@ -338,7 +338,7 @@ test('anime: MyAnimeList ids are read from the page (link, data attribute, scrip
   assert.match(f, /\[data-mal-id\],\[data-malid\],\[data-mal\]/);
   assert.match(f, /mal_id\|malId\|idMal\|malID/);
   const { _animeSite } = contentFns(['_animeSite'], [], { _siteHost: () => globalThis.__h });
-  for (const [h, want] of [['hianime.to', true], ['www.crunchyroll.com', true], ['aniwatch.to', true], ['1shows.bz', false], ['www.youtube.com', false]]) {
+  for (const [h, want] of [['animeportal.to', true], ['www.crunchyroll.com', true], ['www.hidive.com', true], ['videohub.to', false], ['streamsite.bz', false], ['www.youtube.com', false]]) {
     globalThis.__h = h;
     assert.equal(contentFns(['_animeSite'], [], { _siteHost: () => h })._animeSite(), want, h);
   }
@@ -367,7 +367,7 @@ test('titles: release tags, brackets and emoji are removed; the year in brackets
   assert.equal(ctx._stripRelease('Dune Part Two 2160p BluRay HEVC Dual Audio Watch Online Free'), 'Dune Part Two');
   assert.equal(ctx._stripRelease('Spirited Away (Dubbed) (HD)'), 'Spirited Away');
   assert.equal(ctx._stripRelease('Love, Death & Robots (Volume 3)'), 'Love, Death & Robots (Volume 3)', 'real words in brackets stay');
-  assert.equal(ctx.cleanMediaTitle('Watch Oppenheimer (2023) [1080p] Online Free | 1Shows').q, 'Oppenheimer');
+  assert.equal(ctx.cleanMediaTitle('Watch Oppenheimer (2023) [1080p] Online Free | StreamSite').q, 'Oppenheimer');
 });
 
 test('titles: fuzzy similarity is 1 for the same name and low for different films', () => {
@@ -511,17 +511,17 @@ test('subtitles: edge is saved with the old switch kept in step, synced, backed 
 // ── Deep site report ──────────────────────────────────────────────────────────
 function el(attrs = {}, text = '', extra = {}) { return { textContent: text, getAttribute: (k) => (k in attrs ? attrs[k] : null), hasAttribute: (k) => k in attrs, getBoundingClientRect: () => ({ width: 0, height: 0 }), ...extra }; }
 function probeRun({ perf = true, wrapped = true, buttons = null } = {}) {
-  const btns = buttons || [el({ 'data-link': 'https://vidsrc.xyz/embed/movie/603?token=SECRET' }, ' Server 1 '), el({ 'data-server': '2' }, 'Server 2')];
+  const btns = buttons || [el({ 'data-link': 'https://embedhost.example/embed/movie/603?token=SECRET' }, ' Server 1 '), el({ 'data-server': '2' }, 'Server 2')];
   const map = (s) => {
     if (s.includes('[data-link]')) return btns;
-    if (s === 'a[href*="embed"]') return [el({ href: '//2embed.example/embed/603?sig=SECRET' }, 'Mirror')];
+    if (s === 'a[href*="embed"]') return [el({ href: '//mirrorhost.example/embed/603?sig=SECRET' }, 'Mirror')];
     if (s === '[onclick]') return [el({ onclick: "load('https://upstream.example/e/abc?x=SECRET')" }, 'Upstream')];
     if (s === 'script:not([src])') return [el({}, 'var f="https://cdn.example/hls/master.m3u8?sig=SECRET"; var g="https://x.example/app.js";')];
     if (s.startsWith('iframe[data-src]')) return [el({ 'data-src': '//lazy.example/embed/1' })];
     if (s === 'track') return [el({ kind: 'subtitles', srclang: 'en', label: 'English', src: 'en.vtt' }, '', { src: 'https://subs.example/en.vtt?k=SECRET' })];
     return [];
   };
-  const ctx = vm.createContext({ document: { title: 'T', referrer: '', querySelector: () => null, querySelectorAll: map }, location: { href: 'https://1shows.bz/movie/603' }, URL });
+  const ctx = vm.createContext({ document: { title: 'T', referrer: '', querySelector: () => null, querySelectorAll: map }, location: { href: 'https://streamsite.bz/movie/603' }, URL });
   ctx.window = ctx; ctx.top = ctx;
   if (wrapped) ctx.wrappedJSObject = { jwplayer: Object.assign(function () {}, { version: '8.33.0' }), Hls: { version: '1.5.7' }, videojs: { VERSION: '<img onerror=x>' } };
   if (perf) ctx.performance = { getEntriesByType: () => [{ name: 'https://cdn.example/hls/index.m3u8?t=SECRET', initiatorType: 'xmlhttprequest' }, { name: 'https://x.example/style.css', initiatorType: 'link' }] };
@@ -530,7 +530,7 @@ function probeRun({ perf = true, wrapped = true, buttons = null } = {}) {
 
 test('site report: deep scan lists source buttons, loaded media, script addresses, lazy frames, subtitle files, player code', () => {
   const r = probeRun();
-  assert.deepEqual(r.sources, ['Server 1 -> vidsrc.xyz/embed/movie/603', 'Server 2 -> data-server "2"', 'Mirror -> 2embed.example/embed/603', 'Upstream -> upstream.example/e/abc']);
+  assert.deepEqual(r.sources, ['Server 1 -> embedhost.example/embed/movie/603', 'Server 2 -> data-server "2"', 'Mirror -> mirrorhost.example/embed/603', 'Upstream -> upstream.example/e/abc']);
   assert.deepEqual(r.loaded, ['cdn.example/hls/index.m3u8 (xmlhttprequest)']);
   assert.deepEqual(r.inScripts, ['cdn.example/hls/master.m3u8']);
   assert.deepEqual(r.lazyFrames, ['lazy.example/embed/1 (not loaded yet)']);
@@ -550,8 +550,8 @@ test('site report: every list stops at 30; no performance or Firefox globals is 
 
 test('site report: the popup prints the deep scan in labelled groups', () => {
   const siteReportText = vm.runInNewContext('(' + extractFunction(read('popup.js'), 'siteReportText') + ')', { Array });
-  const t = siteReportText({ ok: true, frames: [{ frame: '1shows.bz/movie/603', top: true, skipstream: true, ...probeRun() }] }, 'v1.13.0');
-  for (const want of ['  page player code: jwplayer 8.33.0, videojs, Hls 1.5.7', '  source buttons (4):', '    Server 1 -> vidsrc.xyz/embed/movie/603',
+  const t = siteReportText({ ok: true, frames: [{ frame: 'streamsite.bz/movie/603', top: true, skipstream: true, ...probeRun() }] }, 'v1.13.0');
+  for (const want of ['  page player code: jwplayer 8.33.0, videojs, Hls 1.5.7', '  source buttons (4):', '    Server 1 -> embedhost.example/embed/movie/603',
     '  lazy frames (1):', '  subtitle files (1):', '  media loaded (1):', '    cdn.example/hls/index.m3u8 (xmlhttprequest)', '  media in scripts (1):'])
     assert.ok(t.includes(want), want + '\n---\n' + t);
 });
@@ -607,19 +607,7 @@ test('supabase: the setup script no longer makes ss_put_creds and drops it on ol
   for (const src of [BG, OPTIONS, CONTENT]) assert.equal(src.includes('ss_put_creds'), false);
 });
 
-// ── Release 1.13.0 ────────────────────────────────────────────────────────────
-test('release: 1.13.0 in all 7 places and updates.json', () => {
-  const v = '1.13.0';
-  assert.equal(JSON.parse(read('manifest.json')).version, v);
-  assert.equal(JSON.parse(read('manifest-chrome.json')).version, v);
-  assert.ok(read('popup.js').startsWith('/* SkipStream - popup v' + v + ' */'));
-  assert.ok(read('popup.css').startsWith('/* SkipStream popup - v' + v));
-  assert.ok(read('README.md').includes('version-' + v + '-green') && read('README.md').includes('releases/tag/v' + v));
-  assert.match(read('CHANGELOG.md'), new RegExp('^# Changelog\\n\\n## \\[' + v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\] - 2026-10-05\\n'));
-  const u = JSON.parse(read('updates.json')).addons['skipstream@extension'].updates;
-  assert.equal(u[u.length - 1].version, v);
-  assert.ok(u[u.length - 1].update_link.endsWith('/v' + v + '/skipstream-' + v + '-firefox.zip'));
-});
+// Release checks: tests/v1131.test.mjs reads the version from manifest.json.
 
 test('privacy: every host the extension may contact is named in PRIVACY.md', () => {
   const p = read('PRIVACY.md');
@@ -702,7 +690,7 @@ test('history: popular sites by name (JioHotstar, YouTube), others by their own 
   assert.equal(k.siteDisplayName('m.youtube.com', 'Youtube'), 'YouTube');
   assert.equal(k.siteDisplayName('www.hotstar.com', 'Hotstar'), 'JioHotstar');
   assert.equal(k.siteDisplayName('tv.apple.com', ''), 'Apple TV+');
-  assert.equal(k.siteDisplayName('www.1shows.cx', '1shows'), '1shows');
+  assert.equal(k.siteDisplayName('www.streamsite.cx', 'streamsite'), 'streamsite');
   assert.equal(k.siteDisplayName('obscure.example', ''), 'obscure.example');
   assert.match(OPTIONS, /opt\.value = s; opt\.textContent = siteDisplayName\(byFam\.get\(s\)\.h, ''\);/, 'the site filter shows names');
 });
@@ -805,21 +793,21 @@ test('page check: every frame answers, even if SkipStream stopped while starting
   assert.match(extractFunction(CONTENT, '_ssDiagReport'), /catch \(e\) \{[\s\S]*error: String\(e && e\.message \|\| e\)/);
   assert.match(BG, /started: r\.started !== false, error: String\(r\.error \|\| ''\)\.slice\(0, 120\),/);
   const diagText = vm.runInNewContext('(' + extractFunction(read('popup.js'), 'diagText') + ')', { Array });
-  const t = diagText({ ok: true, frames: [{ frame: 'www.viduki.net/1/movie/603', top: false, videos: 1, started: false, error: 'x is not defined' }] });
+  const t = diagText({ ok: true, frames: [{ frame: 'www.playerhost.net/1/movie/603', top: false, videos: 1, started: false, error: 'x is not defined' }] });
   assert.ok(t.includes('SkipStream did not finish starting in this frame: x is not defined'), t);
 });
 
 test('site report: each frame also shows what SkipStream itself sees, and the video position', () => {
   const ctx = vm.createContext({ document: { title: 'T', referrer: '', querySelector: () => null,
     querySelectorAll: (s) => (s === 'video' ? [{ getBoundingClientRect: () => ({ width: 1792, height: 947 }), currentSrc: 'blob:x', duration: 8181, paused: false, currentTime: 612.4, readyState: 4, textTracks: [], querySelector: () => null }] : []) },
-    location: { href: 'https://www.viduki.net/1/movie/603' }, URL });
+    location: { href: 'https://www.playerhost.net/1/movie/603' }, URL });
   ctx.window = ctx; ctx.top = ctx;
   ctx.__skipstream_diag = () => ({ started: true, attached: 1, ident: 'movie tt0133093', segs: 'intro, outro' });
   const r = j(vm.runInContext(read('content-scripts/probe.js'), ctx));
   assert.deepEqual(r.ss, { started: true, attached: 1, ident: 'movie tt0133093', segs: 'intro, outro' });
   assert.equal(r.videos[0].at, 612);
   const siteReportText = vm.runInNewContext('(' + extractFunction(read('popup.js'), 'siteReportText') + ')', { Array });
-  const t = siteReportText({ ok: true, frames: [{ frame: 'www.viduki.net/1/movie/603', top: false, skipstream: true, ...r }] }, 'v1.13.0');
+  const t = siteReportText({ ok: true, frames: [{ frame: 'www.playerhost.net/1/movie/603', top: false, skipstream: true, ...r }] }, 'v1.13.0');
   assert.ok(t.includes('  SkipStream: running, 1 video(s) in use, what: movie tt0133093, skips: intro, outro'), t);
   assert.ok(t.includes('8181 s, playing at 612 s'), t);
 });

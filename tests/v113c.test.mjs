@@ -47,11 +47,11 @@ function loadFrame(href) {
 }
 
 test('player frame with a video: start-up finishes (real browser timers, no play event needed)', () => {
-  const { ctx, thrown } = loadFrame('https://www.viduki.net/1/movie/603');
+  const { ctx, thrown } = loadFrame('https://www.playerhost.net/1/movie/603');
   assert.equal(thrown, null, 'start-up threw: ' + (thrown && thrown.message));
   const r = ctx.__skipstream_diag();
   assert.equal(r.top, false);
-  assert.equal(r.started, true, '"did not finish starting" on 1Shows came from this');
+  assert.equal(r.started, true, '"did not finish starting" on StreamSite came from this');
 });
 
 const route = (map) => (url) => { for (const [k, v] of Object.entries(map)) if (url.includes(k)) return fakeResponse(200, v); return fakeResponse(404, {}); };
@@ -143,18 +143,18 @@ test('options.js and popup.js run to the end without throwing (whole file, fake 
 });
 
 // ── Round 3 (5 Oct): a site on a new address, marks in the player's own bar, Accounts logos ──
-test('site moved (1shows.cx -> 1shows.to): rules, History filter and resume follow the site name', async () => {
+test('site moved (streamsite.cx -> streamsite.to): rules, History filter and resume follow the site name', async () => {
   const f = contentFns(['_siteFamily', '_canonHost', '_siteRuleFor'], [], {});
-  for (const [h, want] of [['www.1shows.cx', '1shows'], ['1shows.to', '1shows'], ['player.viduki.net', 'viduki'], ['news.bbc.co.uk', 'bbc'], ['m.youtube.com', 'youtube'], ['localhost', 'localhost']]) assert.equal(f._siteFamily(h), want, h);
-  assert.equal(f._siteRuleFor({ '1shows.cx': 'off' }, '1shows.to'), 'off', 'a rule for the old address still applies');
+  for (const [h, want] of [['www.streamsite.cx', 'streamsite'], ['streamsite.to', 'streamsite'], ['player.playerhost.net', 'playerhost'], ['news.bbc.co.uk', 'bbc'], ['m.youtube.com', 'youtube'], ['localhost', 'localhost']]) assert.equal(f._siteFamily(h), want, h);
+  assert.equal(f._siteRuleFor({ 'streamsite.cx': 'off' }, 'streamsite.to'), 'off', 'a rule for the old address still applies');
   assert.equal(f._siteRuleFor({ 'example.com': 'off' }, 'other.com'), null);
   const OPT = read('options.js');
   const fam = vm.runInNewContext(['canonHost', 'siteFamily'].map((n) => { const src = OPT; const i = src.indexOf('function ' + n + '('); let d = 0, k = src.indexOf('{', i); for (; k < src.length; k++) { if (src[k] === '{') d++; else if (src[k] === '}' && !--d) break; } return src.slice(i, k + 1); }).join('\n') + ';siteFamily');
-  assert.equal(fam('www.1shows.cx'), fam('1shows.to'));
-  const storage = { skipstream_cache: { '1shows.cx/watch/abc': { p: 600, d: 3000, t: 5 }, 'other.cx/watch/abc': { p: 900, t: 9 }, '1shows.cx/watch/zzz': { p: 50, t: 9 } } };
+  assert.equal(fam('www.streamsite.cx'), fam('streamsite.to'));
+  const storage = { skipstream_cache: { 'streamsite.cx/watch/abc': { p: 600, d: 3000, t: 5 }, 'other.cx/watch/abc': { p: 900, t: 9 }, 'streamsite.cx/watch/zzz': { p: 50, t: 9 } } };
   const listeners = {};
   const g = contentFns(['_cacheReadMoved', '_siteFamily', '_canonHost'], [], { br: makeBrowser(listeners, storage), CACHE_KEY: 'skipstream_cache' });
-  assert.deepEqual(j(await g._cacheReadMoved('1shows.to/watch/abc')), { p: 600, d: 3000, t: 5 });
+  assert.deepEqual(j(await g._cacheReadMoved('streamsite.to/watch/abc')), { p: 600, d: 3000, t: 5 });
   assert.equal(await g._cacheReadMoved('movie/603'), null, 'host-free ids need no search');
 });
 

@@ -17,7 +17,7 @@ const ID = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 const FULL = {
   skipMode: 'auto-intro', skipIntro: true, resumePlayback: true, playbackSpeed: 1.25, deviceName: 'Work Laptop',
   subtitle_language: 'ta', subtitle_font_size: 22, skipstream_theme: 'dark', skipstream_seed_color: '#57a860',
-  skipstream_site_rules: { 'hianime.to': 'auto-all' }, skipstream_stats: { skipsTotal: 12, timeSavedSec: 600 },
+  skipstream_site_rules: { 'animeportal.to': 'auto-all' }, skipstream_stats: { skipsTotal: 12, timeSavedSec: 600 },
   statsTotalSkips: 12,
   skipstream_cache: { 'tv/1': { p: 300, d: 1200, t: 2000, title: 'Ep 1' }, 'movie/603': { p: 50, d: 8160, t: 1000 } },
   supabaseUrl: 'https://abcdefghijklmnop.supabase.co', supabaseAnonKey: 'anon-SECRET-1', tmdbApiKey: 'tmdb-SECRET-2',
@@ -32,7 +32,7 @@ test('backup v2: settings, rules, stats and history restore into an empty browse
   assert.equal(r.set.skipMode, 'auto-intro');
   assert.equal(r.set.deviceName, 'Work Laptop');
   assert.equal(r.set.subtitle_language, 'ta');
-  assert.equal(JSON.stringify(r.set.skipstream_site_rules), JSON.stringify({ 'hianime.to': 'auto-all' }));
+  assert.equal(JSON.stringify(r.set.skipstream_site_rules), JSON.stringify({ 'animeportal.to': 'auto-all' }));
   assert.equal(r.set.skipstream_stats.skipsTotal, 12);
   assert.equal(r.set.skipstream_cache['tv/1'].p, 300);
   assert.equal(r.report.history, 2);
@@ -70,8 +70,8 @@ test('backup v2: importing merges history (newer wins) instead of replacing it',
 
 test('backup v2: per-site rules merge, the backup wins per domain', async () => {
   const file = await M.kit.buildBackup(FULL);
-  const r = await M.kit.readBackup(file, { skipstream_site_rules: { 'hianime.to': 'off', 'x.com': 'prompt' } }, opts());
-  assert.equal(JSON.stringify(r.set.skipstream_site_rules), JSON.stringify({ 'hianime.to': 'auto-all', 'x.com': 'prompt' }));
+  const r = await M.kit.readBackup(file, { skipstream_site_rules: { 'animeportal.to': 'off', 'x.com': 'prompt' } }, opts());
+  assert.equal(JSON.stringify(r.set.skipstream_site_rules), JSON.stringify({ 'animeportal.to': 'auto-all', 'x.com': 'prompt' }));
 });
 
 test('backup v2: "link devices" carries the sync identity; a bad id is ignored', async () => {
