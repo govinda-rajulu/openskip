@@ -34,9 +34,9 @@ Enter keys in the extension's Settings page (gear icon in popup).
 - Per-site rules in Settings override the global skip mode for specific domains
 - Popup: Status (switch, today's skips and time saved), Playback (skip mode, speed, subtitles), Tools (Check this page, Site report)
 - Settings pages: Features (every switch), Customise (subtitle look, accent colour), Accounts (every login, all optional), History, Stats, Data (export, import, clear), Sources & help (logos load only when that page opens)
-- Skip marks on 1Shows (Vidstack): inside the player's progress bar, not under the video
+- Skip marks on a site with an embedded Vidstack player: inside the player's progress bar, not under the video
 - Accounts: each service card shows its logo
-- Check this page on 1Shows: every frame says "running"; skips show times and source, for example "intro 0:00-0:40 (TheIntroDB)"
+- Check this page on a site with player frames: every frame says "running"; skips show times and source, for example "intro 0:00-0:40 (TheIntroDB)"
 - YouTube with SponsorBlock data: marks on the progress bar (desktop and m.youtube.com). Sponsors are skipped with no message.
 - Settings > Skipping: switch on "Skipped, Undo" to see a message after each automatic skip. Alt+Z undoes the last automatic skip.
 - Resume from History: click a video in History. It continues from the saved position, also when the player starts by itself.

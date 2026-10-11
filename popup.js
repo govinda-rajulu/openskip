@@ -1,4 +1,4 @@
-/* SkipStream - popup v1.13.0 */
+/* SkipStream - popup v1.13.1 */
 'use strict';
 
 const br = globalThis.browser?.runtime?.id ? globalThis.browser : globalThis.chrome;
@@ -293,7 +293,7 @@ async function loadState() {
 const SUB_REASONS = {
   no_player:  'No video player found on this tab. Start the video, then try again.',
   no_id:      'Could not identify this video. A TMDB key in Options lets SkipStream match titles, or load your own file with the CC button on the video.',
-  youtube:    'YouTube videos are not films or episodes, so OpenSubtitles has nothing to match. Load your own file with the CC button on the video.',
+  youtube:    'OpenSubtitles needs a film name and year. On YouTube, SkipStream searches only titles with the year in brackets, for example "Heat (1995)". Load your own file with the CC button on the video.',
   no_results: 'OpenSubtitles has no subtitles for this video in your language or English.',
   navigated:  'The page changed while searching. Try again.',
   unreadable: 'A subtitle file came back but had no readable lines.',

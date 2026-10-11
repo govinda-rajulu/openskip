@@ -1,8 +1,19 @@
 # Changelog
 
+## [1.13.1] - 2026-10-05
+### Fixed
+- Automatic "Next episode" and the label fallback for "Skip" now click a control only when it sits over the playing video. Before, a "Next episode" card in a side list or a "Skip" link elsewhere on the page could be clicked (audit H6). Exact buttons on Netflix, Prime Video, Disney+ and the other listed services are unchanged
+- History rows sent by the 5-minute background sync had no device name when you had not set one. They now get the browser name (Firefox, Edge or Chrome), the same name a playing video sends
+- "Sync Now" in Settings labelled every row it sent "SkipStream Options Sync". It now sends this browser's device name
+### Changed
+- SkipStream no longer names any unlicensed streaming site in its code, tests or documents. Sites without a known name show the first part of their address, as before
+- Anime sites (for MyAnimeList ids by title) are now any address with "anime" in it, Crunchyroll or HIDIVE. A page that links its MyAnimeList entry works on any site, as before
+### Added
+- YouTube: "Find subtitles for this video" now searches OpenSubtitles for film uploads whose title has the year in brackets, for example "Heat (1995) Full Movie". Only the name and the year are sent, and only when you press the button. Other YouTube videos still need your own file
+
 ## [1.13.0] - 2026-10-05
 ### Fixed
-- Player frames (embedded players such as 1Shows / viduki.net) stopped their start-up early since 1.11. They started only when a video began to play, and "Check this page" said "did not finish starting". A video that already played when the page loaded got no skips and no resume. Now every frame with a video starts at once
+- Player frames (embedded players on aggregator sites) stopped their start-up early since 1.11. They started only when a video began to play, and "Check this page" said "did not finish starting". A video that already played when the page loaded got no skips and no resume. Now every frame with a video starts at once
 - TheIntroDB gave no skip times: SkipStream asked API v1, which no longer answers. Now it asks v3, also by IMDb id when no TMDB id is known. An intro with no start (it starts at 0:00) is kept, and every part of a kind is kept (two recaps, credits with a scene between)
 - Resume from History worked 2 or 3 times, then started from 0. SkipStream gave up when the player started by itself. Then the start-up position replaced the saved position. Now SkipStream waits for the player, checks the position twice and seeks again (up to 4 times). Saving waits until the position holds (at most 15 seconds)
 - A time in the address (?t=90, start=, time_continue=) now has priority over resume
@@ -41,7 +52,7 @@
 - Check this page and Site report show each skip with its times and its source, for example "intro 0:00-0:40 (TheIntroDB)"
 - Skip mode: a fresh install showed "Auto all" while outros only asked first (the default), so picking "Auto all" changed nothing. The popup and Settings now show the mode the player really uses. New mode "Intros + recaps" (outros ask first) is the default
 - Popup footer: a Sources link
-- A site on a new address (1shows.cx to 1shows.to) stays the same site: per-site rules still apply, History shows one site in the filter, and resume finds the position saved on the old address. Pages with ids in the address (/movie/603, /tv/1396) already kept their position
+- A site on a new address (example.cx to example.to) stays the same site: per-site rules still apply, History shows one site in the filter, and resume finds the position saved on the old address. Pages with ids in the address (/movie/603, /tv/1396) already kept their position
 - Skip marks on other sites now sit on the player's own progress bar. SkipStream finds the bar in any player by what it is (a wide slider low on the video, with the video's length, not volume); known player names only help. The marks float over the bar and hide with the player's controls, so a player that rebuilds its bar cannot remove them. Without a bar, the thin strip along the bottom of the video stays
 - SkipDB gets the video length, so it picks and shifts the times made for that release
 - Links: AniSkip points to its GitHub page (aniskip.com is a parked domain)

@@ -11,7 +11,7 @@
   // ── "Check this page" answers first (1.13) ─────────────────────────────────
   // Registered before anything else can fail, so every frame answers, and says
   // whether start-up finished. Up to 1.13 this listener was the last line: a frame
-  // whose start-up stopped early never answered (1Shows showed only the top page).
+  // whose start-up stopped early never answered (StreamSite showed only the top page).
   let _ssBootDone = false;
   function _ssDiagReport() {
     const base = { frame: (location.hostname || location.protocol) + location.pathname, top: window === window.top, started: _ssBootDone };
@@ -235,7 +235,7 @@ let _diagChapters = null;   // the page's own chapter list, when that is the sou
     for (const [domain, m] of Object.entries(rules)) {
       if (host === domain || host.endsWith('.' + domain)) return m;
     }
-    // Same site on a new address (1shows.cx -> 1shows.to): same name before the ending.
+    // Same site on a new address (streamsite.cx -> streamsite.to): same name before the ending.
     const fam = _siteFamily(host);
     for (const [domain, m] of Object.entries(rules)) {
       if (fam && fam === _siteFamily(domain)) return m;
@@ -272,8 +272,8 @@ let _diagChapters = null;   // the page's own chapter list, when that is the sou
     }
   }
 
-  // The site's name without www./m. and without its ending: 1shows.cx and
-  // 1shows.to are both "1shows", news.bbc.co.uk is "bbc". Streaming sites move to
+  // The site's name without www./m. and without its ending: streamsite.cx and
+  // streamsite.to are both "streamsite", news.bbc.co.uk is "bbc". Streaming sites move to
   // a new ending often; rules, History and resume use this to stay with the site.
   function _siteFamily(h) {
     const x = _canonHost(h);
@@ -419,10 +419,6 @@ function _pageUrl() {
       'hotstar.com': 'JioHotstar', 'jiohotstar.com': 'JioHotstar', 'jiocinema.com': 'JioCinema',
       'sonyliv.com': 'SonyLIV', 'zee5.com': 'ZEE5', 'mxplayer.in': 'MX Player', 'aha.video': 'aha',
       'sunnxt.com': 'Sun NXT', 'pluto.tv': 'Pluto TV', 'twitch.tv': 'Twitch', 'dailymotion.com': 'Dailymotion',
-      '1shows.org': '1Shows',
-      'fmovies.to': 'FMovies',
-      'soap2day.ac': 'Soap2Day',
-      'goojara.to': 'Goojara',
       'spotify.com': 'Spotify', 'open.spotify.com': 'Spotify',
       'soundcloud.com': 'SoundCloud',
     };
@@ -460,7 +456,7 @@ function _pageUrl() {
     return _cleanTitle(og || document.title || '', [getSiteName(), host]);
   }
 
-  // "Watch The Matrix (1999) Online Free HD | 1Shows" -> "The Matrix (1999)".
+  // "Watch The Matrix (1999) Online Free HD | StreamSite" -> "The Matrix (1999)".
   // Only trailing parts that name the site or are streaming filler go; a title
   // such as "Spider-Man - Into the Spider-Verse" keeps its own dash.
   const _FILLER_RE = /^(?:watch(?:\s+\w+)?\s+online|online|free|hd|full\s*hd|streaming|stream|watch\s+free|full\s+movie|full\s+episodes?|movies?|tv\s+shows?|series)$/i;
@@ -834,7 +830,7 @@ function _pageUrl() {
         } catch { /* ok */ }
       }
     }
-    // Saved on the site's old address (1shows.cx, now 1shows.to): same name, same path.
+    // Saved on the site's old address (streamsite.cx, now streamsite.to): same name, same path.
     if (!saved) saved = await _cacheReadMoved(mediaId);
     if (!saved || saved.p < 10) return;
     if (saved.d && saved.p / saved.d > 0.95 && saved.d - saved.p < 60) return;
@@ -1394,10 +1390,12 @@ function _pageUrl() {
     return Object.keys(out).length ? out : null;
   }
 
-  // Anime streaming sites (MyAnimeList ids are looked up by title there).
+  // Anime sites: a host with "anime" in its name, Crunchyroll or HIDIVE. MyAnimeList
+  // ids are looked up by title only there. A page that links its MyAnimeList entry
+  // gives the id directly (info.malId), on any site.
   function _animeSite() {
     const h = _siteHost();
-    return /(^|\.)(?:[a-z0-9-]*anime[a-z0-9-]*|aniwatch[a-z]*|zoro|kaido|aniwave|animekai|gogoanime[a-z0-9]*|anitaku|animepahe|crunchyroll)\.[a-z.]+$/i.test(h);
+    return /(^|\.)(?:[a-z0-9-]*anime[a-z0-9-]*|crunchyroll|hidive)\.[a-z.]+$/i.test(h);
   }
 
   // Chapters the page itself gives the player: <track kind="chapters"> cues and
@@ -1810,12 +1808,26 @@ function _pageUrl() {
     'tubi.tv': ['.skip-button'],
   };
 
-  // Unlisted OTT fallback: match a visible control whose own label reads like a skip
+  // H6 (1.13.1): a control found by a generic selector or by its label is clicked
+// only when its centre lies over the playing video (the box grown by 10 % on each
+// side for controls drawn just outside it). A "Next episode" card in a side list,
+// an episode grid or a page menu is never clicked. Exact per-site selectors
+// (NATIVE_SKIP_SITES) are not limited.
+function _overVideo(el, video) {
+  if (!el || !video || typeof el.getBoundingClientRect !== 'function' || typeof video.getBoundingClientRect !== 'function') return false;
+  const v = video.getBoundingClientRect(), r = el.getBoundingClientRect();
+  if (!(v.width > 0 && v.height > 0)) return false;
+  const mx = v.width * 0.1, my = v.height * 0.1;
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  return cx >= v.left - mx && cx <= v.right + mx && cy >= v.top - my && cy <= v.bottom + my;
+}
+
+// Unlisted OTT fallback: match a visible control whose own label reads like a skip
 // action. Text is matched whole so "Skip" never hits "Skipped" or "Skip settings".
 let _lastLabelScanTs = 0;
 const SKIP_TEXT_RE = /^(skip|skip intro|skip recap|skip opening|skip credits|skip outro|skip ending|skip titles)$/i;
 
-function clickSkipByLabel() {
+function clickSkipByLabel(video) {
   // Layout-forcing scan: floor it so a mutation storm cannot run it per mutation.
   const _now = Date.now();
   if (_now - _lastLabelScanTs < 700) return false;
@@ -1828,6 +1840,7 @@ function clickSkipByLabel() {
     if (!SKIP_TEXT_RE.test(label)) continue;
     const r = el.getBoundingClientRect();
     if (r.width < 24 || r.height < 16) continue;
+    if (!_overVideo(el, video)) continue;
     el.click();
     return true;
   }
@@ -1839,7 +1852,7 @@ function clickSkipByLabel() {
 const NEXT_EP_TEXT_RE = /^(next episode|next ep|play next|watch next)$/i;
 let _lastNextScanTs = 0;
 
-function clickNextByLabel() {
+function clickNextByLabel(video) {
   const now = Date.now();
   if (now - _lastNextScanTs < 700) return false;
   _lastNextScanTs = now;
@@ -1851,19 +1864,20 @@ function clickNextByLabel() {
     if (!NEXT_EP_TEXT_RE.test(label)) continue;
     const r = el.getBoundingClientRect();
     if (r.width < 24 || r.height < 16) continue;
+    if (!_overVideo(el, video)) continue;
     el.click();
     return true;
   }
   return false;
 }
 
-function clickNativeSkipButton() {
+function clickNativeSkipButton(video) {
     const host = location.hostname.replace(/^www\./, '');
     let selectors = null;
     for (const [domain, sels] of Object.entries(NATIVE_SKIP_SITES)) {
       if (host === domain || host.endsWith('.' + domain)) { selectors = sels; break; }
     }
-    if (!selectors) return clickSkipByLabel();
+    if (!selectors) return clickSkipByLabel(video);
     for (const sel of selectors) {
       try {
         const btn = document.querySelector(sel);
@@ -1873,11 +1887,11 @@ function clickNativeSkipButton() {
     return false;
   }
 
-  function clickFirst(selectors) {
+  function clickFirst(selectors, video) {
     for (const sel of selectors) {
       try {
         const el = document.querySelector(sel);
-        if (el && el.offsetParent !== null && !el.disabled) {
+        if (el && el.offsetParent !== null && !el.disabled && _overVideo(el, video)) {
           el.click();
           return true;
         }
@@ -1900,7 +1914,7 @@ function clickNativeSkipButton() {
       const ep = getSitePrefs(prefs);
       if (ep.skipEnabled) {
         const now = Date.now();
-        if (now - _lastNativeSkipTs > 10000 && clickNativeSkipButton()) {
+        if (now - _lastNativeSkipTs > 10000 && clickNativeSkipButton(video)) {
           _lastNativeSkipTs = now;
           recordSkipStat(0); // Native platform button: click logged, duration unknown
         }
@@ -1912,7 +1926,7 @@ function clickNativeSkipButton() {
           video.currentTime > 0 &&
           video.duration - video.currentTime < 10 &&
           !_nextEpTriggered) {
-        if (clickFirst(NEXT_EP_SELECTORS) || clickNextByLabel()) {
+        if (clickFirst(NEXT_EP_SELECTORS, video) || clickNextByLabel(video)) {
           _nextEpTriggered = true;
           setTimeout(() => { _nextEpTriggered = false; }, 30000);
         }
@@ -1928,7 +1942,7 @@ function clickNativeSkipButton() {
       const ep = getSitePrefs(prefs);
       if (ep.skipEnabled) {
         const now = Date.now();
-        if (now - _lastNativeSkipTs > 10000 && clickNativeSkipButton()) {
+        if (now - _lastNativeSkipTs > 10000 && clickNativeSkipButton(video)) {
           _lastNativeSkipTs = now;
           recordSkipStat(0); // Native platform button: click logged, duration unknown
         }
@@ -2503,6 +2517,17 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     _subState.loading = false; syncCCBtn();
   }
 
+  // A YouTube film upload names its year in brackets: "Heat (1995) Full Movie ...".
+  // Only that form counts (1.13.1): the name before the year, and the year.
+  function _ytFilmTitle(raw) {
+    const m = String(raw || '').slice(0, 200).match(/^\s*(.{2,80}?)\s*[(\[]\s*((?:19|20)\d{2})\s*[)\]]/);
+    if (!m) return null;
+    const q = m[1].replace(/[\s:|\u00b7\u2013\u2014-]+$/, '').trim();
+    const year = parseInt(m[2], 10);
+    if (!/[a-z]{2}/i.test(q) || year > new Date().getFullYear() + 1) return null;
+    return { q, year };
+  }
+
   // Popup "Find subtitles for this video": fetch now, even if subtitles were off,
   // and report why when nothing loads.
   async function fetchSubsNow() {
@@ -2510,7 +2535,9 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     const info = await resolveShowInfo().catch(() => null);
     const yt = !!_youtubeVideoId() || _hostIs(_siteHost(), 'youtube.com');
     // No id: search OpenSubtitles by the cleaned title (this button only, never automatic).
-    const byName = !info?.imdbId && !yt ? (info?.title || getVideoTitle() || '').trim() : '';
+    // YouTube: only a film upload with its year in brackets is searched (1.13.1).
+    const ytFilm = yt && !info?.imdbId ? _ytFilmTitle(getVideoTitle()) : null;
+    const byName = info?.imdbId ? '' : yt ? (ytFilm ? ytFilm.q : '') : (info?.title || getVideoTitle() || '').trim();
     if (!info?.imdbId && !byName) return { ok: false, reason: yt ? 'youtube' : 'no_id' };
     if (info?.imdbId) _subLastInfo = info;
     _subState.loading = true; syncCCBtn();
@@ -2520,7 +2547,7 @@ if (e.data?.type === MSG_DO && pendingSkipFn) { pendingSkipFn(); pendingSkipFn =
     try {
       result = await br.runtime.sendMessage({
         type: 'OSUB_SEARCH_AND_FETCH',
-        imdbId: info?.imdbId || null, query: info?.imdbId ? null : byName, year: info?.year || null,
+        imdbId: info?.imdbId || null, query: info?.imdbId ? null : byName, year: info?.year || (ytFilm && ytFilm.year) || null,
         season: info?.season || null, episode: info?.episode || null, language: _subState.language,
       });
     } catch { result = null; }

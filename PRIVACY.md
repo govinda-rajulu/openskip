@@ -20,7 +20,7 @@ SkipStream has no server. It sends nothing to its developer. To work, it sends s
 - **Supabase setup helper:** if your project does not have the SkipStream tables, Settings shows a button. The button opens the SQL editor on supabase.com with your project id and the setup script in the address. You must log in to Supabase and click Run. SkipStream does not run the script.
 - **TMDB** (api.themoviedb.org, image.tmdb.org): show or movie ids and titles, to get IMDb ids and posters. With your TMDB key, SkipStream also sends an IMDb id to get the TMDB id for TheIntroDB. Your own TMDB key.
 - **Anime Skip** (api.anime-skip.com): the IMDb id and season, with your own client id.
-- **OpenSubtitles** (api.opensubtitles.com, opensubtitles.org): the IMDb id, season, episode and subtitle language. If a video has no id and you click "Find subtitles", SkipStream sends the cleaned title (and year). If you log in, your OpenSubtitles username and password go to OpenSubtitles only.
+- **OpenSubtitles** (api.opensubtitles.com, opensubtitles.org): the IMDb id, season, episode and subtitle language. If a video has no id and you click "Find subtitles", SkipStream sends the cleaned title (and year). On YouTube it does this only for a title with the year in brackets (a film upload), and it sends only the name before the year and the year. If you log in, your OpenSubtitles username and password go to OpenSubtitles only.
 - **Spotify and SoundCloud** (open.spotify.com, soundcloud.com, oEmbed): the address of a saved Spotify or SoundCloud page, without its query string, to show artwork in History.
 - **YouTube thumbnails** (i.ytimg.com): the YouTube video id, to show artwork in History.
 
